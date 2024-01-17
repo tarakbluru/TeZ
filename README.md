@@ -132,6 +132,8 @@ Thank you for considering contributing to this project! We welcome bug reports t
 
 ### Reporting Bugs
 
+Thank you for helping us improve the project by reporting bugs!
+
 To report a bug, please follow these steps:
 
 1. Check the existing issues to see if the bug has already been reported. If it has, you can provide additional information or subscribe to the existing issue.
@@ -152,9 +154,7 @@ If you have questions or need assistance, feel free to open an issue for discuss
 
 ### License
 
-By contributing, you agree that your contributions will be licensed under the project's [LICENSE](link-to-license-file).
-
-Thank you for helping us improve the project by reporting bugs!
+By contributing, you agree that your contributions will be licensed under the project's [MIT License](./LICENSE).
 
 ### Installation
 
