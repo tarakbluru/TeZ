@@ -1,0 +1,11 @@
+---
+userId  : ''
+pwd     : ''
+token   : ''
+app_key : ''
+scripmasterurl : 'https://shoonya.finvasia.com/NSE_symbols.txt.zip'
+vc  : ''
+imei: '1234'
+datetime_range: null
+sessionID_Range: null
+...

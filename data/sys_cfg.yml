@@ -1,0 +1,58 @@
+---
+GUI_CONFIG:
+  APP_TITLE: 'TeZ - NIFTY'
+  APP_GEOMETRY: '250x125'
+  LONG_BUTTON: ' Buy '
+  SHORT_BUTTON: 'Short'
+  EXIT_BUTTON: 'Exit App'
+  SQUARE_OFF_BUTTON: 'Square Off'
+TIU:
+  USE_GSHEET_TOKEN: 'NO' #YES NO
+  GOOGLE_SHEET:
+    CLIENT_SECRET: null
+    URL: null
+    NAME: null
+  TOKEN_FILE: './log/tarak_token.json'
+  CRED_FILE:  './log/client_id.yml' 
+
+  EXCHANGE: 'NSE'             #valid values : NSE 
+  INSTRUMENT: 'NIFTYBEES'     #valid values : NIFTYBEES 
+  EXPIRY_DATE: null           #Format: 11JAN24
+  
+  CE_STRIKE_OFFSET: 0         # 0 means ATM,   1 is OTM, -1 means ITM
+  PE_STRIKE_OFFSET: 0         # 0 means ATM,  -1 is OTM, +1 means ITM
+
+  PROFIT_PER: 0.4
+  STOPLOSS_PER: 0.2
+
+  PRODUCT: 'MIS'
+  USE_OCO: 'YES'       # 'YES' 'NO'
+  QUANTITY: 1
+  N_LEGS: 1            # Future USE,  ice berg orders
+  TRADE_MODE: 'LIVE'  #'LIVE'
+  TRADES_RECORD_FILE: 'F:/Python_log/tiny_tez/orders.csv'
+  SAVE_TOKEN_FILE_CFG: 'NO'   #YES NO
+  SAVE_TOKEN_FILE_NAME: null  
+DIU:
+  GOOGLE_SHEET:
+    CLIENT_SECRET: null
+    URL: null
+    NAME: null
+  TOKEN_FILE: null
+  CRED_FILE: ''
+  UL_INSTRUMENT: 'NIFTY'   #Not used.. hard coded in the system
+  EXPIRY_DATE: null
+  EXCHANGE: 'NSE'
+  SAVE_TOKEN_FILE_CFG: 'NO'   #YES NO
+  SAVE_TOKEN_FILE_NAME: null   #Full Path to json file 
+SYSTEM:
+  LOG_FILE: 'F:/Python_log/tiny_tez/app.log'
+  DL_FOLDER: 'F:/Python_log/tiny_tez'
+  MARKET_TIMING: 
+    OPEN: "09:15"   #Zero padded
+    CLOSE: "15:30"
+  SQ_OFF_TIMING: "15:19"  #Future Use
+  TELEGRAM:          #Future Use
+    NOTIFY : "OFF"  #Notifier is created but only the notifications are not pushed by this control parameter.
+    CFG_FILE: null
+...
