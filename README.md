@@ -136,6 +136,8 @@ cd TeZ
 #To Run:
 python tez_main.py
 
+````
+
 ## Contributing
 
 Thank you for considering contributing to this project! We welcome bug reports to help improve the quality of the software.
