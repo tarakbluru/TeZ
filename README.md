@@ -33,8 +33,10 @@ Following are the features
 
 ## Getting Started
 
+### prerequisites
 Finvasia SDK should be installed. For details, please ref: https://github.com/Shoonya-Dev/ShoonyaApi-py
 
+### Configuration file details
 \data\cred - contains the yml file that has all required credentials
 
 \data\sys_cfg.yml - contains all the configurations. 
