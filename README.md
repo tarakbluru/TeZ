@@ -135,3 +135,33 @@ cd TeZ
 
 #To Run:
 python tez_main.py
+
+## Contributing
+
+Thank you for considering contributing to this project! We welcome bug reports to help improve the quality of the software.
+
+### Reporting Bugs
+
+To report a bug, please follow these steps:
+
+1. Check the existing issues to see if the bug has already been reported. If it has, you can provide additional information or subscribe to the existing issue.
+
+2. If the bug has not been reported, open a new issue. Use the "Bug Report" issue template if one is available.
+
+3. Provide a clear and descriptive title for the issue.
+
+4. Describe the bug in detail. Include information about your environment, steps to reproduce the bug, and any relevant error messages.
+
+### Code Style
+
+We appreciate your focus on bug reporting. However, if you notice any code-related issues, please include them in the bug report.
+
+### Issues and Discussions
+
+If you have questions or need assistance, feel free to open an issue for discussion.
+
+### License
+
+By contributing, you agree that your contributions will be licensed under the project's [LICENSE](link-to-license-file).
+
+Thank you for helping us improve the project by reporting bugs!
