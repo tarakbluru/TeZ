@@ -124,20 +124,6 @@ DL_FOLDER: 'F:/Python_log/tiny_tez' is where intermediate files such as download
     NOTIFY : "OFF"  #Notifier is created but only the notifications are not pushed by this control parameter.
     CFG_FILE: null
 
-### Installation
-
-Step-by-step guide on how to install.
-
-```bash
-# Example installation steps
-git clone https://github.com/tarakbluru/TeZ.git
-cd TeZ
-
-#To Run:
-python tez_main.py
-
-````
-
 ## Contributing
 
 Thank you for considering contributing to this project! We welcome bug reports to help improve the quality of the software.
@@ -167,3 +153,16 @@ If you have questions or need assistance, feel free to open an issue for discuss
 By contributing, you agree that your contributions will be licensed under the project's [LICENSE](link-to-license-file).
 
 Thank you for helping us improve the project by reporting bugs!
+
+### Installation
+
+Step-by-step guide on how to install.
+
+```bash
+# Example installation steps
+git clone https://github.com/tarakbluru/TeZ.git
+cd TeZ
+
+#To Run:
+python tez_main.py
+
