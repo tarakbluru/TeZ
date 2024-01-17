@@ -56,7 +56,7 @@ DIU - Data interface unit. This unit talks to the web socket and provides real t
 BKU - Book keeper unit. This gives functionality for square off mechanism.
 GUI layout - Provides the user interface.
 
-## TIU configuration:
+### TIU configuration:
 
 Token file - contains necessary session id in json format. If you do not have other session, then make this as null.
 cred file - client_id.yml needs to updated with all credentials and api keys.
@@ -64,7 +64,7 @@ cred file - client_id.yml needs to updated with all credentials and api keys.
 If you are using TIU and DIU from the same a/c, then  SAVE_TOKEN_FILE_CFG: should be 'YES' and SAVE_TOKEN_FILE_NAME: 
 should be a json file.
 
-### TIU:
+#### TIU:
   USE_GSHEET_TOKEN: 'NO' #YES NO
   GOOGLE_SHEET:
     CLIENT_SECRET: null
@@ -92,11 +92,11 @@ should be a json file.
   SAVE_TOKEN_FILE_CFG: 'NO'   #YES NO
   SAVE_TOKEN_FILE_NAME: null
 
-DIU configuration:
+### DIU configuration:
 If TIU is generating a token file, then the DIU should use that token file so that same session is shared 
 between TIU and DIU.
 
-### DIU:
+#### DIU:
   GOOGLE_SHEET:
     CLIENT_SECRET: null
     URL: null
@@ -109,11 +109,11 @@ between TIU and DIU.
   SAVE_TOKEN_FILE_CFG: 'NO'   #YES NO
   SAVE_TOKEN_FILE_NAME: null   #Full Path to json file 
 
-## System configuration:
+### System configuration:
 Log file gives the path of the file where log file is to be generated.
 DL_FOLDER: 'F:/Python_log/tiny_tez' is where intermediate files such as downloaded symbol files are stored.
 
-### SYSTEM:
+#### SYSTEM:
   LOG_FILE: 'F:/Python_log/tiny_tez/app.log'
   DL_FOLDER: 'F:/Python_log/tiny_tez'
   MARKET_TIMING: 
