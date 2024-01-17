@@ -198,10 +198,10 @@ class TeZ_App_BE:
         self.tiu.square_off_position(order_details=order_list)
         print("Position squared off")
 
-    def connect_to_data_feed_server(self):
+    def data_feed_connect(self):
         self.diu.connect_to_data_feed_servers()
 
-    def disconnect_data_feed_server(self):
+    def data_feed_disconnect(self):
         self.diu.disconnect_data_feed_servers()
 
     def get_latest_tick(self):

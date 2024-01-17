@@ -127,14 +127,14 @@ def main():
 
     g_app_be = TeZ_App_BE()
 
-    g_app_be.connect_to_data_feed_server()
+    g_app_be.data_feed_connect()
     g_root = gui_tk_layout()
     try:
         g_root.mainloop()
     except KeyboardInterrupt:
         g_root.destroy()
 
-    g_app_be.disconnect_data_feed_server()
+    g_app_be.data_feed_disconnect()
     time.sleep(1)
     logger.info(f'{__app_name__} Version: {__version__} -- Ends')
 
