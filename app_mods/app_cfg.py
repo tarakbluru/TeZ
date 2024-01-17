@@ -14,7 +14,7 @@ __author__ = "Tarakeshwar N.C"
 __copyright__ = "2024"
 __date__ = "2024/1/14"
 __deprecated__ = False
-__email__ =  "tarakesh.nc_at_google_mail_dot_com"
+__email__ = "tarakesh.nc_at_google_mail_dot_com"
 __license__ = "MIT"
 __maintainer__ = "Tarak"
 __status__ = "Development"
@@ -36,14 +36,16 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 SYSTEM_CFG_FILE = os.path.join(current_dir, '..', 'data', 'sys_cfg.yml')
 
 _G_SYSTEM_CFG = None
-def get_system_config () :
+
+
+def get_system_config():
     """Reads the system configuration fromt the yaml file
 
     Returns: None
     """
     status = FAILURE
     global _G_SYSTEM_CFG
-    logger.debug ("Getting System Configuration")
+    logger.debug("Getting System Configuration")
     try:
         with open(SYSTEM_CFG_FILE, 'r', encoding='utf-8') as fname:
             _G_SYSTEM_CFG = yaml.load(fname, Loader=yaml.FullLoader)
@@ -51,13 +53,14 @@ def get_system_config () :
         logger.debug(json.dumps(_G_SYSTEM_CFG, sort_keys=False, indent=4))
         status = SUCCESS
     except FileNotFoundError:
-        logger.error ("File Not Found Error: ")
+        logger.error("File Not Found Error: ")
         raise
     except Exception as error:
-        logger.error (f'Exception occured {error}')
+        logger.error(f'Exception occured {error}')
         raise
 
     return status
+
 
 def gen_dict_extract(key, var):
     """Extracts key and its information
@@ -69,8 +72,8 @@ def gen_dict_extract(key, var):
     Yields:
         str: searches through the nested dictionary
     """
-    if hasattr(var,'items'): # hasattr(var,'items') for python 3
-        for var_k, var_v in var.items(): # var.items() for python 3
+    if hasattr(var, 'items'):  # hasattr(var,'items') for python 3
+        for var_k, var_v in var.items():  # var.items() for python 3
             if var_k == key:
                 yield var_v
             if isinstance(var_v, dict):
@@ -81,7 +84,8 @@ def gen_dict_extract(key, var):
                     for result in gen_dict_extract(key, var_d):
                         yield result
 
-def get_system_info(key1:str, key2:str):
+
+def get_system_info(key1: str, key2: str):
     """Provides information from the system config file which
     contains nested dictionary
 
@@ -92,11 +96,11 @@ def get_system_info(key1:str, key2:str):
     Returns:
         str: system configuration
     """
-    var_a=list (gen_dict_extract (key1, _G_SYSTEM_CFG))
+    var_a = list(gen_dict_extract(key1, _G_SYSTEM_CFG))
     return var_a[0][key2]
 
 
-def get_config_info(dictname, key) :
+def get_config_info(dictname, key):
     """The function provides mechanism to extract key value from a dictionary
 
     Args:
@@ -109,13 +113,13 @@ def get_config_info(dictname, key) :
     status = FAILURE
     resp = {}
 
-    logger.debug ("Getting Info "+dictname+"  "+key)
+    logger.debug("Getting Info "+dictname+"  "+key)
     dictname = dictname.upper()
-    key = key.upper ()
+    key = key.upper()
 
     try:
-        if key in _G_SYSTEM_CFG[dictname].keys() :
-            resp =  _G_SYSTEM_CFG[dictname][key]
+        if key in _G_SYSTEM_CFG[dictname].keys():
+            resp = _G_SYSTEM_CFG[dictname][key]
             status = SUCCESS
     except KeyError as key_error:
         logger.info(f"KeyError: {key_error}. System configuration Error.")
@@ -127,7 +131,8 @@ def get_config_info(dictname, key) :
 
     return status, resp
 
-def get_session_id_from_gsheet (cred, gsheet_client_json, url, sheet_name):
+
+def get_session_id_from_gsheet(cred, gsheet_client_json, url, sheet_name):
     """This function reads the session id which is available in a google sheet.
     This session id is shared across different computers.
 
@@ -150,14 +155,14 @@ def get_session_id_from_gsheet (cred, gsheet_client_json, url, sheet_name):
         s_h = g_c.open_by_url(url)
         wks = s_h.worksheet(sheet_name)
         susertoken = wks.acell(cred['sessionID_Range']).value
-        logger.debug (f'susertoken:{susertoken}')
+        logger.debug(f'susertoken:{susertoken}')
         if susertoken is not None:
             susertoken_date_str = wks.acell(cred['datetime_range']).value
             if susertoken_date_str:
                 d_obj = datetime.datetime.strptime(susertoken_date_str, '%d/%m/%Y, %H:%M:%S').date()
                 today = datetime.date.today()
                 if d_obj != today:
-                    logger.debug ('susertoken is not generated today..')
+                    logger.debug('susertoken is not generated today..')
                     susertoken = None
 
     return susertoken

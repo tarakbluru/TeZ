@@ -14,7 +14,7 @@ __author__ = "Tarakeshwar N.C"
 __copyright__ = "2024"
 __date__ = "2024/1/14"
 __deprecated__ = False
-__email__ =  "tarakesh.nc_at_google_mail_dot_com"
+__email__ = "tarakesh.nc_at_google_mail_dot_com"
 __license__ = "MIT"
 __maintainer__ = "Tarak"
 __status__ = "Development"
@@ -30,31 +30,33 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 yml_file = os.path.join(current_dir, '..', 'data', 'sys_cfg.yml')
 
 with open(yml_file, 'r') as file:
-    data = yaml.load(file,Loader=yaml.FullLoader)
+    data = yaml.load(file, Loader=yaml.FullLoader)
 
 LOG_FILE = data['SYSTEM']['LOG_FILE']
 
-def init_logger(file:str):
+
+def init_logger(file: str):
     global LOG_FILE
     LOG_FILE = file
     return
 
-def get_logger(name) :
+
+def get_logger(name):
     logger = logging.getLogger(name)
     logger.setLevel(logging.DEBUG)
     # %Z for time zone
-    formatter = logging.Formatter('[%(asctime)s] {%(filename)s:%(lineno)4d} %(levelname)s - %(message)s','%m-%d %H:%M:%S')
+    formatter = logging.Formatter('[%(asctime)s] {%(filename)s:%(lineno)4d} %(levelname)s - %(message)s', '%m-%d %H:%M:%S')
 
     file_handler = logging.FileHandler(LOG_FILE)
     file_handler.setFormatter(formatter)
     file_handler.setLevel(logging.DEBUG)
-    
+
     formatter = logging.Formatter('{%(filename)s:%(lineno)4d} %(message)s')
 
     stream_handler = logging.StreamHandler()
     stream_handler.setFormatter(formatter)
-    stream_handler.setLevel(logging.INFO)    
-    
+    stream_handler.setLevel(logging.INFO)
+
     logger.addHandler(stream_handler)
     logger.addHandler(file_handler)
     return logger

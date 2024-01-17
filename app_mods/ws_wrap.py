@@ -4,7 +4,7 @@ Author: [Tarakeshwar NC]
 Date: January 15, 2024
 Description:  This script provides websocket wrapper to the finvasia websocket apis.
 This sub-system also maintains a thread for monitoring the web socket.
-References: 
+References:
 https://websocket-client.readthedocs.io/_/downloads/en/latest/pdf/
 """
 # Copyright (c) [2024] [Tarakeshwar N.C]
@@ -17,7 +17,7 @@ __author__ = "Tarakeshwar N.C"
 __copyright__ = "2024"
 __date__ = "2024/1/14"
 __deprecated__ = False
-__email__ =  "tarakesh.nc_at_google_mail_dot_com"
+__email__ = "tarakesh.nc_at_google_mail_dot_com"
 __license__ = "MIT"
 __maintainer__ = "Tarak"
 __status__ = "Development"
@@ -36,7 +36,7 @@ try:
     from datetime import datetime
     from sre_constants import FAILURE, SUCCESS
     from threading import Lock
-    from time import mktime, sleep
+    from time import mktime
 
     import pyotp
     import yaml
@@ -48,29 +48,30 @@ try:
 
 except Exception as e:
     logger.debug(traceback.format_exc())
-    logger.error (("Import Error " + str(e)))
-    sys.exit (1)
+    logger.error(("Import Error " + str(e)))
+    sys.exit(1)
+
 
 class WS_WrapU(object):
     name = ""
     __count = 0
     __componentType = Component_Type.ACTIVE
     NIFTY_TOKEN = None
-    DEBUG=False
+    DEBUG = False
 
-    def __init__ (self, 
-                  port_cfg:SimpleDataPort=None,
-                  fv:ShoonyaApiPy=None, 
-                  at_stocks:list=None, 
-                  bm_stocks:list=None,
-                  primary:str='FINVASIA', 
-                  sec:str=None,
-                  mo:str="09:15", mc:str="15:30", 
-                  tr:None=None, 
-                  notifier=None) :   
-        logger.debug ("WebSocket Wrapper Unit initialization ...")
-        
-        self.lock = Lock ()
+    def __init__(self,
+                 port_cfg: SimpleDataPort = None,
+                 fv: ShoonyaApiPy = None,
+                 at_stocks: list = None,
+                 bm_stocks: list = None,
+                 primary: str = 'FINVASIA',
+                 sec: str = None,
+                 mo: str = "09:15", mc: str = "15:30",
+                 tr: None = None,
+                 notifier=None):
+        logger.debug("WebSocket Wrapper Unit initialization ...")
+
+        self.lock = Lock()
         self._send_data = bool(False)
         self.__count += 1
         self.inst_id = self.__count
@@ -78,20 +79,20 @@ class WS_WrapU(object):
 
         self._fv_connected = False
 
-        self.port:SimpleDataPort = port_cfg
+        self.port: SimpleDataPort = port_cfg
         mo_hr = datetime.strptime(mo, "%H:%M").hour
         mo_min = datetime.strptime(mo, "%H:%M").minute
         mc_hr = datetime.strptime(mc, "%H:%M").hour
         mc_min = datetime.strptime(mc, "%H:%M").minute
 
-        mo_today = datetime.now ().replace(hour=mo_hr, minute=mo_min, second=0, microsecond=0)
-        mc_today = datetime.now ().replace(hour=mc_hr, minute=mc_min, second=0, microsecond=0)
+        mo_today = datetime.now().replace(hour=mo_hr, minute=mo_min, second=0, microsecond=0)
+        mc_today = datetime.now().replace(hour=mc_hr, minute=mc_min, second=0, microsecond=0)
 
         mo_epoch = int(mktime(mo_today.timetuple()))
         mc_epoch = int(mktime(mc_today.timetuple()))
-        
+
         self.mo_epoch = mo_epoch
-        self.mc_epoch = mc_epoch 
+        self.mc_epoch = mc_epoch
 
         self.primary = primary
         self.sec = sec
@@ -99,14 +100,14 @@ class WS_WrapU(object):
         self.feed_stocks = []
 
         if at_stocks:
-            self.feed_stocks = [*at_stocks] 
+            self.feed_stocks = [*at_stocks]
         if bm_stocks:
             self.feed_stocks = [*self.feed_stocks, *bm_stocks]
 
         if fv is None:
-            cred_file:str=r'../../../Finvasia_login/cred/tarak_fv.yml'
-            token_file:str= r'../../../Finvasia_login/temp/tarak_token.json'     
-            dl_filepath:str=r'../log'                   
+            cred_file: str = r'../../../Finvasia_login/cred/tarak_fv.yml'
+            token_file: str = r'../../../Finvasia_login/temp/tarak_token.json'
+            dl_filepath: str = r'../log'
             fv = ShoonyaApiPy(dl_filepath=dl_filepath, ws_monitor_cfg=True)
             with open(cred_file) as f:
                 cred = yaml.load(f, Loader=yaml.FullLoader)
@@ -114,38 +115,37 @@ class WS_WrapU(object):
             try:
                 with open(token_file, 'r') as f:
                     susertoken = json.load(f)['susertoken']
-                    logger.debug (f'susertoken: {susertoken}')
-            except :
-                totp = pyotp.TOTP(cred['token']).now ()
-                try :
-                    r = fv.login(userid=cred['userId'], password=cred['pwd'], 
-                                    twoFA=totp, vendor_code=cred['vc'], 
-                                    api_secret=cred['app_key'], imei=cred['imei'])
-                    logger.debug (f'finvasia login: {r}')
+                    logger.debug(f'susertoken: {susertoken}')
+            except BaseException:
+                totp = pyotp.TOTP(cred['token']).now()
+                try:
+                    r = fv.login(userid=cred['userId'], password=cred['pwd'],
+                                 twoFA=totp, vendor_code=cred['vc'],
+                                 api_secret=cred['app_key'], imei=cred['imei'])
+                    logger.debug(f'finvasia login: {r}')
                 except ValueError:
-                    mesg = f'Finvasia log in error'
-                    logger.error (mesg)
-                    raise 
-                
+                    mesg = 'Finvasia log in error'
+                    logger.error(mesg)
+                    raise
+
                 except TimeoutError:
-                    mesg = f'Finvasia log in error'
-                    logger.error (mesg)
+                    mesg = 'Finvasia log in error'
+                    logger.error(mesg)
                     raise RuntimeError
 
-                except Exception as e:
-                    mesg = f'Finvasia log in error'
-                    logger.error (mesg)
-                    raise 
-            else :
-                logger.info (f'skipping login: setting the session!! : {susertoken}')
-                ret = fv.set_session(userid= cred['userId'], password = cred['pwd'], usertoken= susertoken)
-                logger.debug (f'ret: {ret} type: {type(ret)}')
+                except Exception:
+                    mesg = 'Finvasia log in error'
+                    logger.error(mesg)
+                    raise
+            else:
+                logger.info(f'skipping login: setting the session!! : {susertoken}')
+                ret = fv.set_session(userid=cred['userId'], password=cred['pwd'], usertoken=susertoken)
+                logger.debug(f'ret: {ret} type: {type(ret)}')
             finally:
                 ...
-      
-        self.fv:ShoonyaApiPy = fv
-        self._fv_send_data = False
 
+        self.fv: ShoonyaApiPy = fv
+        self._fv_send_data = False
 
         if not len(self.feed_stocks):
             # create a NIFTY 50 as basic feed
@@ -153,46 +153,45 @@ class WS_WrapU(object):
             ret = fv.searchscrip(exchange=base.exch, searchtext='NIFTY INDEX')
             if ret is not None:
                 token = ret['values'][0]['token']
-                tsym  = ret['values'][0]['tsym']
-                logger.debug (f'tsym: {tsym} token: {token}')
-                fv_inst = FVInstrument (exch=base.exch, token=str(token), tsym=tsym)
+                tsym = ret['values'][0]['tsym']
+                logger.debug(f'tsym: {tsym} token: {token}')
+                fv_inst = FVInstrument(exch=base.exch, token=str(token), tsym=tsym)
                 if WS_WrapU.NIFTY_TOKEN is None:
                     WS_WrapU.NIFTY_TOKEN = token
             else:
-                fv_inst = None 
+                fv_inst = None
 
             sym1 = SysInst(base_inst=base, fv_inst=fv_inst)
-            self.feed_stocks.append (sym1)
-
+            self.feed_stocks.append(sym1)
 
         self.com_ohlc_data = list()
-        self.fv_token_port_map:dict = dict()
+        self.fv_token_port_map: dict = dict()
 
         if fv is not None:
-            self.fv_ws_tokens = list ()
-            self.fv_tokens = list ()
+            self.fv_ws_tokens = list()
+            self.fv_tokens = list()
             self.fv_dyn_ws_tokens = list()
-            self.fv_dyn_tokens = list ()
+            self.fv_dyn_tokens = list()
 
             for item in self.feed_stocks:
-                at_stock:SysInst = item
+                at_stock: SysInst = item
                 token = at_stock.fv_inst.token
-                ws_token = at_stock.fv_inst.prefixed_ws_token ()
-                self.fv_tokens.append (token)
-                self.fv_ws_tokens.append (ws_token)
-                logger.debug (f'{ws_token}')
+                ws_token = at_stock.fv_inst.prefixed_ws_token()
+                self.fv_tokens.append(token)
+                self.fv_ws_tokens.append(ws_token)
+                logger.debug(f'{ws_token}')
 
-                live_data:TickData = TickData ()
+                live_data: TickData = TickData()
                 live_data.tk = int(token)
                 self.com_ohlc_data.append(live_data)
-                self.fv_token_port_map [str(token)] = live_data
+                self.fv_token_port_map[str(token)] = live_data
 
         if WS_WrapU.DEBUG:
-            self.fv_ws_tokens = list ()
-            self.fv_ws_tokens.append ('MCX|260606')
+            self.fv_ws_tokens = list()
+            self.fv_ws_tokens.append('MCX|260606')
 
-        self._prim_rec_tick_data:bool=False
-        self._sec_rec_tick_data:bool=False
+        self._prim_rec_tick_data: bool = False
+        self._sec_rec_tick_data: bool = False
 
         self.tr = tr
         self.notifier = notifier
@@ -201,29 +200,29 @@ class WS_WrapU(object):
 
     # getter
     def __get_send_data__(self):
-        logger.debug ("Getting Data Send")
+        logger.debug("Getting Data Send")
         return self._send_data
 
     # only setter
     def __set_send_data__(self, new_value):
-        if new_value: 
-            logger.debug ("Enabling Data Send")
-        else :
-            logger.debug ("Disabling Data Send")
+        if new_value:
+            logger.debug("Enabling Data Send")
+        else:
+            logger.debug("Disabling Data Send")
         self._send_data = new_value
-    
-    send_data = property(None, __set_send_data__)    
-    
+
+    send_data = property(None, __set_send_data__)
+
     # only setter
-    def set_fv_ctrl(self, new_value:Ctrl):
-        if new_value == Ctrl.ON: 
-            logger.debug ("Enabling fv Data Send")
+    def set_fv_ctrl(self, new_value: Ctrl):
+        if new_value == Ctrl.ON:
+            logger.debug("Enabling fv Data Send")
             self._fv_send_data = True
-        else :
-            logger.debug ("Disabling fv Data Send")
+        else:
+            logger.debug("Disabling fv Data Send")
             self._fv_send_data = False
-    
-    fv_ctrl = property(None, set_fv_ctrl)    
+
+    fv_ctrl = property(None, set_fv_ctrl)
 
     def fv_create_connect_wsfeed(self):
         def app_open():  # Socket open callback function
@@ -237,31 +236,30 @@ class WS_WrapU(object):
         def app_event_handler_quote_update(msg):
             # print (msg)
             tick_data = msg
-            if 'lp' in tick_data and 'tk' in tick_data :
+            if 'lp' in tick_data and 'tk' in tick_data:
                 fv_token = tick_data['tk']
                 if WS_WrapU.DEBUG:
-                    fv_token = '26000'                
-                ohlc_obj:TickData = self.fv_token_port_map [fv_token]
+                    fv_token = '26000'
+                ohlc_obj: TickData = self.fv_token_port_map[fv_token]
                 c = float(tick_data['lp'])
                 with self.lock:
                     if 'o' in tick_data:
-                        logger.debug (f'msg: {msg}')
-                        o = float (tick_data['o'])
+                        logger.debug(f'msg: {msg}')
+                        o = float(tick_data['o'])
                         ohlc_obj.o = o
                         ohlc_obj.h = o
                         ohlc_obj.l = o
                         ohlc_obj.c = o
-                        
+
                     if 'h' in tick_data:
-                        h = float (tick_data['h'])
+                        h = float(tick_data['h'])
                         ohlc_obj.h = h
                     if 'l' in tick_data:
-                        l = float (tick_data['l'])
-                        ohlc_obj.l = l
+                        ohlc_obj.l = float(tick_data['l'])
 
                     ohlc_obj.c = c
 
-                    if (c > ohlc_obj.h) :
+                    if (c > ohlc_obj.h):
                         ohlc_obj.h = c
                     if (c < ohlc_obj.l):
                         ohlc_obj.l = c
@@ -278,38 +276,38 @@ class WS_WrapU(object):
 
         def app_event_handler_order_update(msg):
             if self.port is not None:
-                self.port.send_data (msg)
+                self.port.send_data(msg)
             return
 
-        retval = self.fv.connect_to_datafeed_server (on_message=app_event_handler_quote_update, 
-                                                     on_order_update = app_event_handler_order_update,
-                                                     on_open=app_open,
-                                                     on_close=app_close)
+        retval = self.fv.connect_to_datafeed_server(on_message=app_event_handler_quote_update,
+                                                    on_order_update=app_event_handler_order_update,
+                                                    on_open=app_open,
+                                                    on_close=app_close)
         return retval
 
-    def fv_disconnect_wsfeed (self):
+    def fv_disconnect_wsfeed(self):
         return (self.fv.disconnect_from_datafeed_server())
 
-    def connect_to_data_feed_servers (self, primary:str="FINVASIA", sec:str=""):
-        if (self._fv_connected != False) :
-            logger.error ("data feed in connected  State")
+    def connect_to_data_feed_servers(self, primary: str = "FINVASIA", sec: str = ""):
+        if (self._fv_connected):
+            logger.error("data feed in connected  State")
         if self.fv is not None:
-            logger.debug (f'setting the tokens {self.fv_ws_tokens}')
-            self.fv.setstreamingdata (self.fv_ws_tokens)
-            retval = self.fv_create_connect_wsfeed ()
+            logger.debug(f'setting the tokens {self.fv_ws_tokens}')
+            self.fv.setstreamingdata(self.fv_ws_tokens)
+            retval = self.fv_create_connect_wsfeed()
             if retval == SUCCESS:
                 self._fv_connected = True
                 logger.debug("Data feed connected")
-    
-    def disconnect_data_feed_servers (self):
+
+    def disconnect_data_feed_servers(self):
         if self.fv is not None and self._fv_connected:
-            if (self.fv_disconnect_wsfeed () == FAILURE):
-                logger.debug ("Finvasia ws wrapper did not disconnect cleanly")
-            else :
-                logger.debug ("Finvasia ws wrapper disconnected cleanly ")
+            if (self.fv_disconnect_wsfeed() == FAILURE):
+                logger.debug("Finvasia ws wrapper did not disconnect cleanly")
+            else:
+                logger.debug("Finvasia ws wrapper disconnected cleanly ")
             self._fv_connected = False
 
-    def get_latest_tick (self):
+    def get_latest_tick(self):
         if WS_WrapU.NIFTY_TOKEN is not None:
-            ohlc_obj:TickData = self.fv_token_port_map[str(WS_WrapU.NIFTY_TOKEN)]
+            ohlc_obj: TickData = self.fv_token_port_map[str(WS_WrapU.NIFTY_TOKEN)]
             return ohlc_obj

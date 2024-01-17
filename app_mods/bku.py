@@ -14,7 +14,7 @@ __author__ = "Tarakeshwar N.C"
 __copyright__ = "2024"
 __date__ = "2024/1/14"
 __deprecated__ = False
-__email__ =  "tarakesh.nc_at_google_mail_dot_com"
+__email__ = "tarakesh.nc_at_google_mail_dot_com"
 __license__ = "MIT"
 __maintainer__ = "Tarak"
 __status__ = "Development"
@@ -40,27 +40,28 @@ try:
 
 except Exception as e:
     logger.debug(traceback.format_exc())
-    logger.error (("Import Error " + str(e)))
-    sys.exit (1)
+    logger.error(("Import Error " + str(e)))
+    sys.exit(1)
+
 
 class BookKeeperUnit:
-    def __init__(self, bku_file, reset:bool=False):
+    def __init__(self, bku_file, reset: bool = False):
         self.lock = Lock()
         self.bku_file = bku_file
         self.orders_df = self.load_orders(bku_file, reset=reset)
 
     def __check_and_update_backup_file(self, bku_file, reset):
         # Check if the file was modified today
-        
+
         try:
             modified_date = datetime.fromtimestamp(os.path.getmtime(bku_file)).strftime('%Y-%m-%d')
-        except Exception as e:
+        except Exception:
             ...
-        else :
+        else:
             today_date = datetime.now().strftime('%Y-%m-%d')
             if modified_date != today_date or reset:
                 # If not, create the new file path in the same directory
-                backup_directory = os.path.dirname(bku_file)            
+                backup_directory = os.path.dirname(bku_file)
                 # If not, rename the file with the modified date
                 new_file_path = os.path.join(backup_directory, f'orders_backup_{modified_date}.csv')
 
@@ -74,7 +75,7 @@ class BookKeeperUnit:
             'Qty': [qty],
             'Order_Time': [order_time],
             'Status': [status],
-            'OCO_Order_ID':[oco_order_id]
+            'OCO_Order_ID': [oco_order_id]
         })
 
         new_order['Order_ID'] = new_order['Order_ID'].astype(object)
@@ -94,7 +95,7 @@ class BookKeeperUnit:
             # If the file is not found, create an empty dataframe
             orders_df = pd.DataFrame(columns=['Order_ID', 'Symbol', 'Qty', 'Order_Time', 'Status', 'OCO_Order_ID'])
         return orders_df
-    
+
     def show(self):
         df = self.orders_df
         console = Console()

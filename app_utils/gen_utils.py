@@ -3,7 +3,7 @@ File: gen_utils.py
 Author: [Tarakeshwar NC]
 Date: January 15, 2024
 Description: This script provides general utilities required for the system.
-References: 
+References:
 ...
 """
 # Copyright (c) [2024] [Tarakeshwar N.C]
@@ -19,7 +19,7 @@ from . import app_logger
 
 logger = app_logger.get_logger(__name__)
 
-try :
+try:
     import concurrent.futures
     import os
     import time
@@ -28,15 +28,18 @@ try :
     import pandas as pd
 except Exception as e:
     logger.debug(traceback.format_exc())
-    logger.error (("Import Error " + str(e)))
-    sys.exit (1)
+    logger.error(("Import Error " + str(e)))
+    sys.exit(1)
 
-def convert_to_tv_symbol (symbol):
-    symbol = symbol.replace('-', '_').replace ('&', '_')
+
+def convert_to_tv_symbol(symbol):
+    symbol = symbol.replace('-', '_').replace('&', '_')
     return symbol
 
+
 def round_stock_prec(x, prec=2, base=.05):
-    return round(base * round(float(x)/base),prec)
+    return round(base * round(float(x)/base), prec)
+
 
 def delete_files_in_folder(folder_path):
     # Check if the folder exists
@@ -62,8 +65,8 @@ def delete_files_in_folder(folder_path):
                     print(f"Error deleting file: {task.exception()}")
 
 
-def create_live_data_file (file, output_directory, nline):
-    df = pd.read_csv (file)
+def create_live_data_file(file, output_directory, nline):
+    df = pd.read_csv(file)
     df = df.head(n=nline)
     csv_file_name = os.path.basename(file)
     op_file_name = os.path.join(output_directory, csv_file_name)
@@ -72,7 +75,7 @@ def create_live_data_file (file, output_directory, nline):
 
 def create_datafiles_parallel(file_list, output_directory, nline):
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-        tasks = [executor.submit(create_live_data_file, file, output_directory, nline) for file in file_list]  
+        tasks = [executor.submit(create_live_data_file, file, output_directory, nline) for file in file_list]
 
         # Wait for all tasks to complete
         concurrent.futures.wait(tasks)
@@ -82,40 +85,44 @@ def create_datafiles_parallel(file_list, output_directory, nline):
             if task.exception():
                 print(f"Error deleting file: {task.exception()}")
 
+
 def calcRemainingDuration(hour, minute, second=0):
     t = datetime.now()
     future = datetime(t.year, t.month, t.day, hour, minute, second=second)
-    logger.debug (f'future: {future}')
+    logger.debug(f'future: {future}')
     future.replace(microsecond=0)
     sl_duration = 0
-    
+
     if t.timestamp() < future.timestamp():
         sl_duration = (future-t).total_seconds()
 
     return sl_duration
 
+
 def custom_sleep(fut_time, num_chunks=16):
     now = datetime.now()
-    if isinstance(fut_time, str):
-        l = datetime.strptime(fut_time.strip().upper(),"%H:%M:%S")
-    else :
-        l = fut_time
-    fut_time= now.replace (hour=l.hour, minute=l.minute, second=l.second, microsecond=0)
 
-    logger.debug (f'now : {now} fut_time:{fut_time}')
+    if isinstance(fut_time, str):
+        l_time = datetime.strptime(fut_time.strip().upper(), "%H:%M:%S")
+    else:
+        l_time = fut_time
+
+    fut_time = now.replace(hour=l_time.hour, minute=l_time.minute, second=l_time.second, microsecond=0)
+
+    logger.debug(f'now : {now} fut_time:{fut_time}')
     start_time = datetime.now()
     if fut_time <= start_time:
-        logger.debug (f"endtime:{fut_time} start_time:{start_time}")
+        logger.debug(f"endtime:{fut_time} start_time:{start_time}")
         return
     for i in range(num_chunks):
         remaining_duration = (fut_time - datetime.now()).total_seconds()
         if remaining_duration <= 0.010:
             break
-        else :
+        else:
             chunk_duration = remaining_duration / 2
-            logger.debug (f'sleeping for chunk_duration : {chunk_duration} secs')
+            logger.debug(f'sleeping for chunk_duration : {chunk_duration} secs')
             time.sleep(chunk_duration)
 
-    logger.debug (f'now : {now} fut_time:{fut_time}')
+    logger.debug(f'now : {now} fut_time:{fut_time}')
 # # Usage
 # custom_sleep('09:15:05', 8)  # Sleep until 09:15:05, divided into 8 chunks
