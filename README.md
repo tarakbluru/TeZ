@@ -162,7 +162,7 @@ Step-by-step guide on how to install.
 # Example installation steps
 git clone https://github.com/tarakbluru/TeZ.git
 cd TeZ
-
-#To Run:
+````
+# usage
 python tez_main.py
 
