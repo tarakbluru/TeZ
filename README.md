@@ -15,7 +15,7 @@ This project provides all necessary scripts for the app.
 
 ## Introduction
 
-For a scalper, quick entry and exit is a most useful feature required in the trading app. Scalpers generally tend to trade in 1 or 2 instruments.
+For a scalper, quick entry and exit is a most useful feature required in a trading app. Scalpers generally tend to trade in 1 or 2 instruments.
 Before learning scalping options, it would help to learn in a non derivative instruments such as NIFTYBEES. This app provides such a mechanism. It provides very simple gui and most of the settings are configured before the start. Further, app provides trading NIFTYBEES while the underlying instrument can be NIFTY index. 
 
 This will be very helpful for traders that are trying to learn scalping.
@@ -131,6 +131,7 @@ Step-by-step guide on how to install.
 ```bash
 # Example installation steps
 git clone https://github.com/tarakbluru/TeZ.git
-cd your-repository
+cd TeZ
 
+#To Run:
 python tez_main.py
