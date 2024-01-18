@@ -15,10 +15,11 @@ This project provides all necessary scripts for the app.
 
 ## Introduction
 
-For a scalper, quick entry and exit is a most useful feature required in a trading app. Scalpers generally tend to trade in 1 or 2 instruments.
-Before learning scalping options, it would help to learn in a non derivative instruments such as NIFTYBEES. This app provides such a mechanism. It provides very simple gui and most of the settings are configured before the start. Further, app provides trading NIFTYBEES while the underlying instrument can be NIFTY index. 
+For a scalper, quick entry and exit is a most useful feature in a trading app. Scalpers generally tend to trade in 1 or 2 instruments. So, if the app can be pre-configured for trades in those instruments, that will also be helpful.
 
-This will be very helpful for traders that are trying to learn scalping.
+Before learning scalping options, it would help to learn in a non-derivative instruments such as NIFTYBEES. This app provides such a mechanism. It provides very simple gui and most of the settings are configured before starting the app. Further, the app provides trading NIFTYBEES while the underlying instrument is still NIFTY index.
+
+The app is expected to be very helpful for traders that are trying to learn scalping.
 
 In future versions, buying CE/PE options are also planned.
 
@@ -34,10 +35,15 @@ Following are the features
 ## Getting Started
 
 ### prerequisites
-Finvasia SDK should be installed. For details, please ref: https://github.com/Shoonya-Dev/ShoonyaApi-py
+The app has been tested under Python version 3.10.5. Any recent versions also should be able to execute the app.
 
 ### Configuration file details
-\data\cred - contains the yml file that has all required credentials
+First step after having the repo is to update the Finvasia credentials in the file 'user_cred.yml' which is available in the folder
+\data\cred.
+
+Next step is creating the virtual environment for Apps use. For ease of use, a powershell script is given in the ps_scripts folder. To run this, 
+you can refer: [Installation](#installation)
+
 
 \data\sys_cfg.yml - contains all the configurations. 
 
