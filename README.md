@@ -1,7 +1,7 @@
 # TeZ
-:A quick trading app especially for scalpers and is built over the Finvasia APIs:
+:A quick trading app especially for scalpers, running on top of Finvasia APIs:
 
-This project provides all necessary scripts to run the app. As the code is modularized, the modules can be reused in other projects as well.
+This project provides all necessary scripts to run the app. As the code is modularized, the modules can be re-used in other projects as well.
 
 ## Table of Contents
 
