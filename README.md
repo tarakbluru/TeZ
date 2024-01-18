@@ -171,7 +171,7 @@ cd TeZ
 powershell -executionpolicy bypass .\ps_scripts\tez_setup.ps1
 ````
 
-# usage while in TeZ folder
 ```bash
+# To run the TeZ app while in TeZ folder
 powershell -executionpolicy bypass .\ps_scripts\tez.ps1
 ````
