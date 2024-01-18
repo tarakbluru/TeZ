@@ -36,7 +36,7 @@ Following are the features
 
 ## Getting Started
 
-### prerequisites
+### Pre-requisites
 The app has been tested under Python version 3.10.5. Any recent versions also should be able to execute the app.
 
 ### Configuration file details
@@ -54,7 +54,7 @@ you can refer: [Installation](#installation)
 # Configuration File details
 GUI_CONFIG:  
   APP_TITLE: 'TeZ - NIFTY'
-  APP_GEOMETRY: '250x125'    # Size of the app. can be updated by changing here.
+  APP_GEOMETRY: '250x125'    # Default Size of the app. can be updated by changing here.
   LONG_BUTTON: ' Buy '
   SHORT_BUTTON: 'Short'
   EXIT_BUTTON: 'Exit App'
