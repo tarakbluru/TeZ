@@ -135,3 +135,6 @@ powershell -executionpolicy bypass .\ps_scripts\tez_setup.ps1
 # To run the TeZ app while in TeZ folder
 powershell -executionpolicy bypass .\ps_scripts\tez.ps1
 ````
+
+### App Image 
+![Refer](/images/TeZ_App.png)
