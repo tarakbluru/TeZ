@@ -2,7 +2,7 @@
 File: q_extn.py
 Author: [Tarakeshwar NC]
 Date: January 15, 2024
-Description: This script provides general utilities required for the system.
+Description: This script provides extension to the inbuilt Queue.
 References:
 ...
 """

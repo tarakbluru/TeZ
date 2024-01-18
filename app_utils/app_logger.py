@@ -2,7 +2,7 @@
 File: app_logger.py
 Author: [Tarakeshwar NC]
 Date: January 15, 2024
-Description:  This script provides wrapper to the shoonya apis.
+Description:  This script provides application logging.
 """
 # Copyright (c) [2024] [Tarakeshwar N.C]
 # This file is part of the Tiny_TeZ project.
