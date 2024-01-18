@@ -1,19 +1,21 @@
-import os, sys
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-import app_mods
+import os
+import sys
 import json
 
-tcc = app_mods.Tiu_CreateConfig ('../../../Finvasia_login/cred/tarak_fv.yml',
-                                 None, None, False,  
-                                 '../log', None, False, None)
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import app_mods
+
+
+tcc = app_mods.Tiu_CreateConfig('../../../Finvasia_login/cred/tarak_fv.yml',
+                                None, None, False,
+                                '../log', None, False, None)
 tiu = app_mods.Tiu(tcc=tcc)
 
-tiu.fv_ac_balance ()
-tiu.update_holdings ()
-tiu.update_positions ()
+tiu.fv_ac_balance()
+tiu.update_holdings()
+tiu.update_positions()
 
-print (json.dumps(tiu.get_security_info ('NFO', 'NIFTY18JAN24C21600'),indent=2))
+print(json.dumps(tiu.get_security_info('NFO', 'NIFTY18JAN24C21600'), indent=2))
 
 # symbol_list = ['RELIANCE', 'ACC', 'TCS', 'INFY', 'PNB']
 # tiu.create_sym_token_tsym (symbol_list)
