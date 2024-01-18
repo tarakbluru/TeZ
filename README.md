@@ -45,83 +45,26 @@ Next step is creating the virtual environment for Apps use. For ease of use, a p
 you can refer: [Installation](#installation)
 
 
-\data\sys_cfg.yml - contains all the configurations. 
+#### Configuration File Explanation
+![Refer](/data/sys_cfg.yml) This has all configurations required for using the app.
 
+```yaml
+# Configuration File details
 GUI_CONFIG:  
   APP_TITLE: 'TeZ - NIFTY'
-  APP_GEOMETRY: '250x125'
+  APP_GEOMETRY: '250x125'    # Size of the app. can be updated by changing here.
   LONG_BUTTON: ' Buy '
   SHORT_BUTTON: 'Short'
   EXIT_BUTTON: 'Exit App'
   SQUARE_OFF_BUTTON: 'Square Off'
 
-By updating app_geometry, size of the application window can be adjusted to suit monitor.
 
-System has mainly 4 blocks. 
 
-TIU - Trade interface unit. This unit provides methods for trading.
-DIU - Data interface unit. This unit talks to the web socket and provides real time for display.
-BKU - Book keeper unit. This gives functionality for square off mechanism.
-GUI layout - Provides the user interface.
-
-### TIU configuration:
-
-Token file - contains necessary session id in json format. If you do not have other session, then make this as null.
-cred file - client_id.yml needs to updated with all credentials and api keys.
-
-If you are using TIU and DIU from the same a/c, then  SAVE_TOKEN_FILE_CFG: should be 'YES' and SAVE_TOKEN_FILE_NAME: 
-should be a json file.
-
-#### TIU:
-  USE_GSHEET_TOKEN: 'NO' #YES NO
-  GOOGLE_SHEET:
-    CLIENT_SECRET: null
-    URL: null
-    NAME: null
-  TOKEN_FILE: './log/tarak_token.json'
-  CRED_FILE:  './log/client_id.yml' 
-
-  EXCHANGE: 'NSE'             #valid values : NSE 
-  INSTRUMENT: 'NIFTYBEES'     #valid values : NIFTYBEES 
-  EXPIRY_DATE: null           #Format: 11JAN24
-  
-  CE_STRIKE_OFFSET: 0         # 0 means ATM,   1 is OTM, -1 means ITM
-  PE_STRIKE_OFFSET: 0         # 0 means ATM,  -1 is OTM, +1 means ITM
-
-  PROFIT_PER: 0.4
-  STOPLOSS_PER: 0.2
-
-  PRODUCT: 'MIS'
-  USE_OCO: 'YES'       # 'YES' 'NO'
-  QUANTITY: 1
-  N_LEGS: 1            # Future USE,  ice berg orders
-  TRADE_MODE: 'LIVE'  #'LIVE'
-  TRADES_RECORD_FILE: 'F:/Python_log/tiny_tez/orders.csv'
-  SAVE_TOKEN_FILE_CFG: 'NO'   #YES NO
-  SAVE_TOKEN_FILE_NAME: null
-
-### DIU configuration:
-If TIU is generating a token file, then the DIU should use that token file so that same session is shared 
-between TIU and DIU.
-
-#### DIU:
-  GOOGLE_SHEET:
-    CLIENT_SECRET: null
-    URL: null
-    NAME: null
-  TOKEN_FILE: null
-  CRED_FILE: ''
-  UL_INSTRUMENT: 'NIFTY'   #Not used.. hard coded in the system
-  EXPIRY_DATE: null
-  EXCHANGE: 'NSE'
-  SAVE_TOKEN_FILE_CFG: 'NO'   #YES NO
-  SAVE_TOKEN_FILE_NAME: null   #Full Path to json file 
-
-### System configuration:
+# System configuration:
 Log file gives the path of the file where log file is to be generated.
 DL_FOLDER: 'F:/Python_log/tiny_tez' is where intermediate files such as downloaded symbol files are stored.
 
-#### SYSTEM:
+# SYSTEM:
   LOG_FILE: 'F:/Python_log/tiny_tez/app.log'
   DL_FOLDER: 'F:/Python_log/tiny_tez'
   MARKET_TIMING: 
@@ -131,6 +74,7 @@ DL_FOLDER: 'F:/Python_log/tiny_tez' is where intermediate files such as download
   TELEGRAM:          #Future Use
     NOTIFY : "OFF"  #Notifier is created but only the notifications are not pushed by this control parameter.
     CFG_FILE: null
+...
 
 ## Contributing
 
