@@ -161,3 +161,4 @@ cython_debug/
 log/user_token.json
 log/FV_NFO_symbols.txt
 log/FV_NSE_symbols.txt
+log/orders.csv
