@@ -44,7 +44,7 @@ try:
     from .shared_classes import (BaseInst, Component_Type, Ctrl, FVInstrument,
                                  LiveFeedStatus, SimpleDataPort, SysInst,
                                  TickData)
-    from .shoonya_helper import ShoonyaApiPy
+    from .fv_api_extender import ShoonyaApiPy
 
 except Exception as e:
     logger.debug(traceback.format_exc())

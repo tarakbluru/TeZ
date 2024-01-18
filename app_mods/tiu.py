@@ -46,7 +46,7 @@ try:
     import requests
     import yaml
 
-    from . import shared_classes, shoonya_helper, ws_wrap
+    from . import shared_classes, fv_api_extender, ws_wrap
 except Exception as e:
     logger.debug(traceback.format_exc())
     logger.error(("Import Error " + str(e)))
@@ -93,9 +93,7 @@ class BaseIU (object):
         self.df = None
         usefile = True if bcc.dl_filepath else False
         dl_file = True if bcc.dl_filepath else False
-        self.fv = shoonya_helper.ShoonyaApiPy(dl_file=dl_file,
-                                              use_file=usefile,
-                                              dl_filepath=bcc.dl_filepath)
+        self.fv = fv_api_extender.ShoonyaApiPy(dl_file=dl_file, use_file=usefile, dl_filepath=bcc.dl_filepath)
         fv = self.fv
 
         with open(bcc.cred_file) as f:
@@ -466,7 +464,11 @@ class Tiu (BaseIU):
     def square_off_position(self, order_details: list):
         fv = self.fv
 
-        order_id_list = [d['Order_ID'] for d in order_details]
+        try:
+            order_id_list = [d['Order_ID'] for d in order_details]
+        except TypeError:
+            logger.info('No order to square off')
+            return
 
         r = fv.get_order_book()
         if r is not None and isinstance(r, list):
