@@ -196,7 +196,7 @@ class TeZ_App_BE:
     def square_off_position(self):
         order_list = self.bku.fetch_order_id()
         self.tiu.square_off_position(order_details=order_list)
-        print("Position squared off")
+        print("Square off Position - Complete.")
 
     def data_feed_connect(self):
         self.diu.connect_to_data_feed_servers()
