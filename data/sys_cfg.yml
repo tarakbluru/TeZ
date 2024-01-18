@@ -46,7 +46,7 @@ DIU:
   SAVE_TOKEN_FILE_CFG: 'NO'   #YES NO
   SAVE_TOKEN_FILE_NAME: null   #Full Path to json file 
 SYSTEM:
-  LOG_FILE: './app.log'
+  LOG_FILE: './log/app.log'
   DL_FOLDER: './log'
   MARKET_TIMING: 
     OPEN: "09:15"   #Zero padded
