@@ -1,6 +1,7 @@
 # TeZ
-TeZ is quick trading app especially for scalpers and is built over the Finvasia APIs.
-This project provides all necessary scripts for the app.
+:A quick trading app especially for scalpers and is built over the Finvasia APIs:
+
+This project provides all necessary scripts to run the app. As the code is modularized, the modules can be reused in other projects as well.
 
 ## Table of Contents
 
