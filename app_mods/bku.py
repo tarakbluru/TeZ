@@ -82,7 +82,12 @@ class BookKeeperUnit:
 
         # Append the new order to the existing dataframe
         with self.lock:
-            self.orders_df = pd.concat([self.orders_df, new_order], ignore_index=True)
+            if self.orders_df.empty:
+                # If it's empty, set self.orders_df to the new_order DataFrame
+                self.orders_df = new_order
+            else:
+                self.orders_df = pd.concat([self.orders_df, new_order], ignore_index=True)
+
             # Save the dataframe to a CSV file
             self.orders_df.to_csv(self.bku_file, index=False)
 
