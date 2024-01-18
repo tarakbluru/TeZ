@@ -74,7 +74,7 @@ DL_FOLDER: 'F:/Python_log/tiny_tez' is where intermediate files such as download
   TELEGRAM:          #Future Use
     NOTIFY : "OFF"  #Notifier is created but only the notifications are not pushed by this control parameter.
     CFG_FILE: null
-...
+'''
 
 ## Contributing
 
