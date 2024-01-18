@@ -30,8 +30,9 @@ Following are the features
 - Very simple and intuitive gui
 - Uses Bracket order facility of finvasia for trading NIFTYBEES.
 - Uses Websocket feed for real time updates.
-- Provides mechanism such that feed can be obtained from one Finvasia a/c and trading can be done in another a/c.
-- Also has feature to get the session ID from a google sheet.
+- Feed can be obtained from one Finvasia a/c and trading can be done in another a/c. This will be helpful, if you have already 
+  running algos using websocket.
+- Also has feature to get the session ID from a google sheet. This helps in using the session that is running on a cloud machine.
 
 ## Getting Started
 
