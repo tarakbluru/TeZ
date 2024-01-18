@@ -125,6 +125,10 @@ Step-by-step guide on how to install.
 ```bash
 # To clone the repo.
 git clone https://github.com/tarakbluru/TeZ.git
+
+# update requirements.txt this line NorenRestApiPy @ file:///H:/project/ShoonyaApi-py-master/dist/NorenRestApiPy-0.0.22-py2.py3-none-any.whl
+# location where you have downloaded the Finvasia Python SDK.
+
 ````
 
 ```bash
