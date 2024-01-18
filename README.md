@@ -135,6 +135,8 @@ DL_FOLDER: 'F:/Python_log/tiny_tez' is where intermediate files such as download
 ## Contributing
 
 Thank you for considering contributing to this project! We welcome bug reports to help improve the quality of the software.
+### System Architecture:
+![Refer](/images/Tez.drawio.png)
 
 ### Reporting Bugs
 
