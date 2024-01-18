@@ -46,7 +46,7 @@ you can refer: [Installation](#installation)
 
 
 #### Configuration File Explanation
-![Refer](/data/sys_cfg.yml) This has all configurations required for using the app.
+[Refer to sys_cfg.yml](/data/sys_cfg.yml) This has all configurations required for using the app.
 
 ```yaml
 # Configuration File details
