@@ -161,10 +161,17 @@ By contributing, you agree that your contributions will be licensed under the pr
 Step-by-step guide on how to install.
 
 ```bash
-# Example installation steps
+# To clone the repo.
 git clone https://github.com/tarakbluru/TeZ.git
-cd TeZ
 ````
-# usage
-python tez_main.py
 
+```bash
+# To create virtual environment and install required packages under windows powershell
+cd TeZ
+powershell -executionpolicy bypass .\ps_scripts\tez_setup.ps1
+````
+
+# usage while in TeZ folder
+```bash
+powershell -executionpolicy bypass .\ps_scripts\tez.ps1
+````
