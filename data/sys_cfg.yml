@@ -12,8 +12,8 @@ TIU:
     CLIENT_SECRET: null
     URL: null
     NAME: null
-  TOKEN_FILE: './log/tarak_token.json'
-  CRED_FILE:  './log/client_id.yml' 
+  TOKEN_FILE: null
+  CRED_FILE:  './data/cred/user_cred.yml' 
 
   EXCHANGE: 'NSE'             #valid values : NSE 
   INSTRUMENT: 'NIFTYBEES'     #valid values : NIFTYBEES 
@@ -30,24 +30,24 @@ TIU:
   QUANTITY: 1
   N_LEGS: 1            # Future USE,  ice berg orders
   TRADE_MODE: 'LIVE'  #'LIVE'
-  TRADES_RECORD_FILE: 'F:/Python_log/tiny_tez/orders.csv'
-  SAVE_TOKEN_FILE_CFG: 'NO'   #YES NO
-  SAVE_TOKEN_FILE_NAME: null  
+  TRADES_RECORD_FILE: './log/orders.csv'
+  SAVE_TOKEN_FILE_CFG: 'YES'   #YES NO
+  SAVE_TOKEN_FILE_NAME: './log/user_token.json'  
 DIU:
   GOOGLE_SHEET:
     CLIENT_SECRET: null
     URL: null
     NAME: null
-  TOKEN_FILE: null
-  CRED_FILE: ''
+  TOKEN_FILE: './log/user_token.json'
+  CRED_FILE: './data/cred/user_cred.yml' 
   UL_INSTRUMENT: 'NIFTY'   #Not used.. hard coded in the system
   EXPIRY_DATE: null
   EXCHANGE: 'NSE'
   SAVE_TOKEN_FILE_CFG: 'NO'   #YES NO
   SAVE_TOKEN_FILE_NAME: null   #Full Path to json file 
 SYSTEM:
-  LOG_FILE: 'F:/Python_log/tiny_tez/app.log'
-  DL_FOLDER: 'F:/Python_log/tiny_tez'
+  LOG_FILE: './app.log'
+  DL_FOLDER: './log'
   MARKET_TIMING: 
     OPEN: "09:15"   #Zero padded
     CLOSE: "15:30"
