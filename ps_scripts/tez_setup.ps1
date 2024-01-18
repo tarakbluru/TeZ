@@ -4,9 +4,11 @@ if ([version]$pythonVersion -ge [version]"3.10.5") {
     Write-Host "Python version is 3.10.5 or more recent."
 
     # Create virtual environment
+    Write-Host "Creating Virtual Environment.."
     python -m venv venv
 
     # Activate virtual environment (Windows)
+    Write-Host "Activating Virtual Environment.."
     .\venv\Scripts\Activate.ps1
 
     # Check if pip is from the virtual environment
@@ -18,6 +20,7 @@ if ([version]$pythonVersion -ge [version]"3.10.5") {
         exit 1
     }
 
+    Write-Host "Installing dependencies for TeZ App in the virtual environment.."
     # Install dependencies
     & ".\venv\scripts\pip.exe" install -r .\requirements.txt
 
