@@ -832,22 +832,27 @@ class Tiu (BaseIU):
             logger.info('get_order_book Failed, Check Manually')
             return
 
-        try:
-            alert_id_list = df_filtered['OCO_Alert_ID'].tolist()
-        except Exception as e:
-            logger.debug(f'Exception : {e}')
-        else:
-            # Check oco order pending ..
-            # if there are orders still open ..cancel the orders
-            for alert_id in alert_id_list:
-                if not np.isnan(alert_id):
-                    logger.debug(f'cancelling al_id : {alert_id}')
-                    r = self.fv.cancel_gtt_order(al_id=str(alert_id))
-                    if r is not None and isinstance(r, dict):
-                        if 'emsg' in r:
-                            logger.debug(f'alert_id: {alert_id} : {r["emsg"]}')
-                        if alert_id == r['al_id'] and r['stat'] == "OI deleted":
-                            logger.debug(f'alert id {alert_id} cancellation success')
+        r = self.fv.get_pending_gtt_order()
+
+        if r is not None and isinstance(r, list):
+            gtt_p_df = pd.DataFrame(r)
+            logger.debug(f'\n{gtt_p_df}')
+            try:
+                alert_id_list = df_filtered['OCO_Alert_ID'].tolist()
+            except Exception as e:
+                logger.debug(f'Exception : {e}')
+            else:
+                # Check oco order pending ..
+                # if there are orders still open ..cancel the orders
+                for alert_id in alert_id_list:
+                    if not np.isnan(alert_id) and alert_id in gtt_p_df['al_id'].values:
+                        logger.debug(f'cancelling al_id : {alert_id}')
+                        r = self.fv.cancel_gtt_order(al_id=str(alert_id))
+                        if r is not None and isinstance(r, dict):
+                            if 'emsg' in r:
+                                logger.debug(f'alert_id: {alert_id} : {r["emsg"]}')
+                            if alert_id == r['al_id'] and r['stat'] == "OI deleted":
+                                logger.debug(f'alert id {alert_id} cancellation success')
 
         # Important
         # if the gtt orders are triggered, there will be pending orders
