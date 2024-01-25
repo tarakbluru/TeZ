@@ -21,7 +21,7 @@ markdown-it-py==3.0.0
 MarkupSafe==2.1.3
 mccabe==0.7.0
 mdurl==0.1.2
-NorenRestApiPy @ file:///H:/project/ShoonyaApi-py-master/dist/NorenRestApiPy-0.0.22-py2.py3-none-any.whl
+NorenRestApiPy @ https://github.com/Shoonya-Dev/ShoonyaApi-py/raw/master/dist/NorenRestApiPy-0.0.22-py2.py3-none-any.whl
 numpy==1.26.3
 oauthlib==3.2.2
 packaging==23.2
