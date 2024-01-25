@@ -22,8 +22,6 @@ __license__ = "MIT"
 __maintainer__ = "Tarak"
 __status__ = "Development"
 
-__version__ = "0.1"
-
 from . import app_logger
 
 logger = app_logger.get_logger(__name__)

@@ -17,16 +17,17 @@ TIU:
 
   EXCHANGE: 'NSE'             #valid values : NSE 
   INSTRUMENT: 'NIFTYBEES'     #valid values : NIFTYBEES 
-  EXPIRY_DATE: null           #Format: 11JAN24
+  EXPIRY_DATE: '01-FEB-2024'           #Format:'11-JAN-24'
   
   CE_STRIKE_OFFSET: 0         # 0 means ATM,   1 is OTM, -1 means ITM
   PE_STRIKE_OFFSET: 0         # 0 means ATM,  -1 is OTM, +1 means ITM
+  STRIKE_DIFF: 50             # difference betweekn strikes
 
   PROFIT_PER: 0.4
   STOPLOSS_PER: 0.2
 
   PRODUCT: 'MIS'
-  USE_OCO: 'YES'       # 'YES' 'NO'
+  USE_GTT_OCO: 'NO'       # 'YES' 'NO'
   QUANTITY: 1
   N_LEGS: 1            # Future USE,  ice berg orders
   TRADE_MODE: 'LIVE'  #'LIVE'

@@ -20,7 +20,7 @@ __email__ = "tarakesh.nc_at_google_mail_dot_com"
 __license__ = "MIT"
 __maintainer__ = "Tarak"
 __status__ = "Development"
-__version__ = "0.1"
+__version__ = "0.2"
 
 import sys
 import traceback
@@ -89,11 +89,11 @@ def gui_tk_layout():
 
     symbol = app_mods.get_system_info("TIU", "EXCHANGE")
     if symbol == 'NSE':
-        bold_font = font.Font(weight="normal")
+        font = font.Font(weight="normal")
     else:
-        bold_font = font.Font(weight="bold")
+        font = font.Font(weight="bold")
 
-    buy_button = tk.Button(frame_top, text=l_button_text, command=long_market, bg='#00EF00',  font=bold_font, fg='black')
+    buy_button = tk.Button(frame_top, text=l_button_text, command=long_market, bg='#00EF00',  font=font, fg='black')
     buy_button.pack(side=tk.LEFT, padx=5)  # Adds space between buttons
 
     # Label to display NIFTY index data
@@ -101,24 +101,24 @@ def gui_tk_layout():
     tick_label.pack(side=tk.LEFT, padx=5)  # Adds space between label and buttons
 
     s_button_text = app_mods.get_system_info("GUI_CONFIG", "SHORT_BUTTON")
-    sell_button = tk.Button(frame_top, text=s_button_text, command=short_market, bg='#EF0000',  font=bold_font, fg='black')
+    sell_button = tk.Button(frame_top, text=s_button_text, command=short_market, bg='#EF0000',  font=font, fg='black')
     sell_button.pack(side=tk.LEFT, padx=5)  # Adds space between buttons
 
     # Exit App button in another line
     e_button_text = app_mods.get_system_info("GUI_CONFIG", "EXIT_BUTTON")
-    exit_button = tk.Button(frame_bottom, text=e_button_text, command=exit_action, font=bold_font)
+    exit_button = tk.Button(frame_bottom, text=e_button_text, command=exit_action, font=font)
     exit_button.pack(side=tk.BOTTOM, padx=5, pady=5)  # Adds space between buttons
 
     # Square Off button in the same line
     sq_button_text = app_mods.get_system_info("GUI_CONFIG", "SQUARE_OFF_BUTTON")
-    square_off_button = tk.Button(frame_bottom, text=sq_button_text, command=square_off_action, font=bold_font)
+    square_off_button = tk.Button(frame_bottom, text=sq_button_text, command=square_off_action, font=font)
     square_off_button.pack(side=tk.BOTTOM, padx=5, pady=5)  # Adds space between buttons
 
     # Update the NIFTY index data periodically (every second)
     def update_label():
         ltp = g_app_be.get_latest_tick()
         # Update the label text with the fetched NIFTY index data
-        tick_label.config(text=str(ltp), font=bold_font)
+        tick_label.config(text=str(ltp), font=font)
         root.after(500, update_label)
 
     update_label()
@@ -161,4 +161,7 @@ if __name__ == "__main__":
     logger.info(f'Active Child Processes: {len(children)}')
     if len(children):
         logger.info(children)
+
+    if nthreads == 1 and not len(children):
+        logger.info('App Shuts down Cleanly..')
     sys.exit(0)

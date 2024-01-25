@@ -12,6 +12,15 @@ References:
 # See the file LICENSE in the top-level directory of this distribution
 # for the full text of the license.
 
+__author__ = "Tarakeshwar N.C"
+__copyright__ = "2024"
+__date__ = "2024/1/14"
+__deprecated__ = False
+__email__ = "tarakesh.nc_at_google_mail_dot_com"
+__license__ = "MIT"
+__maintainer__ = "Tarak"
+__status__ = "Development"
+
 import sys
 import traceback
 

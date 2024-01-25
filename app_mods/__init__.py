@@ -6,5 +6,5 @@ from .bku import (BookKeeperUnit)
 from .shared_classes import (TickData, SimpleDataPort, Component_Type, LiveFeedStatus, 
                              Ctrl, Market_Timing, BaseInst, 
                              FVInstrument, SysInst, BO_B_SL_LMT_Order, BO_B_LMT_Order, 
-                             I_B_MKT_Order, I_S_MKT_Order, BO_B_MKT_Order, BO_S_MKT_Order)
+                             I_B_MKT_Order, I_S_MKT_Order, BO_B_MKT_Order, BO_S_MKT_Order, Combi_Primary_B_MKT_And_OCO_S_MKT_I_Order_NFO)
 

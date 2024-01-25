@@ -19,8 +19,6 @@ __license__ = "MIT"
 __maintainer__ = "Tarak"
 __status__ = "Development"
 
-__version__ = "0.1"
-
 
 import logging
 import os

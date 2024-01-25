@@ -19,8 +19,6 @@ __license__ = "MIT"
 __maintainer__ = "Tarak"
 __status__ = "Development"
 
-__version__ = "0.1"
-
 import sys
 import traceback
 
@@ -75,7 +73,7 @@ class BookKeeperUnit:
             'Qty': [qty],
             'Order_Time': [order_time],
             'Status': [status],
-            'OCO_Order_ID': [oco_order_id]
+            'OCO_Alert_ID': [oco_order_id]
         })
 
         new_order['Order_ID'] = new_order['Order_ID'].astype(object)
@@ -98,7 +96,7 @@ class BookKeeperUnit:
             orders_df = pd.read_csv(bku_file, dtype={'Order_ID': object})
         except FileNotFoundError:
             # If the file is not found, create an empty dataframe
-            orders_df = pd.DataFrame(columns=['Order_ID', 'Symbol', 'Qty', 'Order_Time', 'Status', 'OCO_Order_ID'])
+            orders_df = pd.DataFrame(columns=['Order_ID', 'Symbol', 'Qty', 'Order_Time', 'Status', 'OCO_Alert_ID'])
         return orders_df
 
     def show(self):
@@ -118,6 +116,7 @@ class BookKeeperUnit:
 
     def fetch_order_id(self):
         if len(self.orders_df):
-            return self.orders_df.to_dict(orient='records')
+            # return self.orders_df.to_dict(orient='records')
+            return self.orders_df
         else:
             return None

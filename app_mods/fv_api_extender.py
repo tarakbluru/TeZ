@@ -19,7 +19,6 @@ __license__ = "MIT"
 __maintainer__ = "Tarak"
 __status__ = "Development"
 
-__version__ = "0.1"
 
 import sys
 import traceback
@@ -42,6 +41,7 @@ try:
 
     import requests
     from NorenRestApiPy.NorenApi import NorenApi
+    import pandas as pd
 
     from .shared_classes import Market_Timing
 
@@ -190,19 +190,20 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
 
     def compact_search_file(self, symbol, expdate):
         input_file_path = self.nfo_scripmaster_file
-        output_file_path = self.nfo_scripmaster_file
+        output_file_path = os.path.splitext(input_file_path)[0] + '.csv'
 
         with open(input_file_path, 'r') as file:
-            # Read each line in the file
-            header = file.readline()
-            lines_with_symbol = [line.strip() for line in file if symbol in line]
-            lines_with_expdate = [line.strip() for line in lines_with_symbol if expdate in line]
+            header = file.readline().strip()
 
-        # Write the lines containing 'NIFTY' into a new file
-        with open(output_file_path, 'w') as output_file:
-            output_file.write(header)
-            for line in lines_with_expdate:
-                output_file.write(line + '\n')
+        # Convert the first line to a list of columns
+        # Extra comma at the end creates extra column in the dataframe. This is
+        # elminated by the following way.
+        columns = [col for col in header.split(',') if col]
+
+        df = pd.read_csv(input_file_path, sep=',', usecols=columns)
+        df = df[(df['Symbol'] == symbol) & (df['Expiry'] == expdate)]
+
+        df.to_csv(output_file_path, index=False)
 
     def searchscrip(self, exchange, searchtext):
         # check if the symbol is available in the local txt file.
@@ -228,7 +229,6 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
                 lines = f.readlines()
 
             # Create an empty dictionary to store the results
-
             resDict = {}
             values = []
             resDict['stat'] = 'Not_Ok'
@@ -274,27 +274,61 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
 
         use_file = self.use_file
 
+        found = False
         if exchange == 'NSE':
             scripmaster_file = self.scripmaster_file
+
         elif exchange == 'NFO':
             scripmaster_file = self.nfo_scripmaster_file
+            csv_file_path = os.path.splitext(scripmaster_file)[0] + '.csv'
+            logger.info(f'Reading from {csv_file_path} ')
+            if os.path.exists(csv_file_path):
+                logger.debug(f'{csv_file_path} exists')
+                df = pd.read_csv(csv_file_path)
+                # Extract row where 'searchtext' is present in the 'tsym' column
+                matching_rows = df.loc[df['TradingSymbol'] == searchtext]
+                # Check if any rows were found
+                if not matching_rows.empty:
+                    # Access the first matching row
+                    first_matching_row = matching_rows.iloc[0]
+
+                    resDict = {}
+                    values = []
+                    resDict['stat'] = 'Not_Ok'
+                    resDict["values"] = values
+
+                    # Create the sym_dict
+                    sym_dict = {
+                        'exch': exchange,
+                        'token': first_matching_row['Token'],
+                        'tsym': first_matching_row['TradingSymbol']
+                        }
+                    # for key, value in sym_dict.items():
+                    #     print(f'Type of {key}: {type(value)}')
+
+                    values.append(sym_dict)
+                    resDict['stat'] = 'Ok'
+                    found = True
         else:
             ...
 
-        logger.debug(f'scripmaster_file: {scripmaster_file} use_file: {use_file}')
-        if os.path.exists(scripmaster_file) and use_file:
-            logger.debug(f"Searching scrip in the {scripmaster_file} {exchange} {searchtext}")
-            sym_info = read_symbol_info(scripmaster_file, exchange=exchange, search_txt=searchtext)
-            if sym_info is None:
-                logger.debug(f"Searching scrip through api {exchange} {searchtext}")
-                sym_info = super(ShoonyaApiPy, self).searchscrip(exchange=exchange, searchtext=searchtext)
-                logger.debug(f"{searchtext} {sym_info}")
-                return sym_info
+        if not found:
+            logger.debug(f'scripmaster_file: {scripmaster_file} use_file: {use_file}')
+            if os.path.exists(scripmaster_file) and use_file:
+                logger.debug(f"Searching scrip in the {scripmaster_file} {exchange} {searchtext}")
+                sym_info = read_symbol_info(scripmaster_file, exchange=exchange, search_txt=searchtext)
+                if sym_info is None:
+                    logger.debug(f"Searching scrip through api {exchange} {searchtext}")
+                    sym_info = super(ShoonyaApiPy, self).searchscrip(exchange=exchange, searchtext=searchtext)
+                    logger.debug(f"{searchtext} {sym_info}")
+                    return sym_info
+                else:
+                    return sym_info
             else:
-                return sym_info
+                logger.debug(f"Searching scrip through api {exchange} {searchtext}")
+                return super(ShoonyaApiPy, self).searchscrip(exchange=exchange, searchtext=searchtext)
         else:
-            logger.debug(f"Searching scrip through api {exchange} {searchtext}")
-            return super(ShoonyaApiPy, self).searchscrip(exchange=exchange, searchtext=searchtext)
+            return resDict
 
     def get_user_details(self):
         url = f'{self.shoonya_api_host}/UserDetails'
@@ -406,8 +440,10 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
 
     def place_gtt_oco_order(self, buy_or_sell,
                             exchange, tradingsymbol, quantity, product_type: str,
-                            bookloss_alert_price: float, bookloss_price: float, bookloss_price_type: str,
-                            bookprofit_alert_price: float, bookprofit_price: float, bookprofit_price_type: str,
+                            book_loss_alert_price: float, book_loss_price: float,
+                            book_loss_price_type: str,
+                            book_profit_alert_price: float, book_profit_price: float,
+                            book_profit_price_type: str,
                             remarks=None):
         """
         buy_or_sell = 'B' / 'S'
@@ -415,15 +451,37 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
         tradingsymbol = ex: 'INFY-EQ'
         quantity = int
         product_type = 'C'
-        bookloss_alert_price <= price at which following order is placed by system
-        bookloss_limit_price = float
-        bookloss_price_type  = 'LMT' Or 'MKT'
-        bookprofit_alert_price >= price at which following order is placed by system
-        bookprofit_price = float
-        bookprofit_price_type  = 'LMT' Or 'MKT'
+        book_loss_alert_price <= price at which following order is placed by system
+        book_loss_limit_price = float
+        book_loss_price_type  = 'LMT' Or 'MKT'
+        book_profit_alert_price >= price at which following order is placed by system
+        book_profit_price = float
+        book_profit_price_type  = 'LMT' Or 'MKT'
         al_id:str = if previous gtt order is to be updated
         remarks = order tag
         """
+        """
+
+        Example :
+        jData={"uid":"FA7664",
+        "ai_t":"LMT_BOS_O","validity":"GTT","tsym":"NIFTYBEES-EQ","exch":"NSE",
+        "oivariable":[{"d":"236","var_name":"x"},{"d":"235", "var_name":"y"}],
+        "place_order_params":{"tsym":"NIFTYBEES-EQ", "exch":"NSE","trantype":"S","prctyp":"MKT","prd":"I",
+        "ret":"DAY","actid":"FA7664","uid":"FA7664", "ordersource":"WEB","qty":"2", "prc":"0"},
+        "place_order_params_leg2":{"tsym":"NIFTYBEES-EQ", "exch":"NSE", "trantype":"S", "prctyp":"MKT","prd":"I",
+        "ret":"DAY","actid":"FA7664","uid":"FA7664", "ordersource":"WEB","qty":"2", "prc":"0"}}
+        &jKey=c28e22b367d84fb32ecf6b96043ea1fc0766a7cabd9d564454912d94a2a53049
+
+        """
+
+        """
+        response: {
+            "request_time": "14:50:39 21-01-2024",
+            "stat": "OI created",
+            "al_id": "24012000003234"
+        }
+        """
+
         url = f'{self.shoonya_api_host}/PlaceOCOOrder'
 
         # prepare the data
@@ -435,38 +493,38 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
         values["remarks"] = remarks if remarks is not None else ""
         values["ai_t"] = "LMT_BOS_O"
         values["validity"] = "GTT"
-        values["oivariable"] = [{"d": str(bookprofit_alert_price), "var_name": "x"}, {"d": str(bookloss_alert_price), "var_name": "y"}]
+        values["oivariable"] = [{"d": str(book_profit_alert_price), "var_name": "x"}, {"d": str(book_loss_alert_price), "var_name": "y"}]
 
-        if bookloss_price_type == "MKT":
-            bookloss_price = float(0.0)
+        if book_loss_price_type == "MKT":
+            book_loss_price = float(0.0)
 
-        if bookprofit_price_type == "MKT":
-            bookprofit_price = float(0.0)
+        if book_profit_price_type == "MKT":
+            book_profit_price = float(0.0)
 
         values["place_order_params"] = {"tsym": values["tsym"],
                                         "exch": exchange,
                                         "trantype": buy_or_sell,
-                                        "prctyp": bookprofit_price_type,
+                                        "prctyp": book_profit_price_type,
                                         "prd": product_type,
                                         "ret": "DAY",
                                         "actid": self.shoonya_accountid,
                                         "uid": self.shoonya_userid,
                                         "ordersource": "API",
                                         "qty": str(quantity),
-                                        "prc": str(bookprofit_price)
+                                        "prc": str(book_profit_price)
                                         }
 
         values["place_order_params_leg2"] = {"tsym": values["tsym"],
                                              "exch": exchange,
                                              "trantype": buy_or_sell,
-                                             "prctyp": bookloss_price_type,
+                                             "prctyp": book_loss_price_type,
                                              "prd": product_type,
                                              "ret": "DAY",
                                              "actid": self.shoonya_accountid,
                                              "uid": self.shoonya_userid,
                                              "ordersource": "API",
                                              "qty": str(quantity),
-                                             "prc": str(bookloss_price)
+                                             "prc": str(book_loss_price)
                                              }
         payload = 'jData=' + json.dumps(values) + f'&jKey={self.shoonya_susertoken}'
 
@@ -482,8 +540,9 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
 
     def modify_gtt_oco_order(self, buy_or_sell,
                              exchange, tradingsymbol, quantity, product_type: str,
-                             bookloss_alert_price: float, bookloss_price: float, bookloss_price_type: str,
-                             bookprofit_alert_price: float, bookprofit_price: float, bookprofit_price_type: str,
+                             book_loss_alert_price: float, book_loss_price: float, book_loss_price_type: str,
+                             book_profit_alert_price: float, book_profit_price: float,
+                             book_profit_price_type: str,
                              al_id: str, remarks: str = None):
         """
         buy_or_sell = 'B' / 'S'
@@ -491,12 +550,12 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
         tradingsymbol = ex: 'INFY-EQ'
         quantity = int
         product_type = 'C'
-        bookloss_alert_price <= price at which following order is placed by system
-        bookloss_limit_price = float
-        bookloss_price_type  = 'LMT' Or 'MKT'
-        bookprofit_alert_price >= price at which following order is placed by system
-        bookprofit_price = float
-        bookprofit_price_type  = 'LMT' Or 'MKT'
+        book_loss_alert_price <= price at which following order is placed by system
+        book_loss_limit_price = float
+        book_loss_price_type  = 'LMT' Or 'MKT'
+        book_profit_alert_price >= price at which following order is placed by system
+        book_profit_price = float
+        book_profit_price_type  = 'LMT' Or 'MKT'
         al_id:str = previous gtt order alert id
         remarks = order tag
         """
@@ -513,39 +572,39 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
         values["remarks"] = remarks if remarks is not None else ""
 
         values["al_id"] = al_id
-        values["oivariable"] = [{"d": str(bookprofit_alert_price), "var_name": "x"}, {"d": str(bookloss_alert_price), "var_name": "y"}]
+        values["oivariable"] = [{"d": str(book_profit_alert_price), "var_name": "x"}, {"d": str(book_loss_alert_price), "var_name": "y"}]
 
-        if bookloss_price_type == "MKT":
-            bookloss_price = float(0.0)
+        if book_loss_price_type == "MKT":
+            book_loss_price = float(0.0)
 
-        if bookprofit_price_type == "MKT":
-            bookprofit_price = float(0.0)
+        if book_profit_price_type == "MKT":
+            book_profit_price = float(0.0)
 
         values["place_order_params"] = {"tsym": urllib.parse.quote_plus(tradingsymbol),
                                         "exch": exchange,
                                         "trantype": buy_or_sell,
-                                        "prctyp": bookprofit_price_type,
+                                        "prctyp": book_profit_price_type,
                                         "prd": product_type,
                                         "ret": "DAY",
                                         "actid": self.shoonya_accountid,
                                         "uid": self.shoonya_userid,
                                         # "ordersource":"API",
                                         "qty": str(quantity),
-                                        "prc": str(bookprofit_price),
+                                        "prc": str(book_profit_price),
                                         # "al_id": al_id
                                         }
 
         values["place_order_params_leg2"] = {"tsym": urllib.parse.quote_plus(tradingsymbol),
                                              "exch": exchange,
                                              "trantype": buy_or_sell,
-                                             "prctyp": bookloss_price_type,
+                                             "prctyp": book_loss_price_type,
                                              "prd": product_type,
                                              "ret": "DAY",
                                              "actid": self.shoonya_accountid,
                                              "uid": self.shoonya_userid,
                                              #   "ordersource":"API",
                                              "qty": str(quantity),
-                                             "prc": str(bookloss_price),
+                                             "prc": str(book_loss_price),
                                              #   "al_id": al_id
                                              }
         payload = 'jData=' + json.dumps(values) + f'&jKey={self.shoonya_susertoken}'

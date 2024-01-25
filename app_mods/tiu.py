@@ -19,8 +19,6 @@ __license__ = "MIT"
 __maintainer__ = "Tarak"
 __status__ = "Development"
 
-__version__ = "0.1"
-
 import sys
 import traceback
 
@@ -38,15 +36,16 @@ try:
     import time
     import urllib.parse
     from enum import Enum
-    from typing import NamedTuple, Union
+    from typing import List, NamedTuple, Union
 
     import app_utils
+    import numpy as np
     import pandas as pd
     import pyotp
     import requests
     import yaml
 
-    from . import shared_classes, fv_api_extender, ws_wrap
+    from . import fv_api_extender, shared_classes, ws_wrap
 except Exception as e:
     logger.debug(traceback.format_exc())
     logger.error(("Import Error " + str(e)))
@@ -88,7 +87,8 @@ class BaseIU (object):
         self.token_file = bcc.token_file
         self.holdings_df = None
         self.posn_df = None
-        self.amount_in_ac = None
+        self._amount_in_ac = None
+        self._used_margin = None
         self.use_pool = bcc.use_pool
         self.df = None
         usefile = True if bcc.dl_filepath else False
@@ -321,11 +321,6 @@ class Tiu (BaseIU):
 
     def __init__(self, tcc: Tiu_CreateConfig):
         super().__init__(tcc)
-        self.holdings_df = None
-        self.posn_df = None
-        self.amount_in_ac = None
-        self.use_pool = tcc.use_pool
-        self.df = None
         self.__post_init__()
 
     def __post_init__(self):
@@ -338,8 +333,10 @@ class Tiu (BaseIU):
     def compact_search_file(self, symbol, expdate):
         self.fv.compact_search_file(symbol, expdate)
 
-    def get_security_info(self, exchange, symbol):
-        token, tsym = self.__search_sym_token_tsym__(exchange=exchange, symbol=symbol)
+    def get_security_info(self, exchange, symbol, token=None):
+
+        if token is None:
+            token, tsym = self.__search_sym_token_tsym__(exchange=exchange, symbol=symbol)
 
         if token:
             return self.fv.get_security_info(exchange=exchange, token=str(token))
@@ -363,8 +360,18 @@ class Tiu (BaseIU):
                 raise ValueError
         logger.debug(json.dumps(acct_limits, indent=2))
 
-        self.amount_in_ac = locale.atof(acct_limits["cash"]) + locale.atof(acct_limits["payin"])
-        return self.amount_in_ac
+        self._amount_in_ac = locale.atof(acct_limits["cash"]) + locale.atof(acct_limits["payin"]) + locale.atof(acct_limits["unclearedcash"])
+        try:
+            self._used_margin = locale.atof(acct_limits['marginused'])
+        except Exception:
+            self._used_margin = float(0.0)
+
+        return self._amount_in_ac
+
+    def get_usable_margin(self):
+        return (self._amount_in_ac - self._used_margin)
+
+    avlble_margin = property(get_usable_margin, None, None)
 
     def update_holdings(self):
         ret = self.fv.get_holdings()
@@ -461,371 +468,15 @@ class Tiu (BaseIU):
         else:
             return None
 
-    def square_off_position(self, order_details: list):
-        fv = self.fv
-
-        try:
-            order_id_list = [d['Order_ID'] for d in order_details]
-        except TypeError:
-            logger.info('No order to square off')
-            return
-
-        r = fv.get_order_book()
-        if r is not None and isinstance(r, list):
-            df = pd.DataFrame(r)
-            if df is not None:
-                try:
-                    filtered_df = df[df['norenordno'].isin(order_id_list)]
-                    logger.debug(f'\n{filtered_df.to_string()}')
-                except Exception as e:
-                    logger.debug(f'Exception : {e}')
-                else:
-                    for index, row in filtered_df.iterrows():
-                        status = row['status'].lower()
-                        if status == 'open' or status == 'pending' or status == 'trigger_pending':
-                            fv.cancel_order(row['norenordno'])
-
-                df = pd.DataFrame(r)
-                try:
-                    filtered_df = df[df['snonum'].isin(order_id_list)]
-                    logger.debug(f'\n{filtered_df.to_string()}')
-                except Exception as e:
-                    logger.debug(f'Exception : {e}')
-                else:
-                    for index, row in filtered_df.iterrows():
-                        if '-EQ' in row['tsym']:
-                            status = row['status'].lower()
-                            if (status == 'open' or status == 'pending' or status == 'trigger_pending') and int(row['snoordt']) == 0:
-                                r = fv.exit_order(row['snonum'], 'B')
-                                if r is None:
-                                    logger.info("Exit order result is None. Check Manually")
-                                if 'stat' in r and r['stat'] == 'Ok':
-                                    logger.debug(f'child order of {row["norenordno"]} : {row["snonum"]}, status: {json.dumps (r, indent=2)}')
-                                else:
-                                    logger.info('Exit order Failed, Check Manually')
-                        else:
-                            # TODO: GTT OCO orders have to be handled here...
-                            logger.info(f'Tsym:{row["tsym"]} - TODO: OCO order is to be handled.')
-            else:
-                logger.info('get_order_book Failed, Check Manually')
-        else:
-            logger.info('get_order_book Failed, Check Manually')
-            return
-
-    def place_mm_fc_bo_order(self, order: Union[shared_classes.BO_B_SL_LMT_Order, shared_classes.BO_B_LMT_Order]):
-        order_id = None
-
-        fv = self.fv
-        stock = order.tradingsymbol
-        token = tsym = None
-        if self.df is not None:
-            try:
-                stock_row = self.df[self.df['Symbol'] == stock.upper()]
-                if not stock_row.empty:
-                    # Accessing token based on the symbol
-                    token = stock_row['Token'].values[0]
-                    tsym = stock_row['Tsym'].values[0]
-            except Exception as e:
-                token, tsym = self.__search_sym_token_tsym__(stock)
-                logger.info(f'token:{token} tsym: {tsym} exception: {e}')
-            else:
-                ...
-
-        if token is None or tsym is None:
-            token, tsym = self.__search_sym_token_tsym__(stock)
-            logger.info(f'token:{token} tsym: {tsym}')
-
-        if token is not None and tsym is not None:
-            remarks = re.sub("[-,&]+", "_", order.remarks)
-
-            logger.debug(f'placing {order.buy_or_sell} order {order}')
-            r = fv.place_order(buy_or_sell=order.buy_or_sell,
-                               product_type=order.product_type,
-                               exchange=order.exchange,
-                               tradingsymbol=tsym,
-                               quantity=order.quantity, discloseqty=0,
-                               trigger_price=order.trigger_price,
-                               price=order.price,
-                               price_type=order.price_type,
-                               bookloss_price=order.bookloss_price,
-                               bookprofit_price=order.bookprofit_price,
-                               trail_price=0.0,  # trail_price should be 0 for finvasia.
-                               retention=order.retention, remarks=f'{remarks}')
-            if r is not None:
-                if r['stat'] == 'Not_Ok':
-                    logger.info(f'place_order : Failure {r["emsg"]}')
-                else:
-                    logger.info(f'Place order success:: order id  : {r["norenordno"]}')
-                order_id = r["norenordno"]
-
-        return order_id
-
-    def place_mm_bo_order(self, stock_details: dict, fixed_amount: float = 0.0, ot='B'):
-        fv = self.fv
-        stock = stock_details['Symbol']
-        pdh = stock_details['High']
-        st = stock_details['ST']
-        pdl = stock_details['Low']
-
-        prod = 'B'
-        token, tsym = self.__search_sym_token_tsym__(stock)
-        if token is not None and tsym is not None:
-            qty = int(fixed_amount / pdh)
-            if (qty % 2):
-                qty += 1
-            remarks = re.sub("[-,&]+", "_", tsym)
-
-            if qty:
-                qty1 = round(qty / 4)
-                qty1 = 1
-                logger.info(f'placing {ot} order {stock} tsym:{tsym} pdh: {pdh} qty: {qty1}')
-
-                if ot == 'B':
-                    bp = app_utils.round_stock_prec(0.7 / 100.0 * pdh)
-                    bl1 = app_utils.round_stock_prec(0.4 / 100.0 * pdh)
-                    bl2 = app_utils.round_stock_prec(abs(pdh - st))
-                    bl = bl1 if bl1 > bl2 else bl2
-                    limit_price = app_utils.round_stock_prec(1.0012 * pdh)
-                else:
-                    bp = app_utils.round_stock_prec(0.7 / 100.0 * pdl)
-                    bl1 = app_utils.round_stock_prec(0.4 / 100.0 * pdl)
-                    bl2 = app_utils.round_stock_prec(abs(st - pdl))
-                    bl = bl1 if bl1 > bl2 else bl2
-                    limit_price = app_utils.round_stock_prec((1 - 0.0010) * pdl)
-
-                r = fv.place_order(ot, product_type=prod, exchange='NSE', tradingsymbol=tsym,
-                                   quantity=qty1, discloseqty=0, price=limit_price, price_type='LMT',
-                                   bookloss_price=bl, bookprofit_price=bp,
-                                   retention='DAY', remarks=f'{remarks}')
-                if r is not None:
-                    if r['stat'] == 'Not_Ok':
-                        logger.info(f'place_order : Failure {r["emsg"]}')
-                    else:
-                        logger.info(f'Place order success:: order id  : {r["norenordno"]}')
-
-    def place_exit_order(self, stock: str, qty_per: float = 100.0):
-        fv = self.fv
-        df = self.holdings_df
-        posn_df = self.posn_df
-
-        assert df is not None, 'Holdings Data frame is None'
-
-        stock.replace(" ", "")
-        stock = "".join(re.findall("[a-zA-Z0-9-_&]+", stock)).upper()
-        tsym = stock + '-EQ'
-        logger.info(f'{stock} {tsym}')
-        qty = None
-        ix = None
-        try:
-            ix = df[df['TSYM'] == tsym].index[0]
-            qty = df.loc[ix].at['SELLABLEQTY']
-        except IndexError:
-            logger.info(f'{stock} {len(stock)} {tsym} not in holdings')
-        except Exception as e:
-            logger.error(f'Exception occured {e}')
-            return
-
-        if qty is None and posn_df is not None:
-            logger.info('Checking in positions')
-            df = posn_df
-            try:
-                ix = df[df['TSYM'] == tsym].index[0]
-                qty = df.loc[ix].at['SELLABLEQTY']
-            except IndexError:
-                logger.info(f'{stock} not in Position')
-            except Exception as e:
-                logger.error(f'Exception occured {e}')
-                return
-
-        if qty is not None and qty > 0:
-            qty = round(qty_per / 100 * qty)
-            # https://github.com/Shoonya-Dev/ShoonyaApi-py#md-place_order
-            # ret = api.place_order(buy_or_sell='B', product_type='C',
-            #                     exchange='NSE', tradingsymbol='CANBK-EQ',
-            #                     quantity=1, discloseqty=0,price_type='SL-LMT', price=200.00, trigger_price=199.50,
-            #                     retention='DAY', remarks='my_order_001')
-
-            if qty:
-                logger.info(f'placing exit order {stock} qty: {qty}')
-                remarks = re.sub("[-,&]+", "_", tsym)
-                r = fv.place_order('S', product_type='C', exchange='NSE', tradingsymbol=tsym,
-                                   quantity=qty, discloseqty=0, price_type='MKT',
-                                   remarks=f'{remarks}_{ix}')
-                if r is not None:
-                    if r['stat'] == 'Not_Ok':
-                        logger.info(f'place_order : Failure {r["emsg"]}')
-                    else:
-                        logger.info(f'Place order success:: order id  : {r["norenordno"]}')
-                        self.update_holdings()
-                        self.update_positions()
-            else:
-                logger.info('Did not place order as qty was 0.')
-        else:
-            logger.info(f'{stock} Not available')
-
-    def place_buy_order(self, stock: str, fixed_amount: float = 0.0):
-        fv = self.fv
-        token, tsym = self.__search_sym_token_tsym__(stock)
-        if token is not None and tsym is not None:
-            r_dict = fv.get_quotes('NSE', token)
-            if r_dict is not None:
-                logger.debug(f'r_dict: {json.dumps(r_dict, indent=2)}')
-                cmp = float(r_dict['lp'])
-                qty = int(fixed_amount / cmp)
-                if (qty % 2):
-                    qty += 1
-                remarks = re.sub("[-,&]+", "_", tsym)
-                if qty:
-                    logger.info(f'placing buy order {stock} tsym:{tsym} cmp: {cmp} qty: {qty}')
-                    r = fv.place_order('B', product_type='C', exchange='NSE', tradingsymbol=tsym,
-                                       quantity=qty, discloseqty=0, price_type='MKT',
-                                       retention='DAY', remarks=f'{remarks}')
-                    if r is not None:
-                        if r['stat'] == 'Not_Ok':
-                            logger.info(f'place_order : Failure {r["emsg"]}')
-                        else:
-                            logger.info(f'Place order success:: order id  : {r["norenordno"]}')
-                            self.update_holdings()
-                            self.update_positions()
-
-    def place_partial_profit_order(self, stock: str):
-        self.place_exit_order(stock, qty_per=50.0)
-        logger.debug(f'placing place_partial_profit_order order{stock}')
-
-    def place_and_confirm_tiny_tez_order(self, order: Union[shared_classes.I_B_MKT_Order,
-                                                            shared_classes.I_S_MKT_Order,
-                                                            shared_classes.BO_B_MKT_Order], tag: str = ''):
-        status = Tiu_OrderStatus.HARD_FAILURE
-        order_id = str(int(-1))
-
-        qty = order.quantity
-        os = shared_classes.OrderStatus()
-        fv = self.fv
-        remarks = ''
-        if order.remarks:
-            remarks = re.sub("[-,&]+", "_", order.remarks)
-
-        logger.info(f'placing {order.buy_or_sell} order {order}')
-        r = fv.place_order(buy_or_sell=order.buy_or_sell,
-                           product_type=order.product_type,
-                           exchange=order.exchange,
-                           tradingsymbol=order.tradingsymbol,
-                           quantity=order.quantity, discloseqty=0,
-                           trigger_price=order.trigger_price,
-                           price=order.price,
-                           price_type=order.price_type,
-                           bookloss_price=order.bookloss_price,
-                           bookprofit_price=order.bookprofit_price,
-                           trail_price=0.0,  # trail_price should be 0 for finvasia.
-                           retention=order.retention, remarks=f'{remarks}')
-        if r is not None:
-            if r['stat'] == 'Not_Ok':
-                logger.info(f'place_order : Failure {r["emsg"]}')
-                os.emsg = r['emsg']
-            else:
-                logger.info(f'Place order success:: order id  : {r["norenordno"]}')
-                order_id = os.order_id = r["norenordno"]
-                reason1 = "rms:blocked"  # TO BE TESTED
-                reason2 = "margin"
-                reason3 = 'RMS: Auto Square Off Block'.lower()  # TO BE TESTED
-                for check_cnt in range(0, Tiu.CONFIRM_COUNT):
-                    r_os_list = self.fv.single_order_history(order_id)
-
-                    # Shoonya gives a list for all status of order, we are interested in first one
-                    r_os_dict = r_os_list[0]
-
-                    # Different stages of the order
-                    # PENDING
-                    # CANCELED
-                    # OPEN
-                    # REJECTED
-                    # COMPLETE
-                    # TRIGGER_PENDING
-                    # INVALID_STATUS_TYPE
-
-                    # logger.debug(f'{tag}: order status: {r_os_dict["status"]} {json.dumps(r_os_dict,indent=2)}')
-                    logger.debug(f'{tag}: order status: {r_os_dict["status"]}')
-
-                    if r_os_dict['status'].lower() == 'rejected':
-                        rej_reason = r_os_dict['rejreason'].lower()
-                        if rej_reason.find(reason1) != -1:
-                            status = Tiu_OrderStatus.SOFT_FAILURE_REJRMS
-                            break
-                        elif rej_reason.find(reason2) != -1:
-                            status = Tiu_OrderStatus.SOFT_FAILURE_REJRMS
-                            break
-                        elif rej_reason.find(reason3) != -1:
-                            status = Tiu_OrderStatus.SOFT_FAILURE_REJRMS
-                            break
-                        else:
-                            ...
-                    filled_qty = 0
-                    if 'fillshares' in r_os_dict:
-                        filled_qty = int(r_os_dict['fillshares'])
-                        unfilled_qty = qty - filled_qty
-                        if r_os_dict["status"].lower() == "complete":
-                            avg_price = float(r_os_dict['avgprc'])
-                            order_id = r_os_dict['norenordno']
-                            fill_timestamp = r_os_dict['exch_tm']
-                            if filled_qty == qty:
-                                os.avg_price = avg_price
-                                os.fillshares = filled_qty
-                                os.fill_timestamp = fill_timestamp
-                                # ord_resp = OrderResp(avg_price=avg_price, order_id=order_id, quantity=qty, ft=fill_timestamp)
-                                status = Tiu_OrderStatus.SUCCESS
-                                break
-                            else:
-                                ...
-                        elif unfilled_qty:
-                            ...
-                        else:
-                            ...
-                        logger.debug(f'{tag}: {check_cnt}: {unfilled_qty} Sleeping for {Tiu.CONFIRM_SLEEP_PERIOD} secs')
-                    time.sleep(Tiu.CONFIRM_SLEEP_PERIOD)
-                else:  # This else is included with the FOR statement above
-                    # Not filled even after few secs.
-                    cancel_r_dict = self.fv.cancel_order(order_id)
-                    if cancel_r_dict and cancel_r_dict["stat"] == "Ok":
-                        r_os_list = self.fv.single_order_history(order_id)
-                        # Shoonya gives a list for all status of order, we are interested in first one
-                        r_os_dict = r_os_list[0]
-                        filled_qty = 0
-                        if 'fillshares' in r_os_dict:
-                            filled_qty = int(r_os_dict['fillshares'])
-
-                        if filled_qty:
-                            fill_timestamp = r_os_dict['exch_tm']
-                            avg_price = 0
-                            if 'avgprc' in r_os_dict:
-                                avg_price = float(r_os_dict['avgprc'])
-
-                            os.avg_price = avg_price
-                            os.fillshares = filled_qty
-                            os.fill_timestamp = fill_timestamp
-                            # ord_resp = OrderResp(avg_price=avg_price, order_id=order_id, quantity=filled_qty, ft=fill_timestamp)
-                            status = Tiu_OrderStatus.SUCCESS if filled_qty == qty else Tiu_OrderStatus.SOFT_FAILURE_QTY
-                        else:
-                            status = Tiu_OrderStatus.HARD_FAILURE
-                    else:
-                        status = Tiu_OrderStatus.HARD_FAILURE
-
-        if status == Tiu_OrderStatus.HARD_FAILURE:
-            mesg = f'{tag}: Check manually, Quit the App, Orders not going Through'
-            logger.error(mesg)
-            if self.notifier is not None:
-                self.notifier.put_message(mesg)
-        else:
-            logger.debug(str(os))
-
-        return status, os
-
     def __search_sym_token_tsym__(self, symbol, exchange='NSE'):
         fv = self.fv
+
         symbol = symbol.replace(" ", "")
         symbol = "".join(re.findall("[a-zA-Z0-9-_&]+", symbol)).upper()
 
         search_text = (symbol + ' INDEX') if symbol == 'NIFTY' else symbol
         search_text = (symbol + '-EQ') if exchange == 'NSE' else search_text
+
         ret = fv.searchscrip(exchange=exchange, searchtext=search_text)
         token = tsym = None
         if ret is not None:
@@ -841,6 +492,7 @@ class Tiu (BaseIU):
 
     def search_scrip(self, exchange, symbol):
         tsym = token = None
+
         if self.df is not None:
             try:
                 stock_row = self.df[self.df['Symbol'] == symbol.upper()]
@@ -849,10 +501,14 @@ class Tiu (BaseIU):
                     token = stock_row['Token'].values[0]
                     tsym = stock_row['Tsym'].values[0]
             except Exception:
-                token, tsym = self.__search_sym_token_tsym__(symbol)
+                ...
             else:
                 ...
-        logger.info(f'token: {token} tsym: {tsym}')
+        if tsym is None and token is None:
+            logger.info(f'searching symbol in the file : {symbol} ')
+            token, tsym = self.__search_sym_token_tsym__(symbol, exchange=exchange)
+
+            logger.info(f'token: {token} tsym: {tsym}')
         return (str(token), tsym)
 
     def create_sym_token_tsym_q_access(self, symbol_list):
@@ -878,10 +534,10 @@ class Tiu (BaseIU):
         fv = self.fv
         quote = fv.get_quotes(exchange=exchange, token=token)
         logger.debug(f'exchange:{exchange} token:{token} {json.dumps(quote,indent=2)}')
-        if quote and 'c' in quote and 'ti' in quote:
-            return float(quote['lp']), float(quote['ti'])
+        if quote and 'c' in quote and 'ti' in quote and 'ls' in quote:
+            return float(quote['lp']), float(quote['ti']), float(quote['ls'])
         else:
-            return None, None
+            return None, None, None
 
     def fetch_security_info(self, exchange, token):
         fv = self.fv
@@ -893,3 +549,349 @@ class Tiu (BaseIU):
 
     def get_pending_gtt_order(self):
         return self.fv.get_pending_gtt_order()
+
+    def place_and_confirm_tez_order(self, orders: List[Union[shared_classes.I_B_MKT_Order, shared_classes.I_S_MKT_Order,
+                                                             shared_classes.BO_B_MKT_Order,
+                                                             shared_classes.Combi_Primary_B_MKT_And_OCO_S_MKT_I_Order_NSE,
+                                                             shared_classes.Combi_Primary_B_MKT_And_OCO_S_MKT_I_Order_NFO]],
+                                    tag: str | None = None, use_gtt_oco=False):
+
+        def process_result(order, r):
+            nonlocal self
+            status = Tiu_OrderStatus.HARD_FAILURE
+
+            qty = order.quantity
+
+            os = shared_classes.OrderStatus()
+            if r is not None:
+                if r['stat'] == 'Not_Ok':
+                    logger.info(f'place_order : Failure {r["emsg"]}')
+                    os.emsg = r['emsg']
+                else:
+                    logger.info(f'Order Attempt success:: order id  : {r["norenordno"]}')
+                    order_id = os.order_id = r["norenordno"]
+                    reason1 = "rms:blocked"  # TO BE TESTED
+                    reason2 = "margin"
+                    reason3 = 'RMS: Auto Square Off Block'.lower()  # TO BE TESTED
+                    for check_cnt in range(0, Tiu.CONFIRM_COUNT):
+                        r_os_list = self.fv.single_order_history(order_id)
+
+                        # Shoonya gives a list for all status of order, we are interested in first one
+                        r_os_dict = r_os_list[0]
+
+                        # Different stages of the order
+                        # PENDING
+                        # CANCELED
+                        # OPEN
+                        # REJECTED
+                        # COMPLETE
+                        # TRIGGER_PENDING
+                        # INVALID_STATUS_TYPE
+
+                        # logger.debug(f'{tag}: order status: {r_os_dict["status"]} {json.dumps(r_os_dict,indent=2)}')
+                        logger.info(f'{tag}: order_id: {order_id} order status: {r_os_dict["status"]}')
+
+                        if r_os_dict['status'].lower() == 'rejected':
+                            rej_reason = r_os_dict['rejreason'].lower()
+                            if rej_reason.find(reason1) != -1:
+                                status = Tiu_OrderStatus.SOFT_FAILURE_REJRMS
+                                break
+                            elif rej_reason.find(reason2) != -1:
+                                status = Tiu_OrderStatus.SOFT_FAILURE_REJRMS
+                                break
+                            elif rej_reason.find(reason3) != -1:
+                                status = Tiu_OrderStatus.SOFT_FAILURE_REJRMS
+                                break
+                            else:
+                                break
+                        filled_qty = 0
+                        if 'fillshares' in r_os_dict:
+                            filled_qty = int(r_os_dict['fillshares'])
+                            unfilled_qty = qty - filled_qty
+                            if r_os_dict["status"].lower() == "complete":
+                                avg_price = float(r_os_dict['avgprc'])
+                                order_id = r_os_dict['norenordno']
+                                fill_timestamp = r_os_dict['exch_tm']
+                                if filled_qty == qty:
+                                    os.avg_price = avg_price
+                                    os.fillshares = filled_qty
+                                    os.fill_timestamp = fill_timestamp
+                                    # ord_resp = OrderResp(avg_price=avg_price, order_id=order_id, quantity=qty, ft=fill_timestamp)
+                                    status = Tiu_OrderStatus.SUCCESS
+                                    break
+                                else:
+                                    ...
+                            elif unfilled_qty:
+                                ...
+                            else:
+                                ...
+                            logger.debug(f'{tag}: {check_cnt}: {unfilled_qty} Sleeping for {Tiu.CONFIRM_SLEEP_PERIOD} secs')
+                        time.sleep(Tiu.CONFIRM_SLEEP_PERIOD)
+                    else:  # This else is included with the FOR statement above
+                        # Not filled even after few secs.
+                        cancel_r_dict = self.fv.cancel_order(order_id)
+                        if cancel_r_dict and cancel_r_dict["stat"] == "Ok":
+                            r_os_list = self.fv.single_order_history(order_id)
+                            # Shoonya gives a list for all status of order, we are interested in first one
+                            r_os_dict = r_os_list[0]
+                            filled_qty = 0
+                            if 'fillshares' in r_os_dict:
+                                filled_qty = int(r_os_dict['fillshares'])
+
+                            if filled_qty:
+                                fill_timestamp = r_os_dict['exch_tm']
+                                avg_price = 0
+                                if 'avgprc' in r_os_dict:
+                                    avg_price = float(r_os_dict['avgprc'])
+
+                                os.avg_price = avg_price
+                                os.fillshares = filled_qty
+                                os.fill_timestamp = fill_timestamp
+                                # ord_resp = OrderResp(avg_price=avg_price, order_id=order_id, quantity=filled_qty, ft=fill_timestamp)
+                                status = Tiu_OrderStatus.SUCCESS if filled_qty == qty else Tiu_OrderStatus.SOFT_FAILURE_QTY
+                            else:
+                                status = Tiu_OrderStatus.HARD_FAILURE
+                        else:
+                            status = Tiu_OrderStatus.HARD_FAILURE
+
+            if status == Tiu_OrderStatus.HARD_FAILURE:
+                mesg = f'{tag}: Check manually, Quit the App, Orders not going Through'
+                logger.error(mesg)
+                if self.notifier is not None:
+                    self.notifier.put_message(mesg)
+            else:
+                logger.debug(str(os))
+
+            # os.avg_price = 1
+            # os.fillshares = 1
+            # os.fill_timestamp = 1
+            # os.order_id = str(12)
+
+            status = Tiu_OrderStatus.SUCCESS
+            return (status, os)
+
+        def place_ind_order(com_order):
+            nonlocal self
+
+            order = com_order
+            if isinstance(order, shared_classes.Combi_Primary_B_MKT_And_OCO_S_MKT_I_Order_NFO) or \
+               isinstance(order, shared_classes.Combi_Primary_B_MKT_And_OCO_S_MKT_I_Order_NSE):
+                order = order.primary_order
+
+            logger.info(f'placing {order.buy_or_sell} order {order}')
+            r = self.fv.place_order(buy_or_sell=order.buy_or_sell,
+                                    product_type=order.product_type,
+                                    exchange=order.exchange,
+                                    tradingsymbol=order.tradingsymbol,
+                                    quantity=order.quantity, discloseqty=0,
+                                    trigger_price=order.trigger_price,
+                                    price=order.price,
+                                    price_type=order.price_type,
+                                    bookloss_price=order.book_loss_price,
+                                    bookprofit_price=order.book_profit_price,
+                                    trail_price=0.0,  # trail_price should be 0 for finvasia.
+                                    retention=order.retention, remarks=order.remarks)
+
+            r_tuple = process_result(order=order, r=r)
+            return r_tuple
+
+        def place_ind_oco_order(oco_tuple):
+            nonlocal self
+            order, r_tuple = oco_tuple
+            primary_order_status, os = r_tuple
+            status = Tiu_OrderStatus.HARD_FAILURE
+
+            if primary_order_status == Tiu_OrderStatus.SUCCESS:
+                os: shared_classes.OrderStatus = os
+                quantity = os.fillshares
+                f_order: shared_classes.OCO_FOLLOW_UP_MKT_I_Order = order.follow_up_order
+
+                remarks = f_order.remarks + '_' + os.order_id if f_order.remarks else os.order_id
+
+                # logger.info(f'placing {f_order.buy_or_sell} order: {order} f_order order {f_order}')
+
+                r = self.fv.place_gtt_oco_order(buy_or_sell=f_order.buy_or_sell,
+                                                product_type=f_order.product_type,
+                                                exchange=f_order.exchange,
+                                                tradingsymbol=f_order.tradingsymbol,
+                                                book_loss_alert_price=f_order.book_loss_alert_price,
+                                                book_loss_price=f_order.book_loss_price,
+                                                book_loss_price_type=f_order.price_type,
+                                                book_profit_alert_price=f_order.book_profit_alert_price,
+                                                book_profit_price=f_order.book_profit_price,
+                                                book_profit_price_type=f_order.price_type,
+                                                quantity=quantity,
+                                                remarks=remarks)
+                os = shared_classes.OrderStatus()
+                if r is not None:
+                    if r['stat'] == 'Not_Ok':
+                        logger.info(f'OCO place_order : Failure {r["emsg"]}')
+                        os.emsg = r['emsg']
+                    else:
+                        if r['stat'] == 'OI created':
+                            logger.info(f'Place order success:: al id  : {r["al_id"]}')
+                            os.al_id = r["al_id"]
+                            order.al_id = r['al_id']
+                            status = Tiu_OrderStatus.SUCCESS
+
+                return status, os
+
+        resp_exception = 0
+        resp_ok = 0
+        result = []
+        oco_tuple_list = []
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            futures = {executor.submit(place_ind_order, order): order for order in orders}
+
+        for future in concurrent.futures.as_completed(futures):
+            order = futures[future]
+            try:
+                r_tuple = future.result()
+                result.append(r_tuple)
+            except Exception as e:
+                logger.error(f"Exception for item {order}: {e}")
+                logger.error(traceback.format_exc())
+                resp_exception = resp_exception + 1
+            else:
+                status, os = r_tuple
+                if status == Tiu_OrderStatus.SUCCESS:
+                    resp_ok = resp_ok + 1
+                    order.order_id = os.order_id
+                    oco_order = (order, r_tuple)
+                    logger.info(f'{os}')
+                    oco_tuple_list.append(oco_order)
+
+        if use_gtt_oco:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+                futures = {executor.submit(place_ind_oco_order, oco_tuple): oco_tuple for oco_tuple in oco_tuple_list}
+
+            for future in concurrent.futures.as_completed(futures):
+                oco_tuple = futures[future]
+                try:
+                    r_tuple = future.result()
+                except Exception as e:
+                    logger.error(f"Exception for item {oco_tuple}: {e}")
+                    logger.error(traceback.format_exc())
+                    resp_exception = resp_exception + 1
+                else:
+                    status, os = r_tuple
+                    if status == Tiu_OrderStatus.SUCCESS:
+                        resp_ok = resp_ok + 1
+                        order, r_tuple = oco_tuple
+                        order.al_id = os.al_id
+
+        return resp_exception, resp_ok, result
+
+    def square_off_position(self, df: pd.DataFrame):
+        fv = self.fv
+
+        df_filtered = df[(df['Qty'] != 0) & (df['Status'] == 'SUCCESS')]
+
+        try:
+            order_id_list = df_filtered['Order_ID'].tolist()
+        except TypeError:
+            logger.info('No order to square off')
+            return
+
+        r = fv.get_order_book()
+        if r is not None and isinstance(r, list):
+            order_book_df = pd.DataFrame(r)
+            try:
+                filtered_df = order_book_df[order_book_df['norenordno'].isin(order_id_list)]
+                logger.debug(f'\n{filtered_df.to_string()}')
+            except Exception as e:
+                logger.debug(f'Exception : {e}')
+            else:
+                for index, row in filtered_df.iterrows():
+                    status = row['status'].lower()
+                    if status == 'open' or status == 'pending' or status == 'trigger_pending':
+                        fv.cancel_order(row['norenordno'])
+
+            try:
+                filtered_df = order_book_df[order_book_df['snonum'].isin(order_id_list)]
+                logger.debug(f'\n{filtered_df.to_string()}')
+            except Exception as e:
+                logger.debug(f'Exception : {e}')
+            else:
+                for index, row in filtered_df.iterrows():
+                    if '-EQ' in row['tsym']:
+                        status = row['status'].lower()
+                        if (status == 'open' or status == 'pending' or status == 'trigger_pending') and int(row['snoordt']) == 0:
+                            r = fv.exit_order(row['snonum'], 'B')
+                            if r is None:
+                                logger.info("Exit order result is None. Check Manually")
+                            if 'stat' in r and r['stat'] == 'Ok':
+                                logger.debug(f'child order of {row["norenordno"]} : {row["snonum"]}, status: {json.dumps (r, indent=2)}')
+                            else:
+                                logger.info('Exit order Failed, Check Manually')
+                    else:
+                        # TODO: GTT OCO orders have to be handled here...
+                        logger.info(f'Tsym:{row["tsym"]} - TODO: OCO order is to be handled.')
+        else:
+            logger.info('get_order_book Failed, Check Manually')
+            return
+
+        try:
+            alert_id_list = df_filtered['OCO_Alert_ID'].tolist()
+        except Exception as e:
+            logger.debug(f'Exception : {e}')
+        else:
+            # Check oco order pending ..
+            # if there are orders still open ..cancel the orders
+            for alert_id in alert_id_list:
+                if not np.isnan(alert_id):
+                    logger.debug(f'cancelling al_id : {alert_id}')
+                    r = self.fv.cancel_gtt_order(al_id=str(alert_id))
+                    if r is not None and isinstance(r, dict):
+                        if 'emsg' in r:
+                            logger.debug(f'alert_id: {alert_id} : {r["emsg"]}')
+                        if alert_id == r['al_id'] and r['stat'] == "OI deleted":
+                            logger.debug(f'alert id {alert_id} cancellation success')
+
+        # Important
+        # if the gtt orders are triggered, there will be pending orders
+        # In this project, all OCO orders are triggered at market. So, there will not be any pending OCO triggered orders.
+        # But, to ensure OCO orders are complete or have hit a terminal state, need to do some thing.
+
+        # filter the orders that have remarks 'TEZ' parent order-id which is in the order_id_list, cancel those.
+
+        try:
+            sum_qty_by_symbol = df_filtered.groupby('Symbol')['Qty'].sum().reset_index()
+        except Exception as e:
+            logger.info(f'Not able to sum qty by symbol: {e}')
+            return
+
+        r = fv.get_positions()
+        if r is not None and isinstance(r, list):
+            posn_df = pd.DataFrame(r)
+            posn_df.loc[posn_df['prd'] == 'I', 'netqty'] = posn_df.loc[posn_df['prd'] == 'I', 'netqty'].apply(lambda x: int(x))
+            posn_df = posn_df.loc[(posn_df['prd'] == 'I')]
+
+        for index, row in sum_qty_by_symbol.iterrows():
+            symbol = row['Symbol']
+            token = symbol.split('_')[1]
+            tsym = symbol.split('_')[0]
+            rec_qty = row['Qty']
+            net_qty = posn_df.loc[posn_df['token'] == token, 'netqty'].values[0]
+            if net_qty > 0:
+                # exit the position
+                exit_qty = min(rec_qty, net_qty)
+                logger.info(f'exit qty:{exit_qty}')
+                exch = 'NSE' if tsym == 'NIFTYBEES-EQ' else 'NFO'
+
+                r = self.fv.place_order('S', product_type='I', exchange=exch, tradingsymbol=tsym,
+                                        quantity=exit_qty, price_type='MKT', discloseqty=0.0)
+
+                if r is None or r['stat'] == 'Not_Ok':
+                    logger.info(f'Exit order Failed:  {r["emsg"]}')
+                else:
+                    logger.info(f'Exit Order Attempt success:: order id  : {r["norenordno"]}')
+                    order_id = os.order_id = r["norenordno"]
+                    r_os_list = self.fv.single_order_history(order_id)
+                    # Shoonya gives a list for all status of order, we are interested in first one
+                    r_os_dict = r_os_list[0]
+                    if r_os_dict["status"].lower() == "complete":
+                        logger.info(f'Exit order Complete: order_id: {order_id}')
+                    else:
+                        logger.info(f'Exit order InComplete: order_id: {order_id} Check Manually')
