@@ -93,7 +93,7 @@ class BookKeeperUnit:
         self.__check_and_update_backup_file(bku_file=bku_file, reset=reset)
         try:
             # Try to load the CSV file
-            orders_df = pd.read_csv(bku_file, dtype={'Order_ID': object})
+            orders_df = pd.read_csv(bku_file, dtype={'Order_ID': object, 'OCO_Alert_ID': object})
         except FileNotFoundError:
             # If the file is not found, create an empty dataframe
             orders_df = pd.DataFrame(columns=['Order_ID', 'Symbol', 'Qty', 'Order_Time', 'Status', 'OCO_Alert_ID'])
