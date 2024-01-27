@@ -318,6 +318,7 @@ class Diu (BaseIU):
 class Tiu (BaseIU):
     CONFIRM_COUNT = 10
     CONFIRM_SLEEP_PERIOD = 0.3
+    SQ_OFF_FAILURE_COUNT = 2
 
     def __init__(self, tcc: Tiu_CreateConfig):
         super().__init__(tcc)
@@ -881,22 +882,48 @@ class Tiu (BaseIU):
             net_qty = posn_df.loc[posn_df['token'] == token, 'netqty'].values[0]
             if net_qty > 0:
                 # exit the position
+                # important, rec_qty and net_qty should be both +ve values.
                 exit_qty = min(rec_qty, net_qty)
                 logger.info(f'exit qty:{exit_qty}')
                 exch = 'NSE' if tsym == 'NIFTYBEES-EQ' else 'NFO'
 
-                r = self.fv.place_order('S', product_type='I', exchange=exch, tradingsymbol=tsym,
-                                        quantity=exit_qty, price_type='MKT', discloseqty=0.0)
+                # Very Important:  Following should use frz_qty for breaking order into slices
+                r = self.fv.get_security_info(exchange=exch, token=token)
+                logger.debug(f'{json.dumps(r, indent=2)}')
 
-                if r is None or r['stat'] == 'Not_Ok':
-                    logger.info(f'Exit order Failed:  {r["emsg"]}')
+                frz_qty = None
+                if isinstance(r, dict) and 'frzqty' in r:
+                    frz_qty = int(r['frzqty'])
                 else:
-                    logger.info(f'Exit Order Attempt success:: order id  : {r["norenordno"]}')
-                    order_id = os.order_id = r["norenordno"]
-                    r_os_list = self.fv.single_order_history(order_id)
-                    # Shoonya gives a list for all status of order, we are interested in first one
-                    r_os_dict = r_os_list[0]
-                    if r_os_dict["status"].lower() == "complete":
-                        logger.info(f'Exit order Complete: order_id: {order_id}')
+                    frz_qty = exit_qty+1
+                    ls = 1
+
+                if isinstance(r, dict) and 'ls' in r:
+                    ls = int(r['ls'])  # lot size
+                else:
+                    ls = 1
+
+                failure_cnt = 0
+                while (exit_qty and failure_cnt <= Tiu.SQ_OFF_FAILURE_COUNT):
+                    per_leg_exit_qty = frz_qty if exit_qty > frz_qty else exit_qty
+                    per_leg_exit_qty = int(per_leg_exit_qty / ls) * ls
+                    r = self.fv.place_order('S', product_type='I', exchange=exch, tradingsymbol=tsym,
+                                            quantity=per_leg_exit_qty, price_type='MKT', discloseqty=0.0)
+
+                    if r is None or r['stat'] == 'Not_Ok':
+                        logger.info(f'Exit order Failed:  {r["emsg"]}')
+                        failure_cnt += 1
                     else:
-                        logger.info(f'Exit order InComplete: order_id: {order_id} Check Manually')
+                        logger.info(f'Exit Order Attempt success:: order id  : {r["norenordno"]}')
+                        order_id = os.order_id = r["norenordno"]
+                        r_os_list = self.fv.single_order_history(order_id)
+                        # Shoonya gives a list for all status of order, we are interested in first one
+                        r_os_dict = r_os_list[0]
+                        if r_os_dict["status"].lower() == "complete":
+                            logger.info(f'Exit order Complete: order_id: {order_id}')
+                        else:
+                            logger.info(f'Exit order InComplete: order_id: {order_id} Check Manually')
+                        exit_qty -= per_leg_exit_qty
+
+                if failure_cnt > 2 or exit_qty:
+                    logger.info(f'Exit order InComplete: order_id: {order_id} Check Manually')
