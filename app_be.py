@@ -32,10 +32,12 @@ try:
     import json
     import math
     from datetime import datetime
+    from threading import Timer
 
     import app_mods
     import numpy as np
     import yaml
+
 except Exception as e:
     logger.debug(traceback.format_exc())
     logger.error(("Import Error " + str(e)))
@@ -120,6 +122,35 @@ class TeZ_App_BE:
         self.tiu = create_tiu()
         self.diu = create_diu()
         self.bku = create_bku()
+
+        self._sqoff_time = None
+        self.sqoff_timer = None
+
+        auto_sq_off_time_str = app_mods.get_system_info("SYSTEM", "SQ_OFF_TIMING")
+        current_time = datetime.now().time()
+        logger.info(f'auto_sq_off_time:{auto_sq_off_time_str} current_time:{current_time}')
+        hr = datetime.strptime(auto_sq_off_time_str, '%H:%M').hour
+        minute = datetime.strptime(auto_sq_off_time_str, '%H:%M').minute
+        self._sq_off_time = datetime.now().replace(hour=hr, minute=minute, second=0, microsecond=0)
+
+        rm_durn = utils.calcRemainingDuration(self._sq_off_time.hour, self._sq_off_time.minute)
+        if (rm_durn > 0):
+            self.sqoff_timer = Timer(rm_durn, self.__square_off_position_timer__)
+        if self.sqoff_timer is not None:
+            self.sqoff_timer.name = "SQ_OFF_TIMER"
+            self.sqoff_timer.daemon = True
+            self.sqoff_timer.start()
+        else:
+            logger.debug("Square off Timer Is not Created.. as Time has elapsed ")
+
+    def __square_off_position_timer__(self):
+        logger.info('!! Auto Square Off Time !!')
+        self.square_off_position()
+
+    def exit_app_be(self):
+        if self.sqoff_timer is not None:
+            if self.sqoff_timer.is_alive():
+                self.sqoff_timer.cancel()
 
     def market_action(self, action):
         def get_tsym_token(tiu: app_mods.Tiu, diu: app_mods.Diu, action: str):

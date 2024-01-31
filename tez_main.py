@@ -144,6 +144,7 @@ def main():
         g_root.destroy()
 
     g_app_be.data_feed_disconnect()
+    g_app_be.exit_app_be()
     time.sleep(1)
     logger.info(f'{__app_name__} Version: {__version__} -- Ends')
 

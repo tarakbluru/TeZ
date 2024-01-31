@@ -52,7 +52,7 @@ SYSTEM:
   MARKET_TIMING: 
     OPEN: "09:15"   #Zero padded
     CLOSE: "15:30"
-  SQ_OFF_TIMING: "15:19"  #Future Use
+  SQ_OFF_TIMING: "15:15" # Secs data should not be given.
   TELEGRAM:          #Future Use
     NOTIFY : "OFF"  #Notifier is created but only the notifications are not pushed by this control parameter.
     CFG_FILE: null
