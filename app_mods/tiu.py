@@ -214,7 +214,7 @@ class Diu (BaseIU):
                 #     lastBusDay = lastBusDay - datetime.timedelta(days = 4) #then make it Friday
                 # lastBusDay = lastBusDay - datetime.timedelta(days = 3)
                 ret = fv.get_time_price_series(exchange='NSE', token=str(token), starttime=lastBusDay.timestamp(), interval=tf)
-                if ret is not None:
+                if ret is not None and isinstance(ret, list):
                     df = pd.DataFrame.from_dict(ret)  # type: ignore
                     df = df.iloc[::-1]
                     df = df.drop(['stat', 'ssboe', 'intoi', 'oi', 'v'], axis=1)
@@ -666,8 +666,7 @@ class Tiu (BaseIU):
             # os.fillshares = 1
             # os.fill_timestamp = 1
             # os.order_id = str(12)
-
-            status = Tiu_OrderStatus.SUCCESS
+            # status = Tiu_OrderStatus.SUCCESS
             return (status, os)
 
         def place_ind_order(com_order):
@@ -786,7 +785,13 @@ class Tiu (BaseIU):
     def square_off_position(self, df: pd.DataFrame):
         fv = self.fv
 
-        df_filtered = df[(df['Qty'] != 0) & (df['Status'] == 'SUCCESS')]
+        try:
+            df_filtered = df[(df['Qty'] != 0) & (df['Status'] == 'SUCCESS')]
+        except Exception:
+            logger.info('No position to Square off')
+            return
+        else:
+            ...
 
         try:
             order_id_list = df_filtered['Order_ID'].tolist()
