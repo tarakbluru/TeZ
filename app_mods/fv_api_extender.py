@@ -151,9 +151,10 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
             new_file = False
             if os.path.exists(self.scripmaster_file):
                 timestamp = os.path.getmtime(self.scripmaster_file)
-                modification_date = datetime.fromtimestamp(timestamp)
-                current_date = datetime.now()
-                if modification_date.date() == current_date.date():
+                modification_datetime = datetime.fromtimestamp(timestamp)
+
+                # modification time should be more than 8:30 am
+                if modification_datetime >= datetime.now().replace(hour=8, minute=45, second=0, microsecond=0):
                     new_file = True
                 if not new_file:
                     logger.debug(f'Removing the file: {self.scripmaster_file}')
