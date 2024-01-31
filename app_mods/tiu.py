@@ -198,6 +198,8 @@ class Diu (BaseIU):
             fname = os.path.join(output_directory, f'{symbol.upper()}.csv')
 
             token = None
+            use_alternate_server = False
+
             if not symbol_row.empty:
                 # Accessing token based on the symbol
                 token = symbol_row['Token'].values[0]
@@ -234,73 +236,76 @@ class Diu (BaseIU):
                     df = df[['Time', 'Open', 'High', 'Low', 'Close', 'Volume', 'Vwap']]
                     df.to_csv(fname, index=False)
                 else:
-                    def getIntraDayData(instrument):
-                        instrument = urllib.parse.quote(instrument)
-                        url = f'https://api.upstox.com/v2/historical-candle/intraday/{instrument}/1minute'
-                        headers = {
-                            'accept': 'application/json',
-                            'Api-Version': '2.0',
-                        }
-                        response = requests.get(url, headers=headers)
-                        return response.json()
+                    use_alternate_server = True
 
-                    fileUrl = 'https://assets.upstox.com/market-quote/instruments/exchange/complete.csv.gz'
-                    symboldf = pd.read_csv(fileUrl)
-                    eqdf = symboldf[(symboldf.last_price.notnull()) & (symboldf.exchange == 'NSE_EQ') & (symboldf.tick_size == 0.05)]
-                    eqdf.reset_index(drop=True, inplace=True)
-                    instrument_key = eqdf.loc[eqdf['tradingsymbol'] == symbol, 'instrument_key'].values[0]
+            if use_alternate_server:
+                def getIntraDayData(instrument):
+                    instrument = urllib.parse.quote(instrument)
+                    url = f'https://api.upstox.com/v2/historical-candle/intraday/{instrument}/1minute'
+                    headers = {
+                        'accept': 'application/json',
+                        'Api-Version': '2.0',
+                    }
+                    response = requests.get(url, headers=headers)
+                    return response.json()
 
-                    candleRes = getIntraDayData(instrument_key)
-                    df = pd.DataFrame(candleRes['data']['candles'])
+                fileUrl = 'https://assets.upstox.com/market-quote/instruments/exchange/complete.csv.gz'
+                symboldf = pd.read_csv(fileUrl)
+                eqdf = symboldf[(symboldf.exchange == 'NSE_EQ') & (symboldf.instrument_type == 'EQUITY')]
+                eqdf.reset_index(drop=True, inplace=True)
+                instrument_key = eqdf.loc[eqdf['tradingsymbol'] == symbol, 'instrument_key'].values[0]
 
-                    if df is not None:
-                        try:
-                            df.rename(columns={
-                                0: 'Time',
-                                1: 'Open',
-                                2: 'High',
-                                3: 'Low',
-                                4: 'Close',
-                                5: 'Volume',
-                                6: 'Other'  # Assuming the last column is labeled 'Other'
-                            }, inplace=True)
+                candleRes = getIntraDayData(instrument_key)
+                df = pd.DataFrame(candleRes['data']['candles'])
 
-                            # Drop the last column 'Other'
-                            df.drop(columns=['Other'], inplace=True)
+                if df is not None:
+                    try:
+                        df.rename(columns={
+                            0: 'Time',
+                            1: 'Open',
+                            2: 'High',
+                            3: 'Low',
+                            4: 'Close',
+                            5: 'Volume',
+                            6: 'Other'  # Assuming the last column is labeled 'Other'
+                        }, inplace=True)
 
-                            # Convert 'Time' column to the desired format
-                            df['Time'] = pd.to_datetime(df['Time']).dt.strftime('%m-%d-%Y %H:%M:%S')
-                            df['Time'] = pd.to_datetime(df['Time'])
+                        # Drop the last column 'Other'
+                        df.drop(columns=['Other'], inplace=True)
 
-                            df.set_index('Time', inplace=True)
-                            # Reverse the DataFrame
-                            data_frame_resampled = df.iloc[::-1]
+                        # Convert 'Time' column to the desired format
+                        df['Time'] = pd.to_datetime(df['Time']).dt.strftime('%m-%d-%Y %H:%M:%S')
+                        df['Time'] = pd.to_datetime(df['Time'])
 
-                            # Resample to daily candles until 9:15:00
-                            data_frame_resampled = data_frame_resampled.resample('3T').agg({
-                                'Open': 'first',
-                                'High': 'max',
-                                'Low': 'min',
-                                'Close': 'last',
-                                'Volume': 'sum'
-                            }).dropna()
+                        df.set_index('Time', inplace=True)
+                        # Reverse the DataFrame
+                        data_frame_resampled = df.iloc[::-1]
 
-                            # Reset the index
-                            data_frame_resampled.reset_index(inplace=True)
+                        # Resample to daily candles until 9:15:00
+                        data_frame_resampled = data_frame_resampled.resample('3T').agg({
+                            'Open': 'first',
+                            'High': 'max',
+                            'Low': 'min',
+                            'Close': 'last',
+                            'Volume': 'sum'
+                        }).dropna()
 
-                            data_frame_resampled['Time'] = data_frame_resampled['Time'].dt.strftime('%d-%m-%Y %H:%M:%S')
+                        # Reset the index
+                        data_frame_resampled.reset_index(inplace=True)
 
-                            # Calculate VWAP
-                            vwap = round(
-                                (((data_frame_resampled['High'] + data_frame_resampled['Low'] + data_frame_resampled['Close']) / 3) *
-                                 data_frame_resampled['Volume']).cumsum() / data_frame_resampled['Volume'].cumsum(), 2
-                            )
-                            data_frame_resampled['Vwap'] = (vwap // 0.05) * 0.05
-                            data_frame_resampled.to_csv(fname, index=False)
-                        except Exception as e:
-                            print(f'no data for sym:{symbol} exception: {e}')
-                    else:
-                        print(f'no data for sym:{symbol}')
+                        data_frame_resampled['Time'] = data_frame_resampled['Time'].dt.strftime('%d-%m-%Y %H:%M:%S')
+
+                        # Calculate VWAP
+                        vwap = round(
+                            (((data_frame_resampled['High'] + data_frame_resampled['Low'] + data_frame_resampled['Close']) / 3) *
+                                data_frame_resampled['Volume']).cumsum() / data_frame_resampled['Volume'].cumsum(), 2
+                        )
+                        data_frame_resampled['Vwap'] = (vwap // 0.05) * 0.05
+                        data_frame_resampled.to_csv(fname, index=False)
+                    except Exception as e:
+                        print(f'no data for sym:{symbol} exception: {e}')
+                else:
+                    print(f'no data for sym:{symbol}')
 
     def download_data_parallel(self, symbol_list, output_directory, tf):
         if self.use_pool:
@@ -479,12 +484,12 @@ class Tiu (BaseIU):
 
         ret = fv.searchscrip(exchange=exchange, searchtext=search_text)
         token = tsym = None
-        if ret is not None:
+        if ret is not None and isinstance(ret, list):
             token = ret['values'][0]['token']
             tsym = ret['values'][0]['tsym']
         else:
             ret = fv.searchscrip(exchange=exchange, searchtext=(symbol + '-BE'))
-            if ret is not None:
+            if ret is not None and isinstance(ret, list):
                 token = ret['values'][0]['token']
                 tsym = ret['values'][0]['tsym']
 
