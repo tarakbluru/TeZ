@@ -96,6 +96,7 @@ class TeZ_App_BE:
 
             if symbol is not None and symbol != '':
                 if exch == 'NSE':
+                    logger.info('Creating dataframe for quick access')
                     tiu.create_sym_token_tsym_q_access([symbol])
                 elif exch == 'NFO':
                     exp_date = app_mods.get_system_info("TIU", "EXPIRY_DATE")

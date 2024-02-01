@@ -483,11 +483,13 @@ class Tiu (BaseIU):
         search_text = (symbol + '-EQ') if exchange == 'NSE' else search_text
 
         ret = fv.searchscrip(exchange=exchange, searchtext=search_text)
+
         token = tsym = None
-        if ret is not None and isinstance(ret, list):
+        if ret is not None and ret['stat'] == 'Ok' and isinstance(ret['values'], list):
             token = ret['values'][0]['token']
             tsym = ret['values'][0]['tsym']
         else:
+            logger.debug('Not found in -EQ, Trying in -BE')
             ret = fv.searchscrip(exchange=exchange, searchtext=(symbol + '-BE'))
             if ret is not None and isinstance(ret, list):
                 token = ret['values'][0]['token']
@@ -535,8 +537,11 @@ class Tiu (BaseIU):
         }
         self.df = pd.DataFrame(data)
 
+        logger.info(f'\n{self.df}')
+
     def fetch_ltp(self, exchange: str, token: str):
         fv = self.fv
+
         quote = fv.get_quotes(exchange=exchange, token=token)
         logger.debug(f'exchange:{exchange} token:{token} {json.dumps(quote,indent=2)}')
         if quote and 'c' in quote and 'ti' in quote and 'ls' in quote:
