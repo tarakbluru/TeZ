@@ -378,11 +378,11 @@ class TeZ_App_BE:
                     logger.debug(f'respok: {resp_ok}')
 
         symbol = tsym + '_' + str(token)
-        order_time = os.fill_timestamp
 
         total_qty = 0
         for stat, os in os_tuple_list:
             status = stat.name
+            order_time = os.fill_timestamp
             order_id = os.order_id
             qty = os.fillshares
             total_qty += qty
