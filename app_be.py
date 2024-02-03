@@ -332,10 +332,10 @@ class TeZ_App_BE:
                         orders.append(order)
             else:
                 pp = app_mods.get_system_info("TIU", "PROFIT_POINTS")
-                bp = utils.round_stock_prec(pp, base=ti)
+                bp = utils.round_stock_prec(ltp+pp, base=ti)
 
                 sl_p = app_mods.get_system_info("TIU", "STOPLOSS_POINTS")
-                bl = utils.round_stock_prec(sl_p, base=ti)
+                bl = utils.round_stock_prec(ltp-sl_p, base=ti)
                 logger.debug(f'ltp:{ltp} pp:{pp} bp:{bp} sl_p:{sl_p} bl:{bl}')
 
                 if per_leg_qty:

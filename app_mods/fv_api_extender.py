@@ -267,6 +267,7 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
                         sym_dict = {'exch': exchange, 'token': int(token.strip()), 'tsym': tsym.strip()}
                         values.append(sym_dict)
                         resDict['stat'] = 'Ok'
+                        break
 
             if resDict['stat'] != 'Ok':
                 return None
