@@ -69,7 +69,7 @@ class BookKeeperUnit:
     def save_order(self, order_id, symbol, qty, order_time, status, oco_order_id):
         new_order = pd.DataFrame({
             'Order_ID': [order_id],
-            'Symbol': [symbol],
+            'TradingSymbol_Token': [symbol],
             'Qty': [qty],
             'Order_Time': [order_time],
             'Status': [status],
@@ -96,7 +96,7 @@ class BookKeeperUnit:
             orders_df = pd.read_csv(bku_file, dtype={'Order_ID': object, 'OCO_Alert_ID': object})
         except FileNotFoundError:
             # If the file is not found, create an empty dataframe
-            orders_df = pd.DataFrame(columns=['Order_ID', 'Symbol', 'Qty', 'Order_Time', 'Status', 'OCO_Alert_ID'])
+            orders_df = pd.DataFrame(columns=['Order_ID', 'TradingSymbol_Token', 'Qty', 'Order_Time', 'Status', 'OCO_Alert_ID'])
         return orders_df
 
     def show(self):

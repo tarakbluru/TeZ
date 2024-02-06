@@ -878,7 +878,7 @@ class Tiu (BaseIU):
         # filter the orders that have remarks 'TEZ' parent order-id which is in the order_id_list, cancel those.
 
         try:
-            sum_qty_by_symbol = df_filtered.groupby('Symbol')['Qty'].sum().reset_index()
+            sum_qty_by_symbol = df_filtered.groupby('TradingSymbol_Token')['Qty'].sum().reset_index()
         except Exception as e:
             logger.info(f'Not able to sum qty by symbol: {e}')
             return
@@ -890,7 +890,7 @@ class Tiu (BaseIU):
             posn_df = posn_df.loc[(posn_df['prd'] == 'I')]
 
         for index, row in sum_qty_by_symbol.iterrows():
-            symbol = row['Symbol']
+            symbol = row['TradingSymbol_Token']
             token = symbol.split('_')[1]
             tsym = symbol.split('_')[0]
             rec_qty = row['Qty']
