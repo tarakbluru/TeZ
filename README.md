@@ -141,8 +141,11 @@ powershell -executionpolicy bypass .\ps_scripts\tez_setup.ps1
 powershell -executionpolicy bypass .\ps_scripts\tez.ps1
 ````
 
-### App Image 
+### App Image for NSE
 ![Refer](/images/TeZ_App.png)  
+
+### App Image for NFO (observe bold font)
+![Refer](/images/TeZ_NFO.png)
 
 ### Console Image 
 ![Refer](/images/records.png)
