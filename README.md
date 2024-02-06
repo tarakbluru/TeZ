@@ -144,5 +144,5 @@ powershell -executionpolicy bypass .\ps_scripts\tez.ps1
 ### App Image 
 ![Refer](/images/TeZ_App.png)  
 
-### Consol Image 
+### Console Image 
 ![Refer](/images/records.png)
