@@ -465,13 +465,13 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
         """
 
         Example :
-        jData={"uid":"FA7664",
+        jData={"uid":"FA****",
         "ai_t":"LMT_BOS_O","validity":"GTT","tsym":"NIFTYBEES-EQ","exch":"NSE",
         "oivariable":[{"d":"236","var_name":"x"},{"d":"235", "var_name":"y"}],
         "place_order_params":{"tsym":"NIFTYBEES-EQ", "exch":"NSE","trantype":"S","prctyp":"MKT","prd":"I",
-        "ret":"DAY","actid":"FA7664","uid":"FA7664", "ordersource":"WEB","qty":"2", "prc":"0"},
+        "ret":"DAY","actid":"FA*****","uid":"FA*****", "ordersource":"WEB","qty":"2", "prc":"0"},
         "place_order_params_leg2":{"tsym":"NIFTYBEES-EQ", "exch":"NSE", "trantype":"S", "prctyp":"MKT","prd":"I",
-        "ret":"DAY","actid":"FA7664","uid":"FA7664", "ordersource":"WEB","qty":"2", "prc":"0"}}
+        "ret":"DAY","actid":"FA*****","uid":"FA*****", "ordersource":"WEB","qty":"2", "prc":"0"}}
         &jKey=c28e22b367d84fb32ecf6b96043ea1fc0766a7cabd9d564454912d94a2a53049
 
         """
