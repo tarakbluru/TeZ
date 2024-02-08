@@ -290,11 +290,11 @@ class TeZ_App_BE:
                         if action == 'Buy':
                             order = app_mods.BO_B_MKT_Order(tradingsymbol=tsym,
                                                             quantity=per_leg_qty, book_loss_price=bl,
-                                                            book_profit_price=bp, remarks=remarks)
+                                                            book_profit_price=bp, bo_remarks=remarks)
                         else:
                             order = app_mods.BO_S_MKT_Order(tradingsymbol=tsym,
                                                             quantity=per_leg_qty, book_loss_price=bl,
-                                                            book_profit_price=bp, remarks=remarks)
+                                                            book_profit_price=bp, bo_remarks=remarks)
                         # deep copy is not required as object contain same info and are not
                         # modified
                         orders = [copy.deepcopy(order) for _ in range(nlegs)]
@@ -303,11 +303,11 @@ class TeZ_App_BE:
                         if action == 'Buy':
                             order = app_mods.BO_B_MKT_Order(tradingsymbol=tsym,
                                                             quantity=rem_qty, book_loss_price=bl,
-                                                            book_profit_price=bp, remarks=remarks)
+                                                            book_profit_price=bp, bo_remarks=remarks)
                         else:
                             order = app_mods.BO_S_MKT_Order(tradingsymbol=tsym,
                                                             quantity=rem_qty, book_loss_price=bl,
-                                                            book_profit_price=bp, remarks=remarks)
+                                                            book_profit_price=bp, bo_remarks=remarks)
                         orders.append(order)
                 else:
                     pp = app_mods.get_system_info("TIU", "PROFIT_PER") / 100.0

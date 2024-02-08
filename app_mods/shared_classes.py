@@ -79,7 +79,7 @@ class Order:
     exchange: str = 'NSE'
     retention: str = 'DAY'
 
-    # Setter for the 'name' property
+    # Setter for the 'remarks' property
     @property
     def remarks(self):
         logger.info(self._remarks)
@@ -89,8 +89,11 @@ class Order:
     def remarks(self, value):
         if not isinstance(value, str):
             raise ValueError("Name must be a string")
-        remarks = re.sub("[-,&]+", "_", value)
-        self._remarks = remarks
+        self._remarks = re.sub("[-,&]+", "_", value)
+
+    def __post_init__(self):
+        if self._remarks:
+            self._remarks = re.sub("[-,&]+", "_", self._remarks)
 
     def __str__(self):
         data = {'seq_num': self.seq_num,
@@ -148,6 +151,10 @@ class OCO_BaseOrder ():
                 'oco_retention': self.oco_retention,
                 }
         return (json.dumps(data, indent=2))
+
+    def __post_init__(self):
+        if self._oco_remarks:
+            self._oco_remarks = re.sub("[-,&]+", "_", self._oco_remarks)
 
 
 @dataclass
@@ -218,6 +225,11 @@ class BO_B_MKT_Order(Order):
     product_type: str = field(default='B',  init=False)
     price_type: str = field(default='MKT',  init=False)
     price: float = field(default=0.0, init=False)
+    bo_remarks: str = field(default='', init=True)
+
+    def __post_init__(self):
+        if self.bo_remarks and isinstance(self.bo_remarks, str):
+            self._remarks = re.sub("[-,&]+", "_", self.bo_remarks)
 
 
 @dataclass
@@ -232,9 +244,11 @@ class BO_S_MKT_Order(Order):
     product_type: str = field(default='B',  init=False)
     price_type: str = field(default='MKT',  init=False)
     price: float = field(default=0.0, init=False)
+    bo_remarks: str = field(default='', init=True)
 
     def __post_init__(self):
-        self._remarks = re.sub("[-,&]+", "_", self._remarks)
+        if self.bo_remarks and isinstance(self.bo_remarks, str):
+            self._remarks = re.sub("[-,&]+", "_", self.bo_remarks)
 
 
 @dataclass
