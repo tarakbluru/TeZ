@@ -92,7 +92,7 @@ class Order:
         self._remarks = re.sub("[-,&]+", "_", value)
 
     def __post_init__(self):
-        if self._remarks:
+        if self._remarks and isinstance(self._remarks, str):
             self._remarks = re.sub("[-,&]+", "_", self._remarks)
 
     def __str__(self):
