@@ -129,7 +129,7 @@ class TeZ_App_BE:
 
         auto_sq_off_time_str = app_mods.get_system_info("SYSTEM", "SQ_OFF_TIMING")
         current_time = datetime.now().time()
-        logger.info(f'auto_sq_off_time:{auto_sq_off_time_str} current_time:{current_time}')
+        logger.info(f'auto_sq_off_time:{auto_sq_off_time_str} current_time:  {current_time}')
         hr = datetime.strptime(auto_sq_off_time_str, '%H:%M').hour
         minute = datetime.strptime(auto_sq_off_time_str, '%H:%M').minute
         self._sq_off_time = datetime.now().replace(hour=hr, minute=minute, second=0, microsecond=0)
@@ -145,7 +145,7 @@ class TeZ_App_BE:
             logger.debug("Square off Timer Is not Created.. as Time has elapsed ")
 
     def __square_off_position_timer__(self):
-        logger.info('!! Auto Square Off Time !!')
+        logger.info(f'{datetime.now().time()} !! Auto Square Off Time !!')
         self.square_off_position()
 
     def exit_app_be(self):
