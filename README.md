@@ -35,6 +35,7 @@ Following are the features
 - Also has feature to get the session ID from a google sheet. This helps in using the session that is running on a cloud machine.
 - System square off happens at pre-defined Time (<span style="font-family: Monaco;">SQ_OFF_TIMING</span> in the configuration file).
 - Default order type is Bracket order. OCO order type can be chosen by setting configuration.
+- Supports app lock/unlock mechanism to avoid accidental clicks.
 
 ## Getting Started
 
