@@ -331,31 +331,26 @@ class TeZ_App_BE:
                                                                                                       remarks=remarks)
                         orders.append(order)
             else:
-                pp = app_mods.get_system_info("TIU", "PROFIT_POINTS")
-                bp = utils.round_stock_prec(ltp+pp, base=ti)
+                if use_gtt_oco:
+                    pp = app_mods.get_system_info("TIU", "PROFIT_POINTS")
+                    bp = utils.round_stock_prec(ltp+pp, base=ti)
 
-                sl_p = app_mods.get_system_info("TIU", "STOPLOSS_POINTS")
-                bl = utils.round_stock_prec(ltp-sl_p, base=ti)
-                logger.debug(f'ltp:{ltp} pp:{pp} bp:{bp} sl_p:{sl_p} bl:{bl}')
+                    sl_p = app_mods.get_system_info("TIU", "STOPLOSS_POINTS")
+                    bl = utils.round_stock_prec(ltp-sl_p, base=ti)
+                    logger.debug(f'ltp:{ltp} pp:{pp} bp:{bp} sl_p:{sl_p} bl:{bl}')
+                else:
+                    bp = bl = None
 
                 if per_leg_qty:
-                    if not use_gtt_oco:
-                        order = app_mods.shared_classes.Combi_Primary_B_MKT_And_OCO_S_MKT_I_Order_NFO(tradingsymbol=tsym, quantity=per_leg_qty,
-                                                                                                      remarks=remarks)
-                    else:
-                        order = app_mods.shared_classes.Combi_Primary_B_MKT_And_OCO_S_MKT_I_Order_NFO(tradingsymbol=tsym, quantity=per_leg_qty,
-                                                                                                      bl_alert_p=bl, bp_alert_p=bp,
-                                                                                                      remarks=remarks)
+                    order = app_mods.shared_classes.Combi_Primary_B_MKT_And_OCO_S_MKT_I_Order_NFO(tradingsymbol=tsym, quantity=per_leg_qty,
+                                                                                                  bl_alert_p=bl, bp_alert_p=bp,
+                                                                                                  remarks=remarks)
                     orders = [copy.deepcopy(order) for _ in range(nlegs)]
 
                 if rem_qty:
-                    if not use_gtt_oco:
-                        order = app_mods.shared_classes.Combi_Primary_B_MKT_And_OCO_S_MKT_I_Order_NFO(tradingsymbol=tsym, quantity=rem_qty,
-                                                                                                      remarks=remarks)
-                    else:
-                        order = app_mods.shared_classes.Combi_Primary_B_MKT_And_OCO_S_MKT_I_Order_NFO(tradingsymbol=tsym, quantity=rem_qty,
-                                                                                                      bl_alert_p=bl, bp_alert_p=bp,
-                                                                                                      remarks=remarks)
+                    order = app_mods.shared_classes.Combi_Primary_B_MKT_And_OCO_S_MKT_I_Order_NFO(tradingsymbol=tsym, quantity=rem_qty,
+                                                                                                  bl_alert_p=bl, bp_alert_p=bp,
+                                                                                                  remarks=remarks)
                     orders.append(order)
 
             if len(orders):
