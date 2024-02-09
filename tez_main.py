@@ -33,6 +33,7 @@ try:
     import threading
     import time
     import tkinter as tk
+
     from multiprocessing import active_children
 
     import app_mods
@@ -48,17 +49,26 @@ g_app_be: TeZ_App_BE = None
 
 def long_market():
     logger.debug('Buy Click')
-    g_app_be.market_action(action='Buy')
+    if g_slider_value.lower() == 'unlocked':
+        g_app_be.market_action(action='Buy')
+    else:
+        logger.info('Unlock to take position')
 
 
 def short_market():
     logger.debug('Short Click')
-    g_app_be.market_action(action='Short')
+    if g_slider_value.lower() == 'unlocked':
+        g_app_be.market_action(action='Short')
+    else:
+        logger.info('Unlock to take position')
 
 
 def square_off_action():
     logger.debug('Square Off Click')
-    g_app_be.square_off_position()
+    if g_slider_value.lower() == 'unlocked':
+        g_app_be.square_off_position()
+    else:
+        logger.info('Unlock to Squareoff position')
 
 
 def exit_action():
@@ -107,21 +117,49 @@ def gui_tk_layout():
     # Exit App button in another line
     e_button_text = app_mods.get_system_info("GUI_CONFIG", "EXIT_BUTTON")
     exit_button = tk.Button(frame_bottom, text=e_button_text, command=exit_action, font=font)
-    exit_button.pack(side=tk.BOTTOM, padx=5, pady=5)  # Adds space between buttons
+    exit_button.pack(side=tk.RIGHT, padx=5, pady=5)  # Adds space between buttons
 
     # Square Off button in the same line
     sq_button_text = app_mods.get_system_info("GUI_CONFIG", "SQUARE_OFF_BUTTON")
     square_off_button = tk.Button(frame_bottom, text=sq_button_text, command=square_off_action, font=font)
-    square_off_button.pack(side=tk.BOTTOM, padx=5, pady=5)  # Adds space between buttons
+    square_off_button.pack(side=tk.RIGHT, padx=5, pady=5)  # Adds space between buttons
 
     # Update the NIFTY index data periodically (every second)
-    def update_label():
+    def update_tick_label():
         ltp = g_app_be.get_latest_tick()
         # Update the label text with the fetched NIFTY index data
         tick_label.config(text=str(ltp), font=font)
-        root.after(500, update_label)
+        root.after(500, update_tick_label)
 
-    update_label()
+    update_tick_label()
+
+    def update_status_label(value):
+        nonlocal status_label
+        global g_slider_value
+        if int(value) == 1:
+            g_slider_value = "UnLocked"
+            status_label.config(text=g_slider_value)
+        else:
+            g_slider_value = "Locked"
+            status_label.config(text=g_slider_value)
+
+    def slider_changed(value):
+        update_status_label(value)
+
+    # Create a slider (Scale widget) to control the ON/OFF status
+    slider_frame = tk.Frame(root)
+    slider_frame.pack(side=tk.BOTTOM, pady=10, padx=10, fill=tk.X)
+
+    # Create a label to display the status
+    g_slider_value = "Locked"
+    status_label = tk.Label(slider_frame, text=g_slider_value, font=("Arial", 8))
+    status_label.pack(side=tk.BOTTOM, padx=5)
+
+    slider = tk.Scale(slider_frame, from_=0, to=1, orient=tk.HORIZONTAL, command=slider_changed, showvalue=False)
+    slider.pack(side=tk.BOTTOM, expand=True)
+
+    # Initialize the label based on the initial value of the slider
+    update_status_label(slider.get())
 
     return root
 
