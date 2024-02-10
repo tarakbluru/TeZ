@@ -20,7 +20,7 @@ __email__ = "tarakesh.nc_at_google_mail_dot_com"
 __license__ = "MIT"
 __maintainer__ = "Tarak"
 __status__ = "Development"
-__version__ = "0.4"
+__version__ = "0.4.2"
 
 import sys
 import traceback
@@ -44,6 +44,7 @@ except Exception as e:
     sys.exit(1)
 
 global g_app_be
+global g_slider_value
 g_app_be: TeZ_App_BE = None
 
 
@@ -73,7 +74,10 @@ def square_off_action():
 
 def exit_action():
     print("Exiting the app")
-    g_root.destroy()
+    if g_slider_value.lower() == 'unlocked':
+        g_root.destroy()
+    else:
+        logger.info('Unlock to Exit..')
 
 
 def gui_tk_layout():
