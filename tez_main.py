@@ -52,7 +52,7 @@ def long_market():
     logger.debug('Buy Click')
     if g_slider_value.lower() == 'unlocked':
         g_app_be.market_action(action='Buy')
-        play_beep()
+        play_notify()
     else:
         logger.info('Unlock to take position')
 
@@ -61,7 +61,7 @@ def short_market():
     logger.debug('Short Click')
     if g_slider_value.lower() == 'unlocked':
         g_app_be.market_action(action='Short')
-        play_beep()
+        play_notify()
     else:
         logger.info('Unlock to take position')
 
@@ -70,7 +70,7 @@ def square_off_action():
     logger.debug('Square Off Click')
     if g_slider_value.lower() == 'unlocked':
         g_app_be.square_off_position()
-        play_beep()
+        play_notify()
     else:
         logger.info('Unlock to Squareoff position')
 
@@ -83,9 +83,9 @@ def exit_action():
         logger.info('Unlock to Exit..')
 
 
-def play_beep():
+def play_notify():
     # Play the beep sound with reduced volume
-    pb = app_mods.get_system_info("GUI_CONFIG", "PLAY_BEEP")
+    pb = app_mods.get_system_info("GUI_CONFIG", "PLAY_NOTIFY")
     if pb.upper() == 'YES':
         winsound.PlaySound("C:/Windows/Media/notify.wav", winsound.SND_FILENAME | winsound.SND_ASYNC | winsound.SND_NOWAIT)
 
