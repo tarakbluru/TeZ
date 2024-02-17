@@ -189,7 +189,7 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
         self.shoonya_susertoken = usertoken
         return super().set_session(userid, password, usertoken)
 
-    def compact_search_file(self, symbol, expdate):
+    def compact_search_file(self, symbol_expdate_pairs):
         input_file_path = self.nfo_scripmaster_file
         output_file_path = os.path.splitext(input_file_path)[0] + '.csv'
 
@@ -200,11 +200,39 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
         # Extra comma at the end creates extra column in the dataframe. This is
         # elminated by the following way.
         columns = [col for col in header.split(',') if col]
+        # Create an empty DataFrame to store the results
+        results = pd.DataFrame(columns=columns)
+        # Iterate over each symbol and expiry date combination
+        for symbol, expdate in symbol_expdate_pairs:
+            df = pd.read_csv(input_file_path, sep=',', usecols=columns)
+            df = df[(df['Symbol'] == symbol) & (df['Expiry'] == expdate)]
+            df = df.astype(object)
+            results = pd.concat([results, df], ignore_index=True)
+            # deleting the dataframe to conserve the memory
+            del df
 
-        df = pd.read_csv(input_file_path, sep=',', usecols=columns)
-        df = df[(df['Symbol'] == symbol) & (df['Expiry'] == expdate)]
+        results.to_csv(output_file_path, index=False)
 
-        df.to_csv(output_file_path, index=False)
+    def get_strike_diff(self):
+        input_file_path = self.nfo_scripmaster_file
+        input_file_path = os.path.splitext(input_file_path)[0] + '.csv'
+        data = pd.read_csv(input_file_path)
+
+        # Filter data for Option Type PE
+        pe_data = data[data['OptionType'] == 'PE']
+
+        # Extract Strike Prices for PE options
+        strike_prices = pe_data['StrikePrice'].tolist()
+
+        # Sort the Strike Prices
+        strike_prices.sort()
+
+        # Calculate differences between consecutive Strike Prices
+        differences = [strike_prices[i+1] - strike_prices[i] for i in range(len(strike_prices)-1)]
+
+        # Find the minimum difference
+        min_difference = min(differences)
+        return min_difference
 
     def searchscrip(self, exchange, searchtext):
         # check if the symbol is available in the local txt file.

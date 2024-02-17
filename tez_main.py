@@ -151,10 +151,10 @@ def gui_tk_layout():
         nonlocal status_label
         global g_slider_value
         if int(value) == 1:
-            g_slider_value = "UnLocked"
+            g_slider_value = app_mods.get_system_info("GUI_CONFIG", "SLIDER_POSN2_TEXT")
             status_label.config(text=g_slider_value)
         else:
-            g_slider_value = "Locked"
+            g_slider_value = app_mods.get_system_info("GUI_CONFIG", "SLIDER_POSN1_TEXT")
             status_label.config(text=g_slider_value)
 
     def slider_changed(value):
@@ -165,8 +165,10 @@ def gui_tk_layout():
     slider_frame.pack(side=tk.BOTTOM, pady=10, padx=10, fill=tk.X)
 
     # Create a label to display the status
-    g_slider_value = "Locked"
-    status_label = tk.Label(slider_frame, text=g_slider_value, font=("Arial", 8))
+    g_slider_value = app_mods.get_system_info("GUI_CONFIG", "SLIDER_POSN1_TEXT")
+    slider_font = app_mods.get_system_info("GUI_CONFIG", "SLIDER_FONT")
+    slider_font_size = app_mods.get_system_info("GUI_CONFIG", "SLIDER_FONT_SIZE")
+    status_label = tk.Label(slider_frame, text=g_slider_value, font=(slider_font, slider_font_size))
     status_label.pack(side=tk.BOTTOM, padx=5)
 
     slider = tk.Scale(slider_frame, from_=0, to=1, orient=tk.HORIZONTAL, command=slider_changed, showvalue=False)
@@ -174,6 +176,33 @@ def gui_tk_layout():
 
     # Initialize the label based on the initial value of the slider
     update_status_label(slider.get())
+
+    # Function to handle the selection
+    def show_ul_selection():
+        nonlocal ul_selection
+        old_value = ul_selection
+        ul_selection = selection.get()
+        logger.debug(f'{old_value} -> {ul_selection}')
+        g_app_be.ul_symbol = ul_selection
+
+    # Create a StringVar to store the selection and set default value to "N"
+
+    def_value = app_mods.get_system_info("GUI_CONFIG", "RADIOBUTTON_DEF_VALUE")
+    selection = tk.StringVar(value=def_value)
+    # Set global variable after creating StringVar
+    ul_selection = selection.get()
+
+    # Create radio buttons for Nifty and BankNifty
+    bt = app_mods.get_system_info("GUI_CONFIG", "RADIOBUTTON_1_TEXT")
+    bv = app_mods.get_system_info("GUI_CONFIG", "RADIOBUTTON_1_VALUE")
+    rb1 = tk.Radiobutton(root, text=bt, variable=selection, value=bv, command=show_ul_selection)
+    rb1.pack(anchor="w", padx=8)
+
+    bt = app_mods.get_system_info("GUI_CONFIG", "RADIOBUTTON_2_TEXT")
+    bv = app_mods.get_system_info("GUI_CONFIG", "RADIOBUTTON_2_VALUE")
+    rb2 = tk.Radiobutton(root, text=bt, variable=selection, value=bv, command=show_ul_selection)
+    # banknifty_radio.pack(side="left", padx=10, pady=10)
+    rb2.pack(anchor="w", padx=8)
 
     return root
 
@@ -186,7 +215,11 @@ def main():
     r = app_mods.get_system_config()
     logger.info(f'System Config Read: {r}')
 
-    g_app_be = TeZ_App_BE()
+    try:
+        g_app_be = TeZ_App_BE()
+    except Exception as e:
+        logger.info(f'Exception occured: {e}')
+        return
 
     g_app_be.data_feed_connect()
     g_root = gui_tk_layout()

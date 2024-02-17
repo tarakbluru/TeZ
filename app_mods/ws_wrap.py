@@ -55,6 +55,7 @@ class WS_WrapU(object):
     __count = 0
     __componentType = Component_Type.ACTIVE
     NIFTY_TOKEN = None
+    NIFTY_BANK_TOKEN = None
     DEBUG = False
 
     def __init__(self,
@@ -149,13 +150,28 @@ class WS_WrapU(object):
             # create a NIFTY 50 as basic feed
             base = BaseInst('NSE', 'NIFTY', index=True)
             ret = fv.searchscrip(exchange=base.exch, searchtext='NIFTY INDEX')
-            if ret is not None:
+            if ret is not None and ret['stat'] == 'Ok':
                 token = ret['values'][0]['token']
                 tsym = ret['values'][0]['tsym']
                 logger.debug(f'tsym: {tsym} token: {token}')
                 fv_inst = FVInstrument(exch=base.exch, token=str(token), tsym=tsym)
                 if WS_WrapU.NIFTY_TOKEN is None:
                     WS_WrapU.NIFTY_TOKEN = token
+            else:
+                fv_inst = None
+
+            sym1 = SysInst(base_inst=base, fv_inst=fv_inst)
+            self.feed_stocks.append(sym1)
+
+            base = BaseInst('NSE', 'NIFTY BANK', index=True)
+            ret = fv.searchscrip(exchange=base.exch, searchtext='NIFTY BANK')
+            if ret is not None and ret['stat'] == 'Ok':
+                token = ret['values'][0]['token']
+                tsym = ret['values'][0]['tsym']
+                logger.debug(f'tsym: {tsym} token: {token}')
+                fv_inst = FVInstrument(exch=base.exch, token=str(token), tsym=tsym)
+                if WS_WrapU.NIFTY_BANK_TOKEN is None:
+                    WS_WrapU.NIFTY_BANK_TOKEN = token
             else:
                 fv_inst = None
 
@@ -305,7 +321,12 @@ class WS_WrapU(object):
                 logger.debug("Finvasia ws wrapper disconnected cleanly ")
             self._fv_connected = False
 
-    def get_latest_tick(self):
-        if WS_WrapU.NIFTY_TOKEN is not None:
-            ohlc_obj: TickData = self.fv_token_port_map[str(WS_WrapU.NIFTY_TOKEN)]
-            return ohlc_obj
+    def get_latest_tick(self, token=None):
+        if token is None:
+            token_str = str(WS_WrapU.NIFTY_TOKEN)
+        if isinstance(token, int):
+            token_str = str(token)
+        else:
+            token_str = token
+        ohlc_obj: TickData = self.fv_token_port_map[token_str]
+        return ohlc_obj

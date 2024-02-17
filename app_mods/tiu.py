@@ -60,6 +60,10 @@ class Tiu_OrderStatus (Enum):
     SUCCESS = 3
 
 
+class LoginFailureException(Exception):
+    pass
+
+
 class Biu_CreateConfig(NamedTuple):
     cred_file: str  # ='../../../Finvasia_login/cred/tarak_fv.yml'
     susertoken: str  # =''
@@ -129,7 +133,7 @@ class BaseIU (object):
                 except ValueError:
                     mesg = 'Finvasia log in error'
                     logger.error(mesg)
-                    raise
+                    raise LoginFailureException
 
                 except TimeoutError:
                     mesg = 'Finvasia log in error'
@@ -168,24 +172,65 @@ class BaseIU (object):
             ret = fv.set_session(userid=cred['userId'], password=cred['pwd'], usertoken=bcc.susertoken)
             logger.debug(f'ret: {ret}')
 
+    def __search_sym_token_tsym__(self, symbol, exchange='NSE'):
+        fv = self.fv
+
+        if symbol == 'NIFTY':
+            search_text = (symbol + ' INDEX')
+        elif symbol == 'NIFTY BANK':
+            search_text = symbol
+        else:
+            symbol = symbol.replace(" ", "")
+            symbol = "".join(re.findall("[a-zA-Z0-9-_&]+", symbol)).upper()
+            search_text = (symbol + '-EQ') if exchange == 'NSE' else symbol
+
+        ret = fv.searchscrip(exchange=exchange, searchtext=search_text)
+
+        logger.debug(ret)
+
+        token = tsym = None
+        if ret is not None and ret['stat'] == 'Ok' and isinstance(ret['values'], list):
+            token = ret['values'][0]['token']
+            tsym = ret['values'][0]['tsym']
+        else:
+            logger.debug('Not found in -EQ, Trying in -BE')
+            ret = fv.searchscrip(exchange=exchange, searchtext=(symbol + '-BE'))
+            if ret is not None and isinstance(ret, list):
+                token = ret['values'][0]['token']
+                tsym = ret['values'][0]['tsym']
+
+        return (str(token), tsym)
+
 
 class Diu (BaseIU):
     def __init__(self, dcc: Diu_CreateConfig):
         super().__init__(dcc)
-        self.__post_init__()
 
-        return
-
-    def __post_init__(self):
+        token, tsym = self.__search_sym_token_tsym__(symbol='NIFTY')
+        self._ul_symbol = {'symbol': 'NIFTY',
+                           'token': token}
+        logger.debug(f'{json.dumps(self._ul_symbol, indent=2)}')
         ws_wrap.WS_WrapU.DEBUG = False
         self.ws_wrap = ws_wrap.WS_WrapU(fv=self.fv)
+
         return
 
     def connect_to_data_feed_servers(self):
         self.ws_wrap.connect_to_data_feed_servers()
 
+    @property
+    def ul_symbol(self):
+        return self._ul_symbol['symbol']
+
+    @ul_symbol.setter
+    def ul_symbol(self, ul_symbol):
+        self._ul_symbol['symbol'] = ul_symbol
+        token, _ = self.__search_sym_token_tsym__(symbol=ul_symbol)
+        self._ul_symbol['token'] = token
+        logger.debug(f'{json.dumps(self._ul_symbol, indent=2)}')
+
     def get_latest_tick(self):
-        return self.ws_wrap.get_latest_tick().c
+        return self.ws_wrap.get_latest_tick(self._ul_symbol['token']).c
 
     def disconnect_data_feed_servers(self):
         self.ws_wrap.disconnect_data_feed_servers()
@@ -329,14 +374,19 @@ class Tiu (BaseIU):
         self.__post_init__()
 
     def __post_init__(self):
-        self.fv_amount_in_ac = self.fv_ac_balance()
+        try:
+            self.fv_amount_in_ac = self.fv_ac_balance()
+        except ValueError:
+            logger.info('Exception occured: Login Faiulre')
+            raise LoginFailureException
+
         mesg = f'Amount available in Finvasia A/c: INR {self.fv_amount_in_ac:n} /-'
         logger.info(mesg)
         self.update_holdings()
         self.update_positions()
 
-    def compact_search_file(self, symbol, expdate):
-        self.fv.compact_search_file(symbol, expdate)
+    def compact_search_file(self, symbol_expdate_pairs):
+        self.fv.compact_search_file(symbol_expdate_pairs)
 
     def get_security_info(self, exchange, symbol, token=None):
 
@@ -377,6 +427,11 @@ class Tiu (BaseIU):
         return (self._amount_in_ac - self._used_margin)
 
     avlble_margin = property(get_usable_margin, None, None)
+
+    def get_strike_diff(self):
+        return (self.fv.get_strike_diff())
+
+    strike_diff = property(get_strike_diff, None, None)
 
     def update_holdings(self):
         ret = self.fv.get_holdings()
@@ -473,30 +528,6 @@ class Tiu (BaseIU):
         else:
             return None
 
-    def __search_sym_token_tsym__(self, symbol, exchange='NSE'):
-        fv = self.fv
-
-        symbol = symbol.replace(" ", "")
-        symbol = "".join(re.findall("[a-zA-Z0-9-_&]+", symbol)).upper()
-
-        search_text = (symbol + ' INDEX') if symbol == 'NIFTY' else symbol
-        search_text = (symbol + '-EQ') if exchange == 'NSE' else search_text
-
-        ret = fv.searchscrip(exchange=exchange, searchtext=search_text)
-
-        token = tsym = None
-        if ret is not None and ret['stat'] == 'Ok' and isinstance(ret['values'], list):
-            token = ret['values'][0]['token']
-            tsym = ret['values'][0]['tsym']
-        else:
-            logger.debug('Not found in -EQ, Trying in -BE')
-            ret = fv.searchscrip(exchange=exchange, searchtext=(symbol + '-BE'))
-            if ret is not None and isinstance(ret, list):
-                token = ret['values'][0]['token']
-                tsym = ret['values'][0]['tsym']
-
-        return (str(token), tsym)
-
     def search_scrip(self, exchange, symbol):
         tsym = token = None
 
@@ -518,17 +549,28 @@ class Tiu (BaseIU):
             logger.info(f'token: {token} tsym: {tsym}')
         return (str(token), tsym)
 
-    def create_sym_token_tsym_q_access(self, symbol_list):
+    def create_sym_token_tsym_q_access(self, symbol_list=None, instruments=None):
         symbol_data = []
         tsym_data = []
         token_data = []
 
-        # Iterate through the symbol list and get tsym and token for each symbol
-        for symbol in symbol_list:
-            token, tsym = self.__search_sym_token_tsym__(symbol)
-            tsym_data.append(tsym)
-            token_data.append(str(token))
-            symbol_data.append(symbol)
+        if symbol_list:
+            # Iterate through the symbol list and get tsym and token for each symbol
+            for symbol in symbol_list:
+                token, tsym = self.__search_sym_token_tsym__(symbol)
+                tsym_data.append(tsym)
+                token_data.append(str(token))
+                symbol_data.append(symbol)
+
+        if instruments:
+            for symbol, info in instruments.items():
+                logger.debug(f"Symbol: {symbol}")
+                symbol = info['SYMBOL']
+                if info['EXCHANGE'] == 'NSE':
+                    token, tsym = self.__search_sym_token_tsym__(symbol)
+                    tsym_data.append(tsym)
+                    token_data.append(str(token))
+                    symbol_data.append(symbol)
 
         data = {
             'Symbol': symbol_data,
@@ -536,7 +578,6 @@ class Tiu (BaseIU):
             'Token': token_data
         }
         self.df = pd.DataFrame(data)
-
         logger.info(f'\n{self.df}')
 
     def fetch_ltp(self, exchange: str, token: str):
@@ -563,7 +604,8 @@ class Tiu (BaseIU):
     def place_and_confirm_tez_order(self, orders: List[Union[shared_classes.I_B_MKT_Order, shared_classes.I_S_MKT_Order,
                                                              shared_classes.BO_B_MKT_Order,
                                                              shared_classes.Combi_Primary_B_MKT_And_OCO_S_MKT_I_Order_NSE,
-                                                             shared_classes.Combi_Primary_B_MKT_And_OCO_S_MKT_I_Order_NFO]],
+                                                             shared_classes.Combi_Primary_B_MKT_And_OCO_S_MKT_I_Order_NFO,
+                                                             shared_classes.Combi_Primary_S_MKT_And_OCO_B_MKT_I_Order_NSE]],
                                     tag: str | None = None, use_gtt_oco=False):
 
         def process_result(order, r):
@@ -571,7 +613,6 @@ class Tiu (BaseIU):
             status = Tiu_OrderStatus.HARD_FAILURE
 
             qty = order.quantity
-
             os = shared_classes.OrderStatus()
             if r is not None:
                 if r['stat'] == 'Not_Ok':
@@ -624,7 +665,10 @@ class Tiu (BaseIU):
                                 fill_timestamp = r_os_dict['exch_tm']
                                 if filled_qty == qty:
                                     os.avg_price = avg_price
-                                    os.fillshares = filled_qty
+                                    if order.buy_or_sell == 'B':
+                                        os.fillshares = filled_qty
+                                    else:
+                                        os.fillshares = -(filled_qty)
                                     os.fill_timestamp = fill_timestamp
                                     # ord_resp = OrderResp(avg_price=avg_price, order_id=order_id, quantity=qty, ft=fill_timestamp)
                                     status = Tiu_OrderStatus.SUCCESS
@@ -655,7 +699,10 @@ class Tiu (BaseIU):
                                     avg_price = float(r_os_dict['avgprc'])
 
                                 os.avg_price = avg_price
-                                os.fillshares = filled_qty
+                                if order.buy_or_sell == 'B':
+                                    os.fillshares = filled_qty
+                                else:
+                                    os.fillshares = -(filled_qty)
                                 os.fill_timestamp = fill_timestamp
                                 # ord_resp = OrderResp(avg_price=avg_price, order_id=order_id, quantity=filled_qty, ft=fill_timestamp)
                                 status = Tiu_OrderStatus.SUCCESS if filled_qty == qty else Tiu_OrderStatus.SOFT_FAILURE_QTY
@@ -672,8 +719,13 @@ class Tiu (BaseIU):
             else:
                 logger.debug(str(os))
 
+            # To debug following is used during off market hours
             # os.avg_price = 1
-            # os.fillshares = 1
+            # if order.buy_or_sell == 'B':
+            #     os.fillshares = 1
+            # else:
+            #     logger.info('making qty = -1')
+            #     os.fillshares = -1
             # os.fill_timestamp = 1
             # os.order_id = str(12)
             # status = Tiu_OrderStatus.SUCCESS
@@ -684,7 +736,8 @@ class Tiu (BaseIU):
 
             order = com_order
             if isinstance(order, shared_classes.Combi_Primary_B_MKT_And_OCO_S_MKT_I_Order_NFO) or \
-               isinstance(order, shared_classes.Combi_Primary_B_MKT_And_OCO_S_MKT_I_Order_NSE):
+               isinstance(order, shared_classes.Combi_Primary_B_MKT_And_OCO_S_MKT_I_Order_NSE) or \
+               isinstance(order, shared_classes.Combi_Primary_S_MKT_And_OCO_B_MKT_I_Order_NSE):
                 order = order.primary_order
 
             logger.info(f'placing {order.buy_or_sell} order {order}')
@@ -712,7 +765,7 @@ class Tiu (BaseIU):
 
             if primary_order_status == Tiu_OrderStatus.SUCCESS:
                 os: shared_classes.OrderStatus = os
-                quantity = os.fillshares
+                quantity = abs(os.fillshares)
                 f_order: shared_classes.OCO_FOLLOW_UP_MKT_I_Order = order.follow_up_order
 
                 remarks = f_order.remarks + '_' + os.order_id if f_order.remarks else os.order_id
@@ -792,7 +845,7 @@ class Tiu (BaseIU):
 
         return resp_exception, resp_ok, result
 
-    def square_off_position(self, df: pd.DataFrame):
+    def square_off_position(self, df: pd.DataFrame, symbol=None):
         fv = self.fv
 
         try:
@@ -803,6 +856,14 @@ class Tiu (BaseIU):
         else:
             ...
 
+        if symbol:
+            try:
+                df_filtered = df_filtered[df_filtered['TradingSymbol_Token'].str.startswith(symbol)]
+            except Exception:
+                logger.info('No position to Square off')
+                return
+            else:
+                ...
         try:
             order_id_list = df_filtered['Order_ID'].tolist()
         except TypeError:
@@ -823,6 +884,7 @@ class Tiu (BaseIU):
                     if status == 'open' or status == 'pending' or status == 'trigger_pending':
                         fv.cancel_order(row['norenordno'])
 
+            # order_book_df remains intact even after filtered df, so can be reused.
             try:
                 filtered_df = order_book_df[order_book_df['snonum'].isin(order_id_list)]
                 logger.debug(f'\n{filtered_df.to_string()}')
@@ -840,9 +902,6 @@ class Tiu (BaseIU):
                                 logger.debug(f'child order of {row["norenordno"]} : {row["snonum"]}, status: {json.dumps (r, indent=2)}')
                             else:
                                 logger.info('Exit order Failed, Check Manually')
-                    else:
-                        # TODO: GTT OCO orders have to be handled here...
-                        logger.info(f'Tsym:{row["tsym"]} - TODO: OCO order is to be handled.')
         else:
             logger.info('get_order_book Failed, Check Manually')
             return
@@ -874,8 +933,7 @@ class Tiu (BaseIU):
         # if the gtt orders are triggered, there will be pending orders
         # In this project, all OCO orders are triggered at market. So, there will not be any pending OCO triggered orders.
         # But, to ensure OCO orders are complete or have hit a terminal state, need to do some thing.
-
-        # filter the orders that have remarks 'TEZ' parent order-id which is in the order_id_list, cancel those.
+        # e.g, filter the orders that have remarks 'TEZ' parent order-id which is in the order_id_list, cancel those.
 
         try:
             sum_qty_by_symbol = df_filtered.groupby('TradingSymbol_Token')['Qty'].sum().reset_index()
@@ -894,14 +952,35 @@ class Tiu (BaseIU):
             token = symbol.split('_')[1]
             tsym = symbol.split('_')[0]
             rec_qty = row['Qty']
-            net_qty = posn_df.loc[posn_df['token'] == token, 'netqty'].values[0]
+            posn_qty = posn_df.loc[posn_df['token'] == token, 'netqty'].values[0]
+            net_qty = abs(posn_qty)
+
+            # It is possible that manually, user could do following:
+            # case 1: nothing
+            #         System finds the net quantity is equal to the recorded qty and proceeds
+            #         if rec_qty is +ve, it should sell else buy
+            # case 2: square off partially
+            #         Recorded qty > net_qty,   so, in this case square off remaining qty.
+            #         rem_qty = min(abs(rec_qty), net_qty)
+            #         example1 : rec_qty = 8,  net_qty = 6  exit_qty = 6
+            #         example2 : rec_qty = -8,  net_qty = -6  exit_qty = 6
+            # case 3: square off fully
+            #         net_qty is 0, so nothing should be done.
+            # case 4: Taken additional qty.
+            #         Now, it is user's responsibility to manually exit the extra position.
+            #         System would square off only those, which it has triggered.
+            #         rem_qty = min(abs(rec_qty), net_qty)
+            #         example1 : rec_qty = 8,  net_qty = 10   exit_qty = 8
+            #         example2 : rec_qty = -8,  net_qty = -10  exit_qty = 8
+            #         example3 : rec_qty = 8,   net_qty = -10, exit_qty = 8 sell
+            #         example4 : rec_qty = -8,   net_qty = +10, exit_qty = 8 buy
+
             if net_qty > 0:
                 # exit the position
                 # important, rec_qty and net_qty should be both +ve values.
-                exit_qty = min(rec_qty, net_qty)
+                exit_qty = min(abs(rec_qty), net_qty)
                 logger.info(f'exit qty:{exit_qty}')
-                exch = 'NSE' if tsym == 'NIFTYBEES-EQ' else 'NFO'
-
+                exch = 'NSE' if '-EQ' in tsym else 'NFO'
                 # Very Important:  Following should use frz_qty for breaking order into slices
                 r = self.fv.get_security_info(exchange=exch, token=token)
                 logger.debug(f'{json.dumps(r, indent=2)}')
@@ -911,7 +990,6 @@ class Tiu (BaseIU):
                     frz_qty = int(r['frzqty'])
                 else:
                     frz_qty = exit_qty+1
-                    ls = 1
 
                 if isinstance(r, dict) and 'ls' in r:
                     ls = int(r['ls'])  # lot size
@@ -919,10 +997,11 @@ class Tiu (BaseIU):
                     ls = 1
 
                 failure_cnt = 0
+                buy_or_sell = 'S' if rec_qty > 0 else 'B'
                 while (exit_qty and failure_cnt <= Tiu.SQ_OFF_FAILURE_COUNT):
                     per_leg_exit_qty = frz_qty if exit_qty > frz_qty else exit_qty
                     per_leg_exit_qty = int(per_leg_exit_qty / ls) * ls
-                    r = self.fv.place_order('S', product_type='I', exchange=exch, tradingsymbol=tsym,
+                    r = self.fv.place_order(buy_or_sell, product_type='I', exchange=exch, tradingsymbol=tsym,
                                             quantity=per_leg_exit_qty, price_type='MKT', discloseqty=0.0)
 
                     if r is None or r['stat'] == 'Not_Ok':

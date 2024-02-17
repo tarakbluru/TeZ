@@ -173,6 +173,7 @@ class I_S_MKT_Order(Order):
     seq_num: int = field(default=1, init=False)
     buy_or_sell: str = field(default='S', init=False)
     product_type: str = field(default='I',  init=False)
+    price_type: str = field(default='MKT',  init=False)
     price: float = field(default=0.0, init=False)
 
 
@@ -295,6 +296,74 @@ class Combi_Primary_B_MKT_And_OCO_S_MKT_I_Order_NSE:
         if bl_alert_p and bp_alert_p:
             logger.info(f'bl_alert_p: {bl_alert_p} bp_alert_p: {bp_alert_p}')
             self.follow_up_order = OCO_FOLLOW_UP_MKT_I_Order(buy_or_sell='S',
+                                                             tradingsymbol=tradingsymbol,
+                                                             quantity=quantity,
+                                                             book_loss_alert_price=bl_alert_p,
+                                                             book_profit_alert_price=bp_alert_p, _remarks=remarks)
+        else:
+            self.follow_up_order = None
+
+    # Setter for the 'prime_quantity' property
+    @property
+    def primary_order_quantity(self):
+        return self.primary_order.quantity
+
+    @primary_order_quantity.setter
+    def primary_order_quantity(self, value):
+        if not isinstance(value, int):
+            raise ValueError("Quantity should be integer")
+        logger.info(value)
+        self.primary_order.quantity = value
+
+    # Setter for the 'prime_quantity' property
+    @property
+    def order_id(self):
+        return self.primary_order.order_id
+
+    @order_id.setter
+    def order_id(self, value):
+        if not isinstance(value, str):
+            logger.info(traceback.print_exc())
+            raise ValueError("value should be a string")
+        self.primary_order.order_id = value
+
+    # Setter for the 'al_id' property
+    @property
+    def al_id(self):
+        return self.primary_order.al_id
+
+    @al_id.setter
+    def al_id(self, value):
+        if not isinstance(value, str):
+            raise ValueError("value should be a string")
+        self.primary_order.al_id = value
+
+    # Setter for the 'remarks' property
+    @property
+    def remarks(self):
+        logger.debug(self.primary_order.remarks)
+        return self.primary_order.remarks
+
+    @remarks.setter
+    def remarks(self, value):
+        if not isinstance(value, str):
+            raise ValueError("Name must be a string")
+        remarks = re.sub("[-,&]+", "_", value)
+        logger.debug(remarks)
+        self.primary_order.remarks = remarks
+
+    def __str__(self):
+        return (f'primary order: {str(self.primary_order)} follow_up_order: {str(self.follow_up_order)}')
+
+
+class Combi_Primary_S_MKT_And_OCO_B_MKT_I_Order_NSE:
+    def __init__(self, tradingsymbol, quantity, bl_alert_p: float = None, bp_alert_p: float = None, remarks: str = None):
+        if remarks:
+            remarks = re.sub("[-,&]+", "_", remarks)
+        self.primary_order = I_S_MKT_Order(tradingsymbol=tradingsymbol, quantity=quantity, _remarks=remarks)
+        if bl_alert_p and bp_alert_p:
+            logger.info(f'bl_alert_p: {bl_alert_p} bp_alert_p: {bp_alert_p}')
+            self.follow_up_order = OCO_FOLLOW_UP_MKT_I_Order(buy_or_sell='B',
                                                              tradingsymbol=tradingsymbol,
                                                              quantity=quantity,
                                                              book_loss_alert_price=bl_alert_p,

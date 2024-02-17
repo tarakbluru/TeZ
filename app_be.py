@@ -91,16 +91,22 @@ class TeZ_App_BE:
             logger.debug(f'tcc:{str(tcc)}')
             tiu = app_mods.Tiu(tcc=tcc)
 
-            symbol = app_mods.get_system_info("TIU", "INSTRUMENT")
-            exch = app_mods.get_system_info("TIU", "EXCHANGE")
+            logger.info('Creating dataframe for quick access')
+            instruments = app_mods.get_system_info("TIU", "INSTRUMENT_INFO")
 
-            if symbol is not None and symbol != '':
-                if exch == 'NSE':
-                    logger.info('Creating dataframe for quick access')
-                    tiu.create_sym_token_tsym_q_access([symbol])
-                elif exch == 'NFO':
-                    exp_date = app_mods.get_system_info("TIU", "EXPIRY_DATE")
-                    tiu.compact_search_file(symbol, exp_date)
+            symbol_exp_date_pairs = []
+            for symbol, info in instruments.items():
+                logger.debug(f"Instrument: {symbol}")
+                if info['EXCHANGE'] == 'NFO':
+                    symbol = info['SYMBOL']
+                    exp_date = info['EXPIRY_DATE']
+                    symbol_exp_date_pairs.append((symbol, exp_date))
+
+            if len(symbol_exp_date_pairs):
+                tiu.compact_search_file(symbol_exp_date_pairs)
+
+            tiu.create_sym_token_tsym_q_access(symbol_list=None, instruments=instruments)
+
             return tiu
 
         def create_diu():
@@ -113,6 +119,9 @@ class TeZ_App_BE:
             dcc = app_mods.Diu_CreateConfig(diu_cred_file, None, diu_token_file, False, None, None, diu_save_token_file_cfg, diu_save_token_file)
             logger.debug(f'dcc:{str(dcc)}')
             diu = app_mods.Diu(dcc=dcc)
+
+            diu.ul_symbol = app_mods.get_system_info("GUI_CONFIG", "RADIOBUTTON_DEF_VALUE")
+
             return diu
 
         def create_bku():
@@ -146,43 +155,64 @@ class TeZ_App_BE:
 
     def __square_off_position_timer__(self):
         logger.info(f'{datetime.now().time()} !! Auto Square Off Time !!')
-        self.square_off_position()
+        self.square_off_position(mode='ALL')
+
+    @property
+    def ul_symbol(self):
+        return self.diu.ul_symbol
+
+    @ul_symbol.setter
+    def ul_symbol(self, ul_symbol):
+        self.diu.ul_symbol = ul_symbol
 
     def exit_app_be(self):
         if self.sqoff_timer is not None:
             if self.sqoff_timer.is_alive():
                 self.sqoff_timer.cancel()
 
+    @staticmethod
+    def get_instrument_info(exchange, ul_inst):
+        instruments = app_mods.get_system_info("TIU", "INSTRUMENT_INFO")
+        instrument_info = None
+        for inst_id, info in instruments.items():
+            logger.debug(f"Instrument: {inst_id}")
+            if info['EXCHANGE'] == exchange and info['UL_INSTRUMENT'] == ul_inst:
+                instrument_info = info
+                break
+        return instrument_info  # symbol, exp_date, ce_offset, pe_offset
+
     def market_action(self, action):
         def get_tsym_token(tiu: app_mods.Tiu, diu: app_mods.Diu, action: str):
-            def get_ltp_strike(diu):
-                ul_ltp = diu.get_latest_tick()
-                strike = round(ul_ltp / 50 + 0.5) * 50
-                logger.debug(f'ul_ltp:{ul_ltp} strike:{strike}')
-                return ul_ltp, strike
-
-            sym = app_mods.get_system_info("TIU", "INSTRUMENT")
+            ul_sym = diu.ul_symbol
             exch = app_mods.get_system_info("TIU", "EXCHANGE")
+            inst_info = TeZ_App_BE.get_instrument_info(exch, ul_sym)
+            sym = inst_info['SYMBOL']
+            expiry_date = inst_info['EXPIRY_DATE']
+            ce_offset = inst_info['CE_STRIKE_OFFSET']
+            pe_offset = inst_info['PE_STRIKE_OFFSET']
+
+            logger.debug(f'{ul_sym} : {exch} {sym} {expiry_date}')
             qty = round(app_mods.get_system_info("TIU", "QUANTITY"), 0)
-
-            ltp = None
-            ltp, strike = get_ltp_strike(diu)
-
+            ltp = diu.get_latest_tick()
             if exch == 'NFO':
+                # find the nearest strike price
+                strike_diff = inst_info['STRIKE_DIFF']
+                strike1 = int(math.floor(ltp / strike_diff) * strike_diff)
+                strike2 = int(math.ceil(ltp / strike_diff) * strike_diff)
+                strike = strike1 if abs(ltp - strike1) < abs(ltp - strike2) else strike2
+                logger.debug(f'strike1: {strike1} strike2: {strike2} strike: {strike}')
                 c_or_p = 'C' if action == 'Buy' else 'P'
 
                 if c_or_p == 'C':
-                    strike_offset = app_mods.get_system_info("TIU", "CE_STRIKE_OFFSET")
+                    strike_offset = ce_offset
                 else:
-                    strike_offset = app_mods.get_system_info("TIU", "PE_STRIKE_OFFSET")
+                    strike_offset = pe_offset
 
-                strike_diff = app_mods.get_system_info("TIU", "STRIKE_DIFF")
-
-                strike += strike_offset * strike_diff
-                expiry_date = app_mods.get_system_info("TIU", "EXPIRY_DATE")
+                strike += int(strike_offset * strike_diff)
+                # expiry_date = app_mods.get_system_info("TIU", "EXPIRY_DATE")
                 parsed_date = datetime.strptime(expiry_date, '%d-%b-%Y')
                 exp_date = parsed_date.strftime('%d%b%y')
-                searchtext = f'{sym}{exp_date}{c_or_p}{strike}'
+                searchtext = f'{sym}{exp_date}{c_or_p}{strike:.0f}'
             elif exch == 'NSE':
                 searchtext = sym
                 strike = ''
@@ -268,109 +298,117 @@ class TeZ_App_BE:
             logger.info(f'qty: {qty} is not allowed')
             return
 
-        if app_mods.get_system_info("TIU", "TRADE_MODE") == 'PAPER':
-            # tiu place order
-            order_id = '1'
-            oco_order = f'{order_id}_gtt_order_id_1'
-        else:
-            logger.info(f'sym:{sym} tsym:{tsym} ltp: {ltp}')
-            use_gtt_oco = True if app_mods.get_system_info("TIU", "USE_GTT_OCO").upper() == 'YES' else False
-            remarks = None
-            orders = []
-            if sym == 'NIFTYBEES' and ltp is not None:
-                if not use_gtt_oco:
-                    pp = app_mods.get_system_info("TIU", "PROFIT_PER") / 100.0
-                    bp = utils.round_stock_prec(ltp * pp, base=ti)
+        logger.info(f'sym:{sym} tsym:{tsym} ltp: {ltp}')
+        use_gtt_oco = True if app_mods.get_system_info("TIU", "USE_GTT_OCO").upper() == 'YES' else False
+        remarks = None
 
-                    sl_p = app_mods.get_system_info("TIU", "STOPLOSS_PER") / 100.0
-                    bl = utils.round_stock_prec(ltp * sl_p, base=ti)
-                    logger.debug(f'ltp:{ltp} pp:{pp} bp:{bp} sl_p:{sl_p} bl:{bl}')
-
-                    if per_leg_qty:
-                        if action == 'Buy':
-                            order = app_mods.BO_B_MKT_Order(tradingsymbol=tsym,
-                                                            quantity=per_leg_qty, book_loss_price=bl,
-                                                            book_profit_price=bp, bo_remarks=remarks)
-                        else:
-                            order = app_mods.BO_S_MKT_Order(tradingsymbol=tsym,
-                                                            quantity=per_leg_qty, book_loss_price=bl,
-                                                            book_profit_price=bp, bo_remarks=remarks)
-                        # deep copy is not required as object contain same info and are not
-                        # modified
-                        orders = [copy.deepcopy(order) for _ in range(nlegs)]
-
-                    if rem_qty:
-                        if action == 'Buy':
-                            order = app_mods.BO_B_MKT_Order(tradingsymbol=tsym,
-                                                            quantity=rem_qty, book_loss_price=bl,
-                                                            book_profit_price=bp, bo_remarks=remarks)
-                        else:
-                            order = app_mods.BO_S_MKT_Order(tradingsymbol=tsym,
-                                                            quantity=rem_qty, book_loss_price=bl,
-                                                            book_profit_price=bp, bo_remarks=remarks)
-                        orders.append(order)
-                else:
-                    pp = app_mods.get_system_info("TIU", "PROFIT_PER") / 100.0
-                    bp = utils.round_stock_prec(ltp+pp*ltp, base=ti)
-
-                    sl_p = app_mods.get_system_info("TIU", "STOPLOSS_PER") / 100.0
-                    bl = utils.round_stock_prec(ltp-sl_p*ltp, base=ti)
-                    logger.debug(f'ltp:{ltp} pp:{pp} bp:{bp} sl_p:{sl_p} bl:{bl}')
-
-                    if per_leg_qty:
-                        order = app_mods.shared_classes.Combi_Primary_B_MKT_And_OCO_S_MKT_I_Order_NSE(tradingsymbol=tsym, quantity=per_leg_qty,
-                                                                                                      bl_alert_p=bl, bp_alert_p=bp,
-                                                                                                      remarks=remarks)
-                        # deep copy is not required as object contain same info and are not
-                        # modified
-                        orders = [copy.deepcopy(order) for _ in range(nlegs)]
-
-                    if rem_qty:
-                        order = app_mods.shared_classes.Combi_Primary_B_MKT_And_OCO_S_MKT_I_Order_NSE(tradingsymbol=tsym, quantity=rem_qty,
-                                                                                                      bl_alert_p=bl, bp_alert_p=bp,
-                                                                                                      remarks=remarks)
-                        orders.append(order)
-            else:
-                if use_gtt_oco:
-                    pp = app_mods.get_system_info("TIU", "PROFIT_POINTS")
-                    bp = utils.round_stock_prec(ltp+pp, base=ti)
-
-                    sl_p = app_mods.get_system_info("TIU", "STOPLOSS_POINTS")
-                    bl = utils.round_stock_prec(ltp-sl_p, base=ti)
-                    logger.debug(f'ltp:{ltp} pp:{pp} bp:{bp} sl_p:{sl_p} bl:{bl}')
-                else:
-                    bp = bl = None
+        ul_inst = self.diu.ul_symbol
+        exch = app_mods.get_system_info("TIU", "EXCHANGE")
+        inst = TeZ_App_BE.get_instrument_info(exchange=exch, ul_inst=ul_inst)
+        orders = []
+        if (sym == 'NIFTYBEES' or sym == 'BANKBEES') and ltp is not None:
+            pp = inst["PROFIT_PER"] / 100.0
+            sl_p = inst["STOPLOSS_PER"] / 100.0
+            if not use_gtt_oco:
+                bp = utils.round_stock_prec(ltp * pp, base=ti)
+                bl = utils.round_stock_prec(ltp * sl_p, base=ti)
+                logger.debug(f'ltp:{ltp} pp:{pp} bp:{bp} sl_p:{sl_p} bl:{bl}')
 
                 if per_leg_qty:
-                    order = app_mods.shared_classes.Combi_Primary_B_MKT_And_OCO_S_MKT_I_Order_NFO(tradingsymbol=tsym, quantity=per_leg_qty,
-                                                                                                  bl_alert_p=bl, bp_alert_p=bp,
-                                                                                                  remarks=remarks)
+                    if action == 'Buy':
+                        order = app_mods.BO_B_MKT_Order(tradingsymbol=tsym,
+                                                        quantity=per_leg_qty, book_loss_price=bl,
+                                                        book_profit_price=bp, bo_remarks=remarks)
+                    else:
+                        order = app_mods.BO_S_MKT_Order(tradingsymbol=tsym,
+                                                        quantity=per_leg_qty, book_loss_price=bl,
+                                                        book_profit_price=bp, bo_remarks=remarks)
+                    # deep copy is not required as object contain same info and are not
+                    # modified
                     orders = [copy.deepcopy(order) for _ in range(nlegs)]
 
                 if rem_qty:
-                    order = app_mods.shared_classes.Combi_Primary_B_MKT_And_OCO_S_MKT_I_Order_NFO(tradingsymbol=tsym, quantity=rem_qty,
-                                                                                                  bl_alert_p=bl, bp_alert_p=bp,
-                                                                                                  remarks=remarks)
+                    if action == 'Buy':
+                        order = app_mods.BO_B_MKT_Order(tradingsymbol=tsym,
+                                                        quantity=rem_qty, book_loss_price=bl,
+                                                        book_profit_price=bp, bo_remarks=remarks)
+                    else:
+                        order = app_mods.BO_S_MKT_Order(tradingsymbol=tsym,
+                                                        quantity=rem_qty, book_loss_price=bl,
+                                                        book_profit_price=bp, bo_remarks=remarks)
                     orders.append(order)
+            else:
+                bp1 = utils.round_stock_prec(ltp+pp*ltp, base=ti)
+                bp2 = utils.round_stock_prec(ltp-pp*ltp, base=ti)
+                bp = bp1 if action == 'Buy' else bp2
 
-            if len(orders):
-                for i, order in enumerate(orders):
-                    try:
-                        remarks = f'TeZ_{i+1}_Qty_{order.primary_order_quantity:.0f}_of_{qty:.0f}'
-                        # logger.info(remarks)
-                        order.remarks = remarks
-                        # logger.info(f'order: {i} -> {order}')
-                    except Exception:
-                        logger.error(traceback.format_exc())
+                bl1 = utils.round_stock_prec(ltp-sl_p*ltp, base=ti)
+                bl2 = utils.round_stock_prec(ltp+sl_p*ltp, base=ti)
 
-                # for i, order in enumerate(orders):
-                #     logger.info(f'order: {i} -> {order}')
+                bl = bl1 if action == 'Buy' else bl2
+                logger.debug(f'ltp:{ltp} pp:{pp} bp:{bp} sl_p:{sl_p} bl:{bl}')
 
-                resp_exception, resp_ok, os_tuple_list = self.tiu.place_and_confirm_tez_order(orders=orders, use_gtt_oco=use_gtt_oco)
-                if resp_exception:
-                    logger.info('Exception had occured while placing order: ')
-                if resp_ok:
-                    logger.debug(f'respok: {resp_ok}')
+                if per_leg_qty:
+                    if action == 'Buy':
+                        order = app_mods.shared_classes.Combi_Primary_B_MKT_And_OCO_S_MKT_I_Order_NSE(tradingsymbol=tsym, quantity=per_leg_qty,
+                                                                                                      bl_alert_p=bl, bp_alert_p=bp,
+                                                                                                      remarks=remarks)
+                    else:
+                        order = app_mods.shared_classes.Combi_Primary_S_MKT_And_OCO_B_MKT_I_Order_NSE(tradingsymbol=tsym, quantity=per_leg_qty,
+                                                                                                      bl_alert_p=bl, bp_alert_p=bp,
+                                                                                                      remarks=remarks)
+                    # deep copy is not required as object contain same info and are not
+                    # modified
+                    orders = [copy.deepcopy(order) for _ in range(nlegs)]
+
+                if rem_qty:
+                    if action == 'Buy':
+                        order = app_mods.shared_classes.Combi_Primary_B_MKT_And_OCO_S_MKT_I_Order_NSE(tradingsymbol=tsym, quantity=rem_qty,
+                                                                                                      bl_alert_p=bl, bp_alert_p=bp,
+                                                                                                      remarks=remarks)
+                    else:
+                        order = app_mods.shared_classes.Combi_Primary_S_MKT_And_OCO_B_MKT_I_Order_NSE(tradingsymbol=tsym, quantity=rem_qty,
+                                                                                                      bl_alert_p=bl, bp_alert_p=bp,
+                                                                                                      remarks=remarks)
+                    orders.append(order)
+        else:
+            if use_gtt_oco:
+                pp = inst["PROFIT_POINTS"]
+                bp = utils.round_stock_prec(ltp+pp, base=ti)
+
+                sl_p = inst["STOPLOSS_POINTS"]
+                bl = utils.round_stock_prec(ltp-sl_p, base=ti)
+                logger.debug(f'ltp:{ltp} pp:{pp} bp:{bp} sl_p:{sl_p} bl:{bl}')
+            else:
+                bp = bl = None
+
+            if per_leg_qty:
+                order = app_mods.shared_classes.Combi_Primary_B_MKT_And_OCO_S_MKT_I_Order_NFO(tradingsymbol=tsym, quantity=per_leg_qty,
+                                                                                              bl_alert_p=bl, bp_alert_p=bp,
+                                                                                              remarks=remarks)
+                orders = [copy.deepcopy(order) for _ in range(nlegs)]
+
+            if rem_qty:
+                order = app_mods.shared_classes.Combi_Primary_B_MKT_And_OCO_S_MKT_I_Order_NFO(tradingsymbol=tsym, quantity=rem_qty,
+                                                                                              bl_alert_p=bl, bp_alert_p=bp,
+                                                                                              remarks=remarks)
+                orders.append(order)
+
+        if len(orders):
+            for i, order in enumerate(orders):
+                try:
+                    remarks = f'TeZ_{i+1}_Qty_{order.primary_order_quantity:.0f}_of_{qty:.0f}'
+                    # logger.info(remarks)
+                    order.remarks = remarks
+                    # logger.info(f'order: {i} -> {order}')
+                except Exception:
+                    logger.error(traceback.format_exc())
+
+            resp_exception, resp_ok, os_tuple_list = self.tiu.place_and_confirm_tez_order(orders=orders, use_gtt_oco=use_gtt_oco)
+            if resp_exception:
+                logger.info('Exception had occured while placing order: ')
+            if resp_ok:
+                logger.debug(f'respok: {resp_ok}')
 
         symbol = tsym + '_' + str(token)
 
@@ -393,9 +431,18 @@ class TeZ_App_BE:
 
         return
 
-    def square_off_position(self):
+    def square_off_position(self, mode='SELECT'):
         df = self.bku.fetch_order_id()
-        self.tiu.square_off_position(df=df)
+        if mode == 'ALL':
+            self.tiu.square_off_position(df=df)
+        else:
+            exch = app_mods.get_system_info("TIU", "EXCHANGE")
+            ul_sym = self.diu.ul_symbol
+            inst_info = TeZ_App_BE.get_instrument_info(exch, ul_sym)
+            sq_off_symbol = inst_info['SYMBOL']
+            logger.info(f'Sq_off_symbol:{sq_off_symbol}')
+            self.tiu.square_off_position(df=df, symbol=sq_off_symbol)
+
         print("Square off Position - Complete.")
 
     def data_feed_connect(self):

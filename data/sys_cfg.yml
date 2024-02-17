@@ -1,12 +1,21 @@
 ---
 GUI_CONFIG:
-  APP_TITLE: 'TeZ - NIFTY'
-  APP_GEOMETRY: '250x200'
+  APP_TITLE: 'TeZ'
+  APP_GEOMETRY: '250x250'
   LONG_BUTTON: ' Buy '
   SHORT_BUTTON: 'Short'
   EXIT_BUTTON: 'Exit App'
   SQUARE_OFF_BUTTON: 'Square Off'
-  PLAY_NOTIFY: 'YES'   #YES NO
+  PLAY_NOTIFY: 'YES'  # YES NO
+  SLIDER_POSN1_TEXT: 'Locked'
+  SLIDER_POSN2_TEXT: 'UnLocked'
+  SLIDER_FONT_SIZE: 8
+  SLIDER_FONT: 'arial'
+  RADIOBUTTON_DEF_VALUE: 'NIFTY'
+  RADIOBUTTON_1_VALUE: 'NIFTY'
+  RADIOBUTTON_2_VALUE: 'NIFTY BANK'   #  'NIFTY BANK'  and not  'BANKNIFTY' 
+  RADIOBUTTON_1_TEXT: 'N'
+  RADIOBUTTON_2_TEXT: 'BN'
 TIU:
   USE_GSHEET_TOKEN: 'NO' #YES NO
   GOOGLE_SHEET:
@@ -16,25 +25,70 @@ TIU:
   TOKEN_FILE: null
   CRED_FILE:  './data/cred/user_cred.yml' 
 
-  EXCHANGE: 'NSE'             #valid values : NSE 
-  INSTRUMENT: 'NIFTYBEES'     #valid values : NIFTYBEES 
-  EXPIRY_DATE: '01-FEB-2024'           #Format:'11-JAN-24'
-  
-  CE_STRIKE_OFFSET: 0         # 0 means ATM,   1 is OTM, -1 means ITM
-  PE_STRIKE_OFFSET: 0         # 0 means ATM,  -1 is OTM, +1 means ITM
-  STRIKE_DIFF: 50             # difference betweekn strikes
+  EXCHANGE: 'NSE'             # valid values : NSE NFO
 
-  PROFIT_PER: 0.4
-  STOPLOSS_PER: 0.2
+  INSTRUMENT_INFO:
+    INST_1:
+      SYMBOL: 'NIFTYBEES'
+      UL_INSTRUMENT: 'NIFTY'
+      EXCHANGE: 'NSE'
+      EXPIRY_DATE: null
+      STRIKE_DIFF: null  
+      CE_STRIKE_OFFSET: null      
+      PE_STRIKE_OFFSET: null      
+      PROFIT_PER: 0.4             # 0.4 % of LTP 
+      STOPLOSS_PER: 0.2           # 0.2 % of LTP 
+      PROFIT_POINTS: null  
+      STOPLOSS_POINTS: null
+
+    INST_2:
+      SYMBOL: 'BANKBEES'
+      UL_INSTRUMENT: 'NIFTY BANK'
+      EXCHANGE: 'NSE'
+      EXPIRY_DATE: null
+      CE_STRIKE_OFFSET: null      
+      PE_STRIKE_OFFSET: null     
+      STRIKE_DIFF: null   
+      PROFIT_PER: 0.4             # 0.4 % of LTP 
+      STOPLOSS_PER: 0.2           # 0.2 % of LTP 
+      PROFIT_POINTS: null  
+      STOPLOSS_POINTS: null
+
+    INST_3:
+      SYMBOL: 'NIFTY'
+      UL_INSTRUMENT: 'NIFTY'
+      EXCHANGE: 'NFO'
+      EXPIRY_DATE: '22-FEB-2024'  # Format: '01-FEB-2024'  
+      CE_STRIKE_OFFSET: 0         # 0 means ATM,   1 is OTM, -1 means ITM
+      PE_STRIKE_OFFSET: 0         # 0 means ATM,  -1 is OTM, 1 means ITM
+      STRIKE_DIFF: 50  
+      PROFIT_PER: null  
+      STOPLOSS_PER: null
+      PROFIT_POINTS: 60           # Points in Option Price 
+      STOPLOSS_POINTS: 20         # Points in Option Price
+
+    INST_4:
+      SYMBOL: 'BANKNIFTY'
+      UL_INSTRUMENT: 'NIFTY BANK'
+      EXCHANGE: 'NFO'
+      EXPIRY_DATE: '21-FEB-2024'  # Format: '01-FEB-2024'  
+      CE_STRIKE_OFFSET: 0         # 0 means ATM,   1 is OTM, -1 means ITM
+      PE_STRIKE_OFFSET: 0         # 0 means ATM,  -1 is OTM, 1 means ITM
+      STRIKE_DIFF: 100  
+      PROFIT_PER: null  
+      STOPLOSS_PER: null
+      PROFIT_POINTS: 120          # Points in Option Price 
+      STOPLOSS_POINTS: 40         # Points in Option Price
 
   PRODUCT: 'MIS'
   USE_GTT_OCO: 'NO'       # 'YES' 'NO'
   QUANTITY: 1
-  N_LEGS: 1            # Future USE,  ice berg orders
-  TRADE_MODE: 'LIVE'  #'LIVE'
+  N_LEGS: 1            # ice berg orders
+
   TRADES_RECORD_FILE: './log/orders.csv'
   SAVE_TOKEN_FILE_CFG: 'YES'   #YES NO
   SAVE_TOKEN_FILE_NAME: './log/user_token.json'  
+
 DIU:
   GOOGLE_SHEET:
     CLIENT_SECRET: null
@@ -42,9 +96,7 @@ DIU:
     NAME: null
   TOKEN_FILE: './log/user_token.json'
   CRED_FILE: './data/cred/user_cred.yml' 
-  UL_INSTRUMENT: 'NIFTY'   #Not used.. hard coded in the system
-  EXPIRY_DATE: null
-  EXCHANGE: 'NSE'
+
   SAVE_TOKEN_FILE_CFG: 'NO'   #YES NO
   SAVE_TOKEN_FILE_NAME: null   #Full Path to json file 
 SYSTEM:
