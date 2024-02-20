@@ -215,7 +215,7 @@ class TeZ_App_BE:
                 searchtext = f'{sym}{exp_date}{c_or_p}{strike:.0f}'
             elif exch == 'NSE':
                 searchtext = sym
-                strike = ''
+                strike = None
                 logger.debug(f'ltp:{ltp} strike:{strike}')
             else:
                 ...
