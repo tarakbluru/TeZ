@@ -45,7 +45,7 @@ except Exception as e:
 
 global g_app_be
 global g_slider_value
-g_app_be: TeZ_App_BE = None
+g_app_be: TeZ_App_BE | None = None
 
 
 def long_market():
