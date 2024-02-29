@@ -397,7 +397,10 @@ class TeZ_App_BE:
         if len(orders):
             for i, order in enumerate(orders):
                 try:
-                    remarks = f'TeZ_{i+1}_Qty_{order.primary_order_quantity:.0f}_of_{qty:.0f}'
+                    if isinstance(order, app_mods.shared_classes.BO_B_MKT_Order) or isinstance(order, app_mods.shared_classes.BO_S_MKT_Order):
+                        remarks = f'TeZ_{i+1}_Qty_{order.quantity:.0f}_of_{qty:.0f}'
+                    else:
+                        remarks = f'TeZ_{i+1}_Qty_{order.primary_order_quantity:.0f}_of_{qty:.0f}'
                     # logger.info(remarks)
                     order.remarks = remarks
                     # logger.info(f'order: {i} -> {order}')
