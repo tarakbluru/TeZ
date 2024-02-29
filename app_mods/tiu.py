@@ -613,14 +613,14 @@ class Tiu (BaseIU):
             status = Tiu_OrderStatus.HARD_FAILURE
 
             qty = order.quantity
-            os = shared_classes.OrderStatus()
+            ord_status = shared_classes.OrderStatus()
             if r is not None:
                 if r['stat'] == 'Not_Ok':
                     logger.info(f'place_order : Failure {r["emsg"]}')
-                    os.emsg = r['emsg']
+                    ord_status.emsg = r['emsg']
                 else:
                     logger.info(f'Order Attempt success:: order id  : {r["norenordno"]}')
-                    order_id = os.order_id = r["norenordno"]
+                    order_id = ord_status.order_id = r["norenordno"]
                     reason1 = "rms:blocked"  # TO BE TESTED
                     reason2 = "margin"
                     reason3 = 'RMS: Auto Square Off Block'.lower()  # TO BE TESTED
@@ -664,12 +664,13 @@ class Tiu (BaseIU):
                                 order_id = r_os_dict['norenordno']
                                 fill_timestamp = r_os_dict['exch_tm']
                                 if filled_qty == qty:
-                                    os.avg_price = avg_price
+                                    ord_status.avg_price = avg_price
+                                    ord_status.trantype = order.buy_or_sell
                                     if order.buy_or_sell == 'B':
-                                        os.fillshares = filled_qty
+                                        ord_status.fillshares = filled_qty
                                     else:
-                                        os.fillshares = -(filled_qty)
-                                    os.fill_timestamp = fill_timestamp
+                                        ord_status.fillshares = -(filled_qty)
+                                    ord_status.fill_timestamp = fill_timestamp
                                     # ord_resp = OrderResp(avg_price=avg_price, order_id=order_id, quantity=qty, ft=fill_timestamp)
                                     status = Tiu_OrderStatus.SUCCESS
                                     break
@@ -698,12 +699,12 @@ class Tiu (BaseIU):
                                 if 'avgprc' in r_os_dict:
                                     avg_price = float(r_os_dict['avgprc'])
 
-                                os.avg_price = avg_price
+                                ord_status.avg_price = avg_price
                                 if order.buy_or_sell == 'B':
-                                    os.fillshares = filled_qty
+                                    ord_status.fillshares = filled_qty
                                 else:
-                                    os.fillshares = -(filled_qty)
-                                os.fill_timestamp = fill_timestamp
+                                    ord_status.fillshares = -(filled_qty)
+                                ord_status.fill_timestamp = fill_timestamp
                                 # ord_resp = OrderResp(avg_price=avg_price, order_id=order_id, quantity=filled_qty, ft=fill_timestamp)
                                 status = Tiu_OrderStatus.SUCCESS if filled_qty == qty else Tiu_OrderStatus.SOFT_FAILURE_QTY
                             else:
@@ -717,19 +718,19 @@ class Tiu (BaseIU):
                 if self.notifier is not None:
                     self.notifier.put_message(mesg)
             else:
-                logger.debug(str(os))
+                logger.debug(str(ord_status))
 
             # To debug following is used during off market hours
-            # os.avg_price = 1
+            # ord_status.avg_price = 1
             # if order.buy_or_sell == 'B':
-            #     os.fillshares = 1
+            #     ord_status.fillshares = 1
             # else:
             #     logger.info('making qty = -1')
-            #     os.fillshares = -1
-            # os.fill_timestamp = 1
-            # os.order_id = str(12)
+            #     ord_status.fillshares = -1
+            # ord_status.fill_timestamp = 1
+            # ord_status.order_id = str(12)
             # status = Tiu_OrderStatus.SUCCESS
-            return (status, os)
+            return (status, ord_status)
 
         def place_ind_order(com_order):
             nonlocal self
@@ -760,15 +761,15 @@ class Tiu (BaseIU):
         def place_ind_oco_order(oco_tuple):
             nonlocal self
             order, r_tuple = oco_tuple
-            primary_order_status, os = r_tuple
+            primary_order_status, ord_status = r_tuple
             status = Tiu_OrderStatus.HARD_FAILURE
 
             if primary_order_status == Tiu_OrderStatus.SUCCESS:
-                os: shared_classes.OrderStatus = os
-                quantity = abs(os.fillshares)
+                ord_status: shared_classes.OrderStatus = ord_status
+                quantity = abs(ord_status.fillshares)
                 f_order: shared_classes.OCO_FOLLOW_UP_MKT_I_Order = order.follow_up_order
 
-                remarks = f_order.remarks + '_' + os.order_id if f_order.remarks else os.order_id
+                remarks = f_order.remarks + '_' + ord_status.order_id if f_order.remarks else ord_status.order_id
 
                 # logger.info(f'placing {f_order.buy_or_sell} order: {order} f_order order {f_order}')
 
@@ -784,19 +785,19 @@ class Tiu (BaseIU):
                                                 book_profit_price_type=f_order.price_type,
                                                 quantity=quantity,
                                                 remarks=remarks)
-                os = shared_classes.OrderStatus()
+                ord_status = shared_classes.OrderStatus()
                 if r is not None:
                     if r['stat'] == 'Not_Ok':
                         logger.info(f'OCO place_order : Failure {r["emsg"]}')
-                        os.emsg = r['emsg']
+                        ord_status.emsg = r['emsg']
                     else:
                         if r['stat'] == 'OI created':
                             logger.info(f'Place order success:: al id  : {r["al_id"]}')
-                            os.al_id = r["al_id"]
+                            ord_status.al_id = r["al_id"]
                             order.al_id = r['al_id']
                             status = Tiu_OrderStatus.SUCCESS
 
-                return status, os
+                return status, ord_status
 
         resp_exception = 0
         resp_ok = 0
@@ -816,12 +817,12 @@ class Tiu (BaseIU):
                 logger.error(traceback.format_exc())
                 resp_exception = resp_exception + 1
             else:
-                status, os = r_tuple
+                status, ord_status = r_tuple
                 if status == Tiu_OrderStatus.SUCCESS:
                     resp_ok = resp_ok + 1
-                    order.order_id = os.order_id
+                    order.order_id = ord_status.order_id
                     oco_order = (order, r_tuple)
-                    logger.info(f'{os}')
+                    logger.info(f'{ord_status}')
                     oco_tuple_list.append(oco_order)
 
         if use_gtt_oco:
@@ -837,11 +838,11 @@ class Tiu (BaseIU):
                     logger.error(traceback.format_exc())
                     resp_exception = resp_exception + 1
                 else:
-                    status, os = r_tuple
+                    status, ord_status = r_tuple
                     if status == Tiu_OrderStatus.SUCCESS:
                         resp_ok = resp_ok + 1
                         order, r_tuple = oco_tuple
-                        order.al_id = os.al_id
+                        order.al_id = ord_status.al_id
 
         return resp_exception, resp_ok, result
 
@@ -1017,7 +1018,7 @@ class Tiu (BaseIU):
                         failure_cnt += 1
                     else:
                         logger.info(f'Exit Order Attempt success:: order id  : {r["norenordno"]}')
-                        order_id = os.order_id = r["norenordno"]
+                        order_id = r["norenordno"]
                         r_os_list = self.fv.single_order_history(order_id)
                         # Shoonya gives a list for all status of order, we are interested in first one
                         r_os_dict = r_os_list[0]
