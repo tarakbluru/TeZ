@@ -547,4 +547,4 @@ class OrderStatus():
 
     def __str__(self):
         return f'''Sym: {self.sym} fillshares: {self.fillshares} unfilledsize: {self.unfilledsize} trantype:{self.trantype}
-                rejReason:{self.rejReason} remarks:{self.remarks} order_id: {self.order_id} al_id: {self.al_id}'''
+                avg_price: {self.avg_price} rejReason:{self.rejReason} remarks:{self.remarks} order_id: {self.order_id} al_id: {self.al_id}'''
