@@ -952,7 +952,15 @@ class Tiu (BaseIU):
             token = symbol.split('_')[1]
             tsym = symbol.split('_')[0]
             rec_qty = row['Qty']
-            posn_qty = posn_df.loc[posn_df['token'] == token, 'netqty'].values[0]
+            if len(posn_df):
+                try:
+                    posn_qty = posn_df.loc[posn_df['token'] == str(token), 'netqty'].values[0]
+                except IndexError:
+                    posn_qty = 0
+                else:
+                    ...
+            else:
+                posn_qty = 0
             net_qty = abs(posn_qty)
 
             # It is possible that manually, user could do following:
