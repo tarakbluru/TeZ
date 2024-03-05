@@ -11,9 +11,9 @@ GUI_CONFIG:
   SLIDER_POSN2_TEXT: 'UnLocked'
   SLIDER_FONT_SIZE: 8
   SLIDER_FONT: 'arial'
-  RADIOBUTTON_DEF_VALUE: 'NIFTY'
-  RADIOBUTTON_1_VALUE: 'NIFTY'
-  RADIOBUTTON_2_VALUE: 'NIFTY BANK'   #  'NIFTY BANK'  and not  'BANKNIFTY' 
+  RADIOBUTTON_DEF_VALUE: 'NIFTY'      
+  RADIOBUTTON_1_VALUE: 'NIFTY'        # Fixed: Do not change 
+  RADIOBUTTON_2_VALUE: 'NIFTY BANK'   # 'NIFTY BANK'  and not  'BANKNIFTY'  Do not change
   RADIOBUTTON_1_TEXT: 'N'
   RADIOBUTTON_2_TEXT: 'BN'
 TIU:
@@ -33,56 +33,56 @@ TIU:
 
   INSTRUMENT_INFO:
     INST_1:
-      SYMBOL: 'NIFTYBEES'
-      UL_INSTRUMENT: 'NIFTY'
-      EXCHANGE: 'NSE'
-      EXPIRY_DATE: null
-      STRIKE_DIFF: null  
-      CE_STRIKE_OFFSET: null      
-      PE_STRIKE_OFFSET: null      
+      SYMBOL: 'NIFTYBEES'                 # Fixed: Do not change 
+      UL_INSTRUMENT: 'NIFTY'              # Fixed: Do not change    
+      EXCHANGE: 'NSE'                     # Fixed: Do not change     
+      EXPIRY_DATE: null                   # Fixed: Do not change       
+      STRIKE_DIFF: null                   # Fixed: Do not change       
+      CE_STRIKE_OFFSET: null              # Fixed: Do not change      
+      PE_STRIKE_OFFSET: null              # Fixed: Do not change          
       PROFIT_PER: 0.4             # 0.4 % of LTP 
       STOPLOSS_PER: 0.2           # 0.2 % of LTP 
-      PROFIT_POINTS: null  
-      STOPLOSS_POINTS: null
+      PROFIT_POINTS: null                 # Fixed: Do not change     
+      STOPLOSS_POINTS: null               # Fixed: Do not change      
 
     INST_2:
-      SYMBOL: 'BANKBEES'
-      UL_INSTRUMENT: 'NIFTY BANK'
-      EXCHANGE: 'NSE'
-      EXPIRY_DATE: null
-      CE_STRIKE_OFFSET: null      
-      PE_STRIKE_OFFSET: null     
-      STRIKE_DIFF: null   
+      SYMBOL: 'BANKBEES'                  # Fixed: Do not change      
+      UL_INSTRUMENT: 'NIFTY BANK'         # Fixed: Do not change
+      EXCHANGE: 'NSE'                     # Fixed: Do not change  
+      EXPIRY_DATE: null                   # Fixed: Do not change
+      CE_STRIKE_OFFSET: null              # Fixed: Do not change 
+      PE_STRIKE_OFFSET: null              # Fixed: Do not change 
+      STRIKE_DIFF: null                   # Fixed: Do not change
       PROFIT_PER: 0.4             # 0.4 % of LTP 
       STOPLOSS_PER: 0.2           # 0.2 % of LTP 
-      PROFIT_POINTS: null  
-      STOPLOSS_POINTS: null
+      PROFIT_POINTS: null                 # Fixed: Do not change
+      STOPLOSS_POINTS: null               # Fixed: Do not change     
 
     INST_3:
-      SYMBOL: 'NIFTY'
-      UL_INSTRUMENT: 'NIFTY'
-      EXCHANGE: 'NFO'
-      EXPIRY_DATE: '22-FEB-2024'  # Format: '01-FEB-2024'  
-      CE_STRIKE_OFFSET: -1         # 0 means ATM,   1 is OTM, -1 means ITM
-      PE_STRIKE_OFFSET: 1         # 0 means ATM,  -1 is OTM, 1 means ITM
-      STRIKE_DIFF: 50  
-      PROFIT_PER: null  
-      STOPLOSS_PER: null
-      PROFIT_POINTS: 30           # Points in Option Price 
-      STOPLOSS_POINTS: 10         # Points in Option Price
+      SYMBOL: 'NIFTY'                     # Fixed: Do not change    
+      UL_INSTRUMENT: 'NIFTY'              # Fixed: Do not change
+      EXCHANGE: 'NFO'                     # Fixed: Do not change    
+      EXPIRY_DATE: '22-FEB-2024'          # Format: '01-FEB-2024'  
+      CE_STRIKE_OFFSET: 0                 # 0 means ATM,   1 is OTM, -1 means ITM
+      PE_STRIKE_OFFSET: 0                 # 0 means ATM,  -1 is OTM, 1 means ITM
+      STRIKE_DIFF: 50                     # Fixed: Do not change
+      PROFIT_PER: null                    # Fixed: Do not change
+      STOPLOSS_PER: null                  # Fixed: Do not change
+      PROFIT_POINTS: 30                   # Points in Option Price 
+      STOPLOSS_POINTS: 10                 # Points in Option Price
 
     INST_4:
-      SYMBOL: 'BANKNIFTY'
-      UL_INSTRUMENT: 'NIFTY BANK'
-      EXCHANGE: 'NFO'
-      EXPIRY_DATE: '21-FEB-2024'  # Format: '01-FEB-2024'  
-      CE_STRIKE_OFFSET: -1         # 0 means ATM,   1 is OTM, -1 means ITM
-      PE_STRIKE_OFFSET: 1         # 0 means ATM,  -1 is OTM, 1 means ITM
-      STRIKE_DIFF: 100  
-      PROFIT_PER: null  
-      STOPLOSS_PER: null
-      PROFIT_POINTS: 60          # Points in Option Price 
-      STOPLOSS_POINTS: 20         # Points in Option Price
+      SYMBOL: 'BANKNIFTY'                 # Fixed: Do not change     
+      UL_INSTRUMENT: 'NIFTY BANK'         # Fixed: Do not change  
+      EXCHANGE: 'NFO'                     # Fixed: Do not change
+      EXPIRY_DATE: '21-FEB-2024'          # Format: '01-FEB-2024'  
+      CE_STRIKE_OFFSET: 0                # 0 means ATM,   1 is OTM, -1 means ITM
+      PE_STRIKE_OFFSET: 0                 # 0 means ATM,  -1 is OTM, 1 means ITM
+      STRIKE_DIFF: 100                    # Fixed: Do not change
+      PROFIT_PER: null                    # Fixed: Do not change
+      STOPLOSS_PER: null                  # Fixed: Do not change        
+      PROFIT_POINTS: 60                   # Points in Option Price 
+      STOPLOSS_POINTS: 20                 # Points in Option Price
 
   TRADES_RECORD_FILE: './log/orders.csv'
   SAVE_TOKEN_FILE_CFG: 'YES'   #YES NO
@@ -104,7 +104,7 @@ SYSTEM:
   MARKET_TIMING: 
     OPEN: "09:15"   #Zero padded
     CLOSE: "15:30"
-  SQ_OFF_TIMING: "15:15" # format : HH:MM 
+  SQ_OFF_TIMING: "15:15"                  # format : HH:MM 
   TELEGRAM:          #Future Use
     NOTIFY : "OFF"  #Notifier is created but only the notifications are not pushed by this control parameter.
     CFG_FILE: null
