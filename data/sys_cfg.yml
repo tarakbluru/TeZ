@@ -25,7 +25,25 @@ TIU:
   TOKEN_FILE: null
   CRED_FILE:  './data/cred/user_cred.yml' 
 
+  ############################################################################################
+  # Risk Disclosure on Derivatives.
+  ############################################################################################
+  # A. 9 out of 10 individual traders in equity Futures and Options Segment, incurred net 
+  #    losses.
+  # B. On an average, loss makers registered net trading loss close to ₹50,000.
+  #    Over and above the net trading losses incurred, loss makers expended an additional 
+  #    28% of net trading losses as transaction costs.
+  # C. Those making net trading profits, incurred between 15% to 50% of such profits 
+  #    as transaction cost.
+  #
+  # D. This program is made open source with  intent ONLY to show how to design a execution 
+  #    platform and that is only for educational purpose.
+  # 
+  #  In case, you use this software, Risk, Reward and Losses are all yours.
+
   EXCHANGE: 'NSE'             # valid values : NSE NFO
+  ###########################################################################################
+
   PRODUCT: 'MIS'
   USE_GTT_OCO: 'NO'       # 'YES' 'NO'
   QUANTITY: 1
