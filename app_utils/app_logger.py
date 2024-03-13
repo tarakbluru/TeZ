@@ -28,21 +28,26 @@ from datetime import datetime
 
 LOG_FILE = None
 
-current_dir = os.path.dirname(os.path.abspath(__file__))
-yml_file = os.path.join(current_dir, '..', 'data', 'sys_cfg.yml')
-
-with open(yml_file, 'r') as file:
-    data = yaml.load(file, Loader=yaml.FullLoader)
-    log_file_name = data['SYSTEM']['LOG_FILE']
-    # Extract the extension from the original log_file_name
-    file_name, file_extension = os.path.splitext(log_file_name)
-    current_datetime = datetime.now().strftime('%m_%d_%H_%M_%S')
-    LOG_FILE = f'{file_name}_{current_datetime}{file_extension}'
-
+try:
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    yml_file = os.path.join(current_dir, '..', 'data', 'sys_cfg.yml')
+    with open(yml_file, 'r') as file:
+        data = yaml.load(file, Loader=yaml.FullLoader)
+        log_file_name = data['SYSTEM']['LOG_FILE']
+        # Extract the extension from the original log_file_name
+        file_name, file_extension = os.path.splitext(log_file_name)
+        current_datetime = datetime.now().strftime('%m_%d_%H_%M_%S')
+        LOG_FILE = f'{file_name}_{current_datetime}{file_extension}'
+except TypeError as e:
+    print (f'Exception:{e}')
+    sys.exit (1)
+except Exception:
+    ...
 
 def init_logger(file: str):
     global LOG_FILE
     LOG_FILE = file
+    print (f'Logfile: {LOG_FILE}')
     return
 
 
