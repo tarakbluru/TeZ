@@ -117,7 +117,7 @@ def gui_tk_layout():
     else:
         font = font.Font(weight="bold")
 
-    buy_button = tk.Button(frame_top, text=l_button_text, command=long_market, bg='#00EF00',  font=font, fg='black')
+    buy_button = tk.Button(frame_top, text=l_button_text, command=long_market, bg='#00EF00',  font=font, fg='black', state='disabled')
     buy_button.pack(side=tk.LEFT, padx=5)  # Adds space between buttons
 
     # Label to display NIFTY index data
@@ -125,17 +125,17 @@ def gui_tk_layout():
     tick_label.pack(side=tk.LEFT, padx=5)  # Adds space between label and buttons
 
     s_button_text = app_mods.get_system_info("GUI_CONFIG", "SHORT_BUTTON")
-    sell_button = tk.Button(frame_top, text=s_button_text, command=short_market, bg='#EF0000',  font=font, fg='black')
+    sell_button = tk.Button(frame_top, text=s_button_text, command=short_market, bg='#EF0000',  font=font, fg='black', state="disabled")
     sell_button.pack(side=tk.LEFT, padx=5)  # Adds space between buttons
 
     # Exit App button in another line
     e_button_text = app_mods.get_system_info("GUI_CONFIG", "EXIT_BUTTON")
-    exit_button = tk.Button(frame_bottom, text=e_button_text, command=exit_action, font=font)
+    exit_button = tk.Button(frame_bottom, text=e_button_text, command=exit_action, font=font, state="disabled")
     exit_button.pack(side=tk.RIGHT, padx=5, pady=5)  # Adds space between buttons
 
     # Square Off button in the same line
     sq_button_text = app_mods.get_system_info("GUI_CONFIG", "SQUARE_OFF_BUTTON")
-    square_off_button = tk.Button(frame_bottom, text=sq_button_text, command=square_off_action, font=font)
+    square_off_button = tk.Button(frame_bottom, text=sq_button_text, command=square_off_action, font=font,state="disabled")
     square_off_button.pack(side=tk.RIGHT, padx=5, pady=5)  # Adds space between buttons
 
     # Update the NIFTY index data periodically (every second)
@@ -157,7 +157,20 @@ def gui_tk_layout():
             g_slider_value = app_mods.get_system_info("GUI_CONFIG", "SLIDER_POSN1_TEXT")
             status_label.config(text=g_slider_value)
 
+    def update_button_states(value):
+        if int(value) == 1:
+            buy_button.config(state="normal")
+            sell_button.config(state="normal")
+            square_off_button.config(state="normal")
+            exit_button.config(state='normal')
+        else:
+            buy_button.config(state="disabled")        
+            sell_button.config(state="disabled")
+            square_off_button.config(state="disabled")
+            exit_button.config(state='disabled')
+
     def slider_changed(value):
+        update_button_states (value)
         update_status_label(value)
 
     # Create a slider (Scale widget) to control the ON/OFF status
