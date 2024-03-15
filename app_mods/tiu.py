@@ -741,7 +741,7 @@ class Tiu (BaseIU):
                isinstance(order, shared_classes.Combi_Primary_S_MKT_And_OCO_B_MKT_I_Order_NSE):
                 order = order.primary_order
 
-            logger.info(f'placing {order.buy_or_sell} order {order}')
+            logger.debug(f'placing {order.buy_or_sell} order {order}')
             r = self.fv.place_order(buy_or_sell=order.buy_or_sell,
                                     product_type=order.product_type,
                                     exchange=order.exchange,

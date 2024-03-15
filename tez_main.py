@@ -20,7 +20,7 @@ __email__ = "tarakesh.nc_at_google_mail_dot_com"
 __license__ = "MIT"
 __maintainer__ = "Tarak"
 __status__ = "Development"
-__version__ = "0.5.0_Rc4"
+__version__ = "0.5.0_Rc5"
 
 import sys
 import traceback
@@ -34,6 +34,7 @@ try:
     import time
     import tkinter as tk
     import winsound
+    from datetime import datetime
     from multiprocessing import active_children
 
     import app_mods
@@ -49,7 +50,7 @@ g_app_be: TeZ_App_BE | None = None
 
 
 def long_market():
-    logger.debug('Buy Click')
+    logger.info(f'{datetime.now()}: Buy Click')
     if g_slider_value.lower() == 'unlocked':
         g_app_be.market_action(action='Buy')
         play_notify()
@@ -58,7 +59,7 @@ def long_market():
 
 
 def short_market():
-    logger.debug('Short Click')
+    logger.info(f'{datetime.now()}: Short Click')
     if g_slider_value.lower() == 'unlocked':
         g_app_be.market_action(action='Short')
         play_notify()
@@ -67,7 +68,7 @@ def short_market():
 
 
 def square_off_action():
-    logger.debug('Square Off Click')
+    logger.info(f'{datetime.now()}: Square Off Click')
     if g_slider_value.lower() == 'unlocked':
         g_app_be.square_off_position()
         play_notify()
@@ -76,7 +77,7 @@ def square_off_action():
 
 
 def exit_action():
-    print("Exiting the app")
+    logger.info(f"{datetime.now()}: Exit Click")
     if g_slider_value.lower() == 'unlocked':
         g_root.destroy()
     else:
