@@ -20,7 +20,7 @@ __email__ = "tarakesh.nc_at_google_mail_dot_com"
 __license__ = "MIT"
 __maintainer__ = "Tarak"
 __status__ = "Development"
-__version__ = "0.5.0_Rc6"
+__version__ = "0.5.0_Rc7"
 
 import sys
 import traceback
@@ -220,6 +220,32 @@ def gui_tk_layout():
 
     return root
 
+def is_exp_date_lapsed(date_string):
+    try:
+        # Convert the date string to a datetime object
+        date_object = datetime.strptime(date_string, "%d-%b-%Y")  # Adjust the format according to your date string
+        # Get the current date and time
+        current_datetime = datetime.now()
+        # Compare the date with the current date
+        if date_object < current_datetime:
+            return True  # Date has already lapsed
+        else:
+            return False  # Date is in the future
+    except ValueError:
+        return False  # Invalid date string format
+    
+def check_expiry_dates(data):
+    
+    for key, value in data.items():
+        if isinstance(value, dict):
+            # If the value is a dictionary, recursively check for expiry dates
+            check_expiry_dates(value)
+        elif key == 'EXPIRY_DATE':
+            # If the key is 'expiry_date', check if the value has lapsed
+            expiry_date = value
+            if expiry_date and is_exp_date_lapsed(expiry_date):
+                logger.info(f"Expiry date: {expiry_date} has already lapsed.")
+                sys.exit (1)
 
 def main():
     logger.info(f'{__app_name__}: {__version__}')
@@ -228,6 +254,14 @@ def main():
 
     r = app_mods.get_system_config()
     logger.info(f'System Config Read: {r}')
+
+    # Verification Step: 
+    # If the exchange is NFO and the expiry dates are already lapsed, 
+    # it should be flagged.
+    exch = app_mods.get_system_info("TIU", "EXCHANGE")
+    if exch == 'NFO':
+        inst_info = app_mods.get_system_info("TIU", "INSTRUMENT_INFO")
+        check_expiry_dates (inst_info)
 
     try:
         g_app_be = TeZ_App_BE()
