@@ -109,6 +109,8 @@ To report a bug, please follow these steps:
 
 4. Describe the bug in detail. Include information about your environment, steps to reproduce the bug, and any relevant error messages.
 
+5. A set of tests can be found in ![Testcases](/docs/Tez_TestCases.pdf)
+
 ### Code Style
 
 We appreciate your focus on bug reporting. However, if you notice any code-related issues, please include them in the bug report.
