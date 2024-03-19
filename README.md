@@ -109,7 +109,7 @@ To report a bug, please follow these steps:
 
 4. Describe the bug in detail. Include information about your environment, steps to reproduce the bug, and any relevant error messages.
 
-5. A set of tests can be found in ![Testcases](/docs/Tez_TestCases.pdf)
+5. A set of tests can be found in ![Refer](/docs/Tez_Test Cases.pdf)
 
 ### Code Style
 
