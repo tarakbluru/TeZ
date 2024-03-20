@@ -20,7 +20,7 @@ __email__ = "tarakesh.nc_at_google_mail_dot_com"
 __license__ = "MIT"
 __maintainer__ = "Tarak"
 __status__ = "Development"
-__version__ = "0.5.0_Rc7"
+__version__ = "0.5.0_Rc8"
 
 import sys
 import traceback
@@ -225,9 +225,9 @@ def is_exp_date_lapsed(date_string):
         # Convert the date string to a datetime object
         date_object = datetime.strptime(date_string, "%d-%b-%Y")  # Adjust the format according to your date string
         # Get the current date and time
-        current_datetime = datetime.now()
+        current_date = datetime.now().date()
         # Compare the date with the current date
-        if date_object < current_datetime:
+        if date_object.date() < current_date:
             return True  # Date has already lapsed
         else:
             return False  # Date is in the future
