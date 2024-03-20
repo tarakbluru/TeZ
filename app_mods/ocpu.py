@@ -61,7 +61,7 @@ OcpuInstrumentInfo = NamedTuple('OcpuInstrumentInfo', [('symbol', str),
                                                        ('stoploss_per', float),
                                                        ('profit_points', float),
                                                        ('stoploss_points', float),
-                                                       ('use_gtt_oco', str),
+                                                       ('use_gtt_oco', bool),
                                                        ('qty', int),
                                                        ("n_legs", int),
                                                        ])
@@ -133,7 +133,7 @@ class OCPU(object):
                 logger.info(f'Available Margin: {self.tiu.avlble_margin:.2f} Required Amount: {ltp * old_qty} Updating qty: {old_qty} --> {qty} ')
 
             logger.info(f'''strike: {strike}, sym: {sym}, tsym: {tsym}, token: {token},
-                        qty:{qty}, ltp: {ltp}, ti:{ti} ls:{ls} frz_qty: {frz_qty} lot-size: {ls}''')
+                        qty:{qty}, ltp: {ltp}, ti:{ti} ls:{ls} frz_qty: {frz_qty}''')
 
             return strike, sym, tsym, token, qty, ltp, ti, frz_qty, ls
 
@@ -202,7 +202,7 @@ class OCPU(object):
                 return
 
             logger.info(f'sym:{sym} tsym:{tsym} ltp: {ltp}')
-            use_gtt_oco = True if inst_info.use_gtt_oco == 'YES' else False
+            use_gtt_oco = inst_info.use_gtt_oco
             remarks = None
 
             orders = []
@@ -312,6 +312,11 @@ class OCPU(object):
                     logger.debug(f'respok: {resp_ok}')
 
             symbol = tsym + '_' + str(token)
+            logger.debug (f'Record Symbol: {symbol}')
+
+            if str(token) == '26000' or str(token) == '26009':
+                logger.error (f'Major issue: token belongs to Index {str(token)}')
+                return
 
             total_qty = 0
             for stat, os in os_tuple_list:
