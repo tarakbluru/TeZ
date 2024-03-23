@@ -31,12 +31,18 @@ try:
     import copy
     import json
     import math
+    import threading
+    import numpy as np
+    import pandas as pd
     from datetime import datetime
     from typing import NamedTuple
     import numpy as np
+    from rich.console import Console
+    from rich.table import Table
+
     import app_utils as utils
 
-    from . import BookKeeperUnit, Diu, Tiu, Tiu_OrderStatus, shared_classes
+    from . import shared_classes, PFMU, Diu, Tiu, Tiu_OrderStatus, PriceMonitoringUnit 
 
 except Exception as e:
     logger.debug(traceback.format_exc())
@@ -46,8 +52,10 @@ except Exception as e:
 
 class Ocpu_CreateConfig(NamedTuple):
     tiu: Tiu
-    bku: BookKeeperUnit
+    pfmu: PFMU
     diu: Diu
+    pmu: PriceMonitoringUnit
+    lmt_order:bool
 
 
 OcpuInstrumentInfo = NamedTuple('OcpuInstrumentInfo', [('symbol', str),
@@ -66,14 +74,156 @@ OcpuInstrumentInfo = NamedTuple('OcpuInstrumentInfo', [('symbol', str),
                                                        ("n_legs", int),
                                                        ])
 
-
 class OCPU(object):
     def __init__(self, ocpu_cc: Ocpu_CreateConfig):
+        self.lock = threading.Lock()
         self.tiu = ocpu_cc.tiu
-        self.bku = ocpu_cc.bku
+        self.pfmu = ocpu_cc.pfmu
         self.diu = ocpu_cc.diu
+        self.pmu = ocpu_cc.pmu
+        self.limit_order = ocpu_cc.lmt_order
+        self.prec_factor = 100
+        self.wo_df = pd.DataFrame(columns=["price_at_click", "tsym_token", "ul_symbol", "use_gtt_oco", "cond", "wait_price_lvl", "prev_tick_lvl", "n_orders", "order_list", "status"])
+        
+    def wo_table_show (self):
+        if self.limit_order:
+            df = self.wo_df [["price_at_click", "wait_price_lvl", "tsym_token","cond", "n_orders","use_gtt_oco", "status"]]
+            console = Console()
+            table = Table(title='Waiting-Order-Records')
+            table.add_column("#", justify="center")
 
-    def crete_and_place_order(self, action: str, inst_info: OcpuInstrumentInfo):
+            # Add header row
+            for column in df.columns:
+                table.add_column(column, justify="center")
+
+            # Add data rows
+            for i, (_, row) in enumerate(df.iterrows(), start=1):
+                table.add_row(str(i), *[str(value) for value in row.tolist()])
+
+            console.print(table)
+
+    def _add_order(self, ul_token:str, ul_symbol:str, tsym_token:str, use_gtt_oco:bool, price_at_click:float, wait_price:float, order_list: list):
+        # Find the index where it would lie in OrderBank
+        index = len(self.wo_df)
+        # Create a key name "26000_<index>" using an f-string
+        key_name = f"{ul_token}_{index}"
+        if wait_price >= price_at_click:
+            cond = 1
+        elif wait_price < price_at_click:
+            cond = 0
+        
+        wait_price_lvl = round (wait_price * self.prec_factor)
+        # Create a new row with initial values
+
+        new_order = {
+            "price_at_click": price_at_click,
+            "tsym_token":tsym_token,
+            "ul_symbol":ul_symbol,
+            "use_gtt_oco":use_gtt_oco,
+            "cond": cond,
+            "wait_price_lvl": int(wait_price_lvl),
+            "prev_tick_lvl": np.nan,
+            "n_orders": len(order_list),
+            "order_list": order_list,
+            "status":'Waiting'
+        }
+        # Append the new row to OrderBank DataFrame
+        self.wo_df.loc[key_name] = new_order
+        # Return the key name for easy access
+        return key_name
+
+    def _price_condition(self, ltp:float, key_name:str):
+        order_info = self.wo_df.loc[key_name]
+        ltp_level = round (ltp *self.prec_factor)
+        wait_price_lvl = order_info.wait_price_lvl
+        if order_info.prev_tick_lvl:
+            if order_info.cond:
+                if order_info.prev_tick_lvl < wait_price_lvl and ltp_level>=wait_price_lvl:
+                    return True
+            if not order_info.cond:
+                if order_info.prev_tick_lvl > wait_price_lvl and ltp_level<=wait_price_lvl:
+                    return True
+        self.wo_df.loc[key_name, "prev_tick_lvl"] = ltp_level
+
+    def order_placement(self, key_name:str):
+        logger.debug(f"Callback triggered for ID: {key_name}")
+        order_info = self.wo_df.loc[key_name]
+        orders = order_info.order_list
+        resp_exception, resp_ok, os_tuple_list = self.tiu.place_and_confirm_tez_order(orders=orders, use_gtt_oco=order_info.use_gtt_oco)
+        if resp_exception:
+            logger.info('Exception had occured while placing order: ')
+        if resp_ok:
+            logger.debug(f'respok: {resp_ok}')
+
+        total_qty = 0
+        for stat, os in os_tuple_list:
+            status = stat.name
+            order_time = os.fill_timestamp
+            order_id = os.order_id
+            qty = os.fillshares
+            total_qty += qty
+            oco_order = None
+            for order in orders:
+                if order_id == order.order_id:
+                    oco_order = order.al_id
+                    break
+            self.pfmu.save_order_details(order_id, order_info.tsym_token, qty, order_time, status, oco_order)
+
+        logger.debug(f'Total Qty taken : {total_qty}')
+        if total_qty:
+            self.pfmu.portfolio_add (ul_symbol=order_info.ul_symbol, tsym_token=order_info.tsym_token, qty=total_qty)
+        self.pfmu.show()
+
+        self.wo_df.loc[key_name, "status"] = "Completed"
+        self.wo_table_show()
+
+    def _order_placement_th(self, key_name:str):
+        threading.Thread(name='PMU Order Placement Thread',target=self.order_placement, args=(key_name,), daemon=True).start()
+
+
+    # def disable_waiting_order(self, id, ul_token=None):
+    # def enable_waiting_order(self, id, ul_token=None):
+    # Enable and disable of orders:  Not done by desgin. Scoped out of this small project
+    # To keep it simple, once order is waiting, it can be cancelled. 
+    # if user wishes to re-enter he will have type in the detail and place the waiting order again.
+    # 
+
+    def cancel_waiting_order(self, id, ul_token=None):
+        if ul_token:
+            key_name = f"{ul_token}_{id}"
+            if key_name in self.wo_df.index:
+                status = self.wo_df.loc[key_name, "status"]
+                if status == 'Waiting':
+                    self.pmu.unregister_callback(ul_token, callback_id=key_name)
+                    self.wo_df.loc[key_name, "status"] = "Cancelled"
+        else :
+            if id < len(self.wo_df):  # Check if id is within the DataFrame's range
+                status = self.wo_df.iloc[id, self.wo_df.columns.get_loc("status")]
+                if status == 'Waiting':
+                    key_name = self.wo_df.index[id]
+                    ul_token = key_name.split ('_')[0]
+                    logger.info (f'unregistering: {key_name} ul_token: {ul_token}')
+                    # Unregister callback and update status
+                    self.pmu.unregister_callback( ul_token, callback_id=key_name)
+                    self.wo_df.iloc[id, self.wo_df.columns.get_loc("status")] = "Cancelled"
+
+        self.wo_table_show()
+
+    def cancel_all_waiting_orders(self, ul_token=None):
+        for index, row in self.wo_df.iterrows():
+            if ul_token:
+                key_name = f"{ul_token}_{index}"
+            else:
+                key_name = index
+                ul_token = index.split ('_')[0]
+            if key_name in self.wo_df.index:  # Check if the key name exists in the index
+                status = row["status"]
+                if status == 'Waiting':
+                    self.pmu.unregister_callback(ul_token, callback_id=key_name)
+                    self.wo_df.at[key_name, "status"] = "Cancelled"  # Use at[] for setting single values
+        self.wo_table_show()
+
+    def create_and_place_order(self, action: str, inst_info: OcpuInstrumentInfo, trade_price:float=None):
         def get_tsym_token(tiu: Tiu, diu: Diu, action: str):
             sym = inst_info.symbol
             expiry_date = inst_info.expiry_date
@@ -81,7 +231,7 @@ class OCPU(object):
             pe_offset = inst_info.pe_strike_offset
             qty = inst_info.qty
             exch = inst_info.exchange
-            ltp = diu.get_latest_tick()
+            ul_ltp=ltp= diu.get_latest_tick()
             if exch == 'NFO':
                 # find the nearest strike price
                 strike_diff = inst_info.strike_diff
@@ -108,8 +258,13 @@ class OCPU(object):
             else:
                 ...
 
-            logger.info(f'exch: {exch} searchtext: {searchtext}')
+            logger.debug(f'exch: {exch} searchtext: {searchtext}')
             token, tsym = tiu.search_scrip(exchange=exch, symbol=searchtext)
+
+            if not token and not tsym:
+                logger.error ('Major error: Check Expiry date')
+                raise RuntimeError
+
             ltp, ti, ls = tiu.fetch_ltp(exch, token)
 
             qty = qty * ls
@@ -132,24 +287,36 @@ class OCPU(object):
                 qty = int(qty / ls) * ls  # Important as above value will not be a multiple of lot
                 logger.info(f'Available Margin: {self.tiu.avlble_margin:.2f} Required Amount: {ltp * old_qty} Updating qty: {old_qty} --> {qty} ')
 
-            logger.info(f'''strike: {strike}, sym: {sym}, tsym: {tsym}, token: {token},
-                        qty:{qty}, ltp: {ltp}, ti:{ti} ls:{ls} frz_qty: {frz_qty}''')
+            logger.debug(f'''strike: {strike}, sym: {sym}, tsym: {tsym}, token: {token},
+                        qty:{qty}, ul_ltp:{ul_ltp}, ltp: {ltp}, ti:{ti} ls:{ls} frz_qty: {frz_qty}''')
 
-            return strike, sym, tsym, token, qty, ltp, ti, frz_qty, ls
-
+            return strike, sym, tsym, token, qty, ul_ltp, ltp, ti, frz_qty, ls
 
         try:
-            strike, sym, tsym, token, qty, ltp, ti, frz_qty, ls = get_tsym_token(self.tiu, self.diu, action=action)
+            strike, sym, tsym, token, qty, ul_ltp, ltp, ti, frz_qty, ls = get_tsym_token(self.tiu, self.diu, action=action)
+        except RuntimeError:
+            raise
         except Exception as e:
             logger.error (f'Exception occured {e}')
         else:
-            oco_order = np.NaN
+            oco_order = np.nan
             os = shared_classes.OrderStatus()
             status = Tiu_OrderStatus.HARD_FAILURE
 
             given_nlegs = inst_info.n_legs
 
             if qty and given_nlegs:
+                # Note: Following piece of Neat code has been developed after many Trials.
+                # in case you are re-using the code, please do not forget to give a 
+                # star on github.
+
+                # +++++++++++++++++++++++++++++++++++++++++++++++++++++
+                # Generic and mathematical solution for order Slicing:
+                # +++++++++++++++++++++++++++++++++++++++++++++++++++++
+                # Problem statement: required_nlegs, lot size, frz qty and trade_qty are given
+                # Find no. of nlegs, per_leg_qty and residual qty.
+                # 
+
                 def lcm(x, y):
                     """Compute the least common multiple of x and y."""
                     return x * y // math.gcd(x, y)
@@ -172,27 +339,26 @@ class OCPU(object):
                     nearest_lcm_qty = find_nearest_lcm(ls, (frz_qty-1), qty)
 
                 logger.debug(f"qty:{qty} Nearest LCM qty:{nearest_lcm_qty}")
+                
                 res_qty1 = qty - nearest_lcm_qty
-                logger.debug(f"res_qty1: {res_qty1}")
+                min_legs = (nearest_lcm_qty//(frz_qty-1))  # Lower boundary
+                max_legs = (nearest_lcm_qty//ls)           # Upper boundary
 
-                min_legs = (nearest_lcm_qty//(frz_qty-1))
-                logger.debug(f"min_legs: {min_legs}")
-                max_legs = (nearest_lcm_qty//ls)
-                logger.debug(f"max_legs:{max_legs}")
+                logger.debug(f"res_qty1: {res_qty1} min_legs: {min_legs} max_legs:{max_legs}")
 
-                if given_nlegs < min_legs:
-                    nlegs = min_legs
-                elif given_nlegs > max_legs:
-                    nlegs = max_legs
-                else:
-                    nlegs = given_nlegs
-
-                logger.debug (f'n_given_legs: {given_nlegs}, nlegs: {nlegs}')
+                # Below compact code is same as :
+                # if given_nlegs < min_legs:
+                #     nlegs = min_legs
+                # elif given_nlegs > max_legs:
+                #     nlegs = max_legs
+                # else:
+                #     nlegs = given_nlegs
+                                    
+                nlegs = max(min(given_nlegs, max_legs), min_legs)
                 per_leg_qty = ((nearest_lcm_qty/nlegs)//ls)*ls
-                logger.debug (f'per_leg_qty:{per_leg_qty}')
+                logger.debug (f'n_given_legs: {given_nlegs}, nlegs: {nlegs} per_leg_qty:{per_leg_qty}')
 
                 res_qty2 = nearest_lcm_qty - (per_leg_qty*nlegs)
-
                 logger.debug(f'Verification: qty: {qty} final_qty: {((per_leg_qty*nlegs) + res_qty1 + res_qty2)}: {qty == ((per_leg_qty*nlegs) + res_qty1 + res_qty2)}')
 
                 rem_qty = res_qty1 + res_qty2
@@ -201,7 +367,8 @@ class OCPU(object):
                 logger.info(f'qty: {qty} given_nlegs: {given_nlegs} is not allowed')
                 return
 
-            logger.info(f'sym:{sym} tsym:{tsym} ltp: {ltp}')
+            logger.debug(f'sym:{sym} tsym:{tsym} ltp: {ltp}')
+
             use_gtt_oco = inst_info.use_gtt_oco
             remarks = None
 
@@ -305,34 +472,51 @@ class OCPU(object):
                     except Exception:
                         logger.error(traceback.format_exc())
 
-                resp_exception, resp_ok, os_tuple_list = self.tiu.place_and_confirm_tez_order(orders=orders, use_gtt_oco=use_gtt_oco)
-                if resp_exception:
-                    logger.info('Exception had occured while placing order: ')
-                if resp_ok:
-                    logger.debug(f'respok: {resp_ok}')
+                tsym_token = tsym + '_' + str(token)
+                logger.debug (f'Record Symbol: {tsym_token}')
+                if str(token) == '26000' or str(token) == '26009':
+                    logger.error (f'Major issue: token belongs to Index {str(token)}')
+                    return
 
-            symbol = tsym + '_' + str(token)
-            logger.debug (f'Record Symbol: {symbol}')
+                if trade_price is None:
+                    resp_exception, resp_ok, os_tuple_list = self.tiu.place_and_confirm_tez_order(orders=orders, use_gtt_oco=use_gtt_oco)
+                    if resp_exception:
+                        logger.info('Exception had occured while placing order: ')
+                    if resp_ok:
+                        logger.debug(f'respok: {resp_ok}')
 
-            if str(token) == '26000' or str(token) == '26009':
-                logger.error (f'Major issue: token belongs to Index {str(token)}')
-                return
+                    total_qty = 0
+                    for stat, os in os_tuple_list:
+                        status = stat.name
+                        order_time = os.fill_timestamp
+                        order_id = os.order_id
+                        qty = os.fillshares
+                        total_qty += qty
+                        oco_order = None
+                        for order in orders:
+                            if order_id == order.order_id:
+                                oco_order = order.al_id
+                                break
+                        self.pfmu.save_order_details(order_id, tsym_token, qty, order_time, status, oco_order)
+                    logger.info(f'Total Qty taken : {total_qty}')
+                    if total_qty:
+                        self.pfmu.portfolio_add (ul_symbol=inst_info.ul_instrument, tsym_token=tsym_token, qty=total_qty)
+                    self.pfmu.show()
+                else:
+                    with self.lock:
+                        ul_token=self.diu.ul_token
+                        key_name = self._add_order(ul_token=ul_token, ul_symbol=inst_info.ul_instrument, tsym_token=tsym_token, 
+                                                   use_gtt_oco=use_gtt_oco, 
+                                                   price_at_click=ul_ltp, 
+                                                   wait_price=trade_price, order_list=orders)
+                        cond_ds = {'condition_fn': self._price_condition, 
+                                   'callback_function': self._order_placement_th, 
+                                   'cb_id': key_name}
+                        self.pmu.register_callback(token=ul_token, cond_ds=cond_ds)
+                        self.wo_table_show()
+                    
+                        # self.pmu.simulate(trade_price)
 
-            total_qty = 0
-            for stat, os in os_tuple_list:
-                status = stat.name
-                order_time = os.fill_timestamp
-                order_id = os.order_id
-                qty = os.fillshares
-                total_qty += qty
-                oco_order = None
-                for order in orders:
-                    if order_id == order.order_id:
-                        oco_order = order.al_id
-                        break
-                self.bku.save_order(order_id, symbol, qty, order_time, status, oco_order)
-
-            logger.info(f'Total Qty taken : {total_qty}')
-            self.bku.show()
-
+                    logger.debug (f'Registered Call back with PMU {key_name}')
         return
+

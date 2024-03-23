@@ -37,6 +37,7 @@ try:
     import zipfile
     from datetime import datetime
     from difflib import SequenceMatcher
+    from dataclasses import dataclass
     from sre_constants import FAILURE, SUCCESS
 
     import requests
@@ -71,18 +72,23 @@ class FeedBaseObj(object):
 
         return
 
+@dataclass
+class ShoonyaApiPy_CreateConfig (object):
+    inst_prefix:str
+    dl_file: bool = True
+    use_file: bool = True
+    dl_filepath: str = None
+    market_hours: Market_Timing = None
+    ws_monitor_cfg: bool = True
+    test_env:bool = False    
+
 
 class ShoonyaApiPy(NorenApi, FeedBaseObj):
     __name = "FINVASIA_IF"
     DATAFEED_TIMEOUT: float = float(20.0)  # 5 secs time out
     __count = 0
 
-    def __init__(self, dl_file: bool = True, use_file: bool = True,
-                 dl_filepath: str = None, market_hours: Market_Timing = None,
-                 ws_monitor_cfg: bool = True):
-        NorenApi.__init__(self, host='https://api.shoonya.com/NorenWClientTP/',
-                          websocket='wss://api.shoonya.com/NorenWSTP/')
-        FeedBaseObj.__init__(self, ws_monitor_cfg=ws_monitor_cfg)
+    def __init__(self, cc: ShoonyaApiPy_CreateConfig):
 
         def download_unzip_symbols_file(url, folder, srcfile, dstfile):
             ret = FAILURE
@@ -91,40 +97,57 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
                 # Download the zip file
                 response = urllib.request.urlopen(url, timeout=60)
             except requests.exceptions.Timeout:
-                logger.debug('requests Timeout exception occured')
+                logger.debug(f'{self.inst_id} requests Timeout exception occured')
             except Exception as e:
-                logger.debug(f'Exception occured: {str(e)}')
+                logger.debug(f'{self.inst_id} Exception occured: {str(e)}')
             else:
                 data = response.read()
 
                 # Extract the zip file
                 with zipfile.ZipFile(io.BytesIO(data)) as zip_ref:
-                    logger.debug('extracting the zip file')
+                    logger.debug(f'{self.inst_id} extracting the zip file')
                     zip_ref.extractall(folder)
 
                 if os.path.exists(srcfile):
-                    logger.debug(f'Renaming the file {srcfile} -> {dstfile}')
+                    logger.debug(f'{self.inst_id} Renaming the file {srcfile} -> {dstfile}')
                     os.rename(srcfile, dstfile)
                     ret = SUCCESS
 
             return ret
 
-        logger.info('Creating Shoonya Object..')
+        logger.info(f'{ShoonyaApiPy.__count}: Creating Shoonya Object..')
+        self.inst_id = f'{ShoonyaApiPy.__count} {cc.inst_prefix} : '
+
+        if cc.test_env:
+            host = 'https://kwtest.shoonya.com/NorenWClientTP/'
+            ws_host = 'wss://kwtest.shoonya.com/NorenWSTP/'
+            logger.debug (f'setting the Test environment hosts {host} {ws_host}')
+        else:
+            host = 'https://api.shoonya.com/NorenWClientTP/'
+            ws_host = 'wss://api.shoonya.com/NorenWSTP/'
+            logger.debug (f'setting the Real environment hosts {host}  {ws_host}')
+
+        NorenApi.__init__(self, host=host,websocket=ws_host)
+        FeedBaseObj.__init__(self, ws_monitor_cfg=cc.ws_monitor_cfg)
+
+        dl_file = cc.dl_file
+        dl_filepath = cc.dl_filepath
+        self.shoonya_api_host = host
 
         self.scripmaster_url: str = "https://api.shoonya.com/NSE_symbols.txt.zip"
         self.nfo_scripmaster_url: str = 'https://api.shoonya.com/NFO_symbols.txt.zip'
         self.scripmaster_folder: str = dl_filepath
         self.scripmaster_file: str = ""
-        self.use_file = use_file
-        self.shoonya_api_host = r'https://api.shoonya.com/NorenWClientTP/'
+        self.use_file = cc.use_file
+
         self.shoonya_userid = None
         self.shoonya_accountid = None
         self.shoonya_susertoken = None
 
-        if market_hours is None:
+        if cc.market_hours is None:
             self.mh = Market_Timing()
         else:
-            self.mh = market_hours
+            self.mh = cc.market_hours
 
         hr = datetime.strptime(self.mh.mo, "%H:%M").hour
         min = datetime.strptime(self.mh.mo, "%H:%M").minute
@@ -133,7 +156,7 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
         hr = datetime.strptime(self.mh.mc, "%H:%M").hour
         min = datetime.strptime(self.mh.mc, "%H:%M").minute
         self.m_close = datetime.now().replace(hour=hr, minute=min, second=0, microsecond=0)
-        logger.debug(f'market open: {self.m_open} market close: {self.m_close}')
+        logger.debug(f'{self.inst_id} market open: {self.m_open} market close: {self.m_close}')
 
         self.streamingdata = None
 
@@ -145,9 +168,9 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
             dstfilename = self.scripmaster_file = os.path.join(self.scripmaster_folder, f'FV_{filename}')
             srcfilename = os.path.join(self.scripmaster_folder, filename)
 
-            logger.debug(f'srcfilename: {srcfilename} dstfilename:{dstfilename}')
+            logger.debug(f'{self.inst_id} srcfilename: {srcfilename} dstfilename:{dstfilename}')
 
-            logger.info(f'scripmaster_file: {self.scripmaster_file}')
+            logger.info(f'{self.inst_id} scripmaster_file: {self.scripmaster_file}')
             new_file = False
             if os.path.exists(self.scripmaster_file):
                 timestamp = os.path.getmtime(self.scripmaster_file)
@@ -157,7 +180,7 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
                 if modification_datetime >= datetime.now().replace(hour=8, minute=45, second=0, microsecond=0):
                     new_file = True
                 if not new_file:
-                    logger.debug(f'Removing the file: {self.scripmaster_file}')
+                    logger.debug(f'{self.inst_id} Removing the file: {self.scripmaster_file}')
                     os.remove(self.scripmaster_file)
             if not new_file:
                 download_unzip_symbols_file(url=url, folder=self.scripmaster_folder, srcfile=srcfilename, dstfile=dstfilename)
@@ -168,12 +191,15 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
 
             nfo_dstfilename = self.nfo_scripmaster_file = os.path.join(self.scripmaster_folder, f'FV_{nfo_filename}')
             nfo_srcfilename = os.path.join(self.scripmaster_folder, nfo_filename)
-            logger.debug(f'nfo_srcfilename: {nfo_srcfilename} nfo_dstfilename:{nfo_dstfilename}')
+            logger.debug(f'{self.inst_id} nfo_srcfilename: {nfo_srcfilename} nfo_dstfilename:{nfo_dstfilename}')
 
-            logger.info(f'nfo_scripmaster_file: {self.nfo_scripmaster_file}')
+            logger.info(f'{self.inst_id} nfo_scripmaster_file: {self.nfo_scripmaster_file}')
             if os.path.exists(self.nfo_scripmaster_file):
                 os.remove(self.nfo_scripmaster_file)
             download_unzip_symbols_file(url=nfo_url, folder=self.scripmaster_folder, srcfile=nfo_srcfilename, dstfile=nfo_dstfilename)
+        
+        ShoonyaApiPy.__count += 1
+        logger.info(f'{self.inst_id} Creating Shoonya Object..Done')
 
     def login(self, userid, password, twoFA, vendor_code, api_secret, imei):
         self.shoonya_userid = userid
@@ -278,7 +304,7 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
                 # Check if the exchange and symbol match the desired criteria
                 if exchange == 'NSE':
                     if (symbol == search_txt or tsym == search_txt):
-                        logger.debug(f'{line_values}')
+                        logger.debug(f'{self.inst_id} {line_values}')
                         # Add the token and trading symbol to the result dictionary
                         # For NIFTY 50 symbol and trading symbols are interchanged in the NSE_symbols.txt
                         if symbol.upper() == 'NIFTY 50' or tsym.upper() == 'NIFTY INDEX':
@@ -291,7 +317,7 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
 
                 elif exchange == 'NFO':
                     if check_similarity_and_beginning_match(tsym, search_txt):
-                        logger.debug(f'{line_values}')
+                        logger.debug(f'{self.inst_id} {line_values}')
                         sym_dict = {'exch': exchange, 'token': int(token.strip()), 'tsym': tsym.strip()}
                         values.append(sym_dict)
                         resDict['stat'] = 'Ok'
@@ -311,9 +337,9 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
         elif exchange == 'NFO':
             scripmaster_file = self.nfo_scripmaster_file
             csv_file_path = os.path.splitext(scripmaster_file)[0] + '.csv'
-            logger.info(f'Reading from {csv_file_path} ')
+            logger.info(f'{self.inst_id} Reading from {csv_file_path} ')
             if os.path.exists(csv_file_path):
-                logger.debug(f'{csv_file_path} exists')
+                logger.debug(f'{self.inst_id} {csv_file_path} exists')
                 df = pd.read_csv(csv_file_path)
                 # Extract row where 'searchtext' is present in the 'tsym' column
                 matching_rows = df.loc[df['TradingSymbol'] == searchtext]
@@ -343,19 +369,19 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
             ...
 
         if not found:
-            logger.debug(f'scripmaster_file: {scripmaster_file} use_file: {use_file}')
+            logger.debug(f'{self.inst_id} scripmaster_file: {scripmaster_file} use_file: {use_file}')
             if os.path.exists(scripmaster_file) and use_file:
-                logger.debug(f"Searching scrip in the {scripmaster_file} {exchange} {searchtext}")
+                logger.debug(f"{self.inst_id} Searching scrip in the {scripmaster_file} {exchange} {searchtext}")
                 sym_info = read_symbol_info(scripmaster_file, exchange=exchange, search_txt=searchtext)
                 if sym_info is None:
-                    logger.debug(f"Searching scrip through api {exchange} {searchtext}")
+                    logger.debug(f"{self.inst_id} Searching scrip through api {exchange} {searchtext}")
                     sym_info = super(ShoonyaApiPy, self).searchscrip(exchange=exchange, searchtext=searchtext)
-                    logger.debug(f"{searchtext} {sym_info}")
+                    logger.debug(f"{self.inst_id} {searchtext} {sym_info}")
                     return sym_info
                 else:
                     return sym_info
             else:
-                logger.debug(f"Searching scrip through api {exchange} {searchtext}")
+                logger.debug(f"{self.inst_id} Searching scrip through api {exchange} {searchtext}")
                 return super(ShoonyaApiPy, self).searchscrip(exchange=exchange, searchtext=searchtext)
         else:
             return resDict
@@ -558,12 +584,12 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
                                              }
         payload = 'jData=' + json.dumps(values) + f'&jKey={self.shoonya_susertoken}'
 
-        logger.debug(payload)
+        logger.debug(f'{self.inst_id} {payload}')
         res = requests.post(url, data=payload)
 
         resDict = json.loads(res.text)
         if resDict['stat'] == 'Not_Ok':
-            logger.debug(resDict['emsg'])
+            logger.debug(f'{self.inst_id} {resDict["emsg"]}')
             return None
 
         return resDict
@@ -639,13 +665,13 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
                                              }
         payload = 'jData=' + json.dumps(values) + f'&jKey={self.shoonya_susertoken}'
 
-        logger.debug(payload)
+        logger.debug(f'{self.inst_id} {payload}')
 
         res = requests.post(url, data=payload)
 
         resDict = json.loads(res.text)
         if resDict['stat'] == 'Not_Ok':
-            logger.debug(resDict['emsg'])
+            logger.debug(f'{self.inst_id} {resDict["emsg"]}')
             return None
 
         return resDict
@@ -660,13 +686,13 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
         values["al_id"] = al_id
         payload = 'jData=' + json.dumps(values) + f'&jKey={self.shoonya_susertoken}'
 
-        logger.debug(payload)
+        logger.debug(f'{self.inst_id} {payload}')
 
         res = requests.post(url, data=payload)
 
         resDict = json.loads(res.text)
         if resDict['stat'] == 'Not_Ok':
-            logger.debug(resDict['emsg'])
+            logger.debug(f'{self.inst_id} resDict["emsg"]')
             return None
 
         return resDict
@@ -682,13 +708,13 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
 
         payload = 'jData=' + json.dumps(values) + f'&jKey={self.shoonya_susertoken}'
 
-        logger.debug(payload)
+        logger.debug(f'{self.inst_id} {payload}')
 
         res = requests.post(url, data=payload)
 
         resDict = json.loads(res.text)
         if isinstance(resDict, dict) and resDict['stat'] == 'Not_Ok':
-            logger.debug(resDict['emsg'])
+            logger.debug(f'{self.inst_id} {resDict["emsg"]}')
             return None
 
         return resDict
@@ -701,19 +727,19 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
 
         payload = 'jData=' + json.dumps(values) + f'&jKey={self.shoonya_susertoken}'
 
-        logger.debug(f'self.shoonya_userid = {self.shoonya_userid} payload :{payload}')
+        logger.debug(f'{self.inst_id} self.shoonya_userid = {self.shoonya_userid} payload :{payload}')
         res = requests.post(url, data=payload)
 
         resDict = json.loads(res.text)
         if isinstance(resDict, dict) and resDict['stat'] == 'Not_Ok':
-            logger.debug(resDict['emsg'])
+            logger.debug(f'{self.inst_id} {resDict["emsg"]}')
             return None
 
         return resDict
 
     def setstreamingdata(self, streamingdata: list):
         self.streamingdata = streamingdata.copy()
-        logger.debug(f"{self.streamingdata}")
+        logger.debug(f"{self.inst_id} {self.streamingdata}")
 
     def connect_to_datafeed_server(self, on_message=None,
                                    on_order_update=None,
@@ -725,7 +751,7 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
             nonlocal self
             self.ws_connected = True
             if self.streamingdata is not None:
-                logger.debug("Subscribing instruments.." + str(self.streamingdata))
+                logger.debug(f'{self.inst_id} Subscribing instruments..{str(self.streamingdata)}')
                 self.subscribe(self.streamingdata)
             if self.app_cb_on_open is not None:
                 self.app_cb_on_open()
@@ -745,7 +771,7 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
         def ws_v2_connect_and_monitor(self):
             # import websocket
             # websocket.enableTrace (True)
-            logger.debug("In finvasia ws_v2_connect_and_monitor..")
+            logger.debug(f'{self.inst_id} In finvasia ws_v2_connect_and_monitor..')
             data_flow_evt = self.ws_v2_data_flow_evt
             exit_evt = self.ws_v2_exit_evt
             re_connect_count = 0
@@ -753,7 +779,7 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
             exit = False
             while not exit:
                 if re_connect_count:
-                    logger.debug(f'Creating Websocket {re_connect_count}')
+                    logger.debug(f'{self.inst_id} Creating Websocket {re_connect_count}')
                 self.start_websocket(order_update_callback=order_update_callback,
                                      subscribe_callback=subscribe_callback,
                                      socket_open_callback=open_callback)
@@ -777,16 +803,16 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
                             break
                         else:
                             if self.m_open <= datetime.now() < self.m_close:
-                                logger.debug("Market hours:: Needs to be Reconnected ..")
+                                logger.debug(f"{self.inst_id} Market hours:: Needs to be Reconnected ..")
                                 re_connect = True
                                 break
                 if not exit and re_connect:
-                    logger.debug("Making ready for re-connection..")
+                    logger.debug(f"{self.inst_id} Making ready for re-connection..")
                     self.unsubscribe(self.streamingdata)
                     if self.close_websocket() == FAILURE:
-                        logger.error("Data feed Error")
+                        logger.error(f"{self.inst_id} Data feed Error")
 
-            logger.debug("Exiting from Finvasia ws_v2_connect_and_monitor..")
+            logger.debug(f"{self.inst_id} Exiting from Finvasia ws_v2_connect_and_monitor..")
             return
 
         self.app_cb_on_open = on_open
@@ -810,10 +836,10 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
             if (cntr == 10):
                 break
         if (cntr == 10):
-            logger.debug("Socket Not Opened")
+            logger.debug(f"{self.inst_id} Socket Not Opened")
             return FAILURE
         else:
-            logger.debug("Socket Opened")
+            logger.debug(f"{self.inst_id} Socket Opened")
             return SUCCESS
 
     def disconnect_from_datafeed_server(self):
@@ -822,8 +848,8 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
             self.ws_v2_data_flow_evt.set()
             self.ws_v2_th.join(2.0)
             if self.ws_v2_th.is_alive():
-                logger.error(f"{self.ws_v2_th.name} is still avlive")
-        logger.debug("unsubscribing..")
+                logger.error(f"{self.inst_id} {self.ws_v2_th.name} is still alive")
+        logger.debug(f"{self.inst_id} unsubscribing..")
         self.unsubscribe(self.streamingdata)
         ret_val = self.close_websocket()
         return (ret_val)

@@ -1,7 +1,7 @@
 ---
 GUI_CONFIG:
   APP_TITLE: 'TeZ'
-  APP_GEOMETRY: '250x250'
+  APP_GEOMETRY: '350x250'
   LONG_BUTTON: ' Buy '
   SHORT_BUTTON: 'Short'
   EXIT_BUTTON: 'Exit App'
@@ -16,6 +16,7 @@ GUI_CONFIG:
   RADIOBUTTON_2_VALUE: 'NIFTY BANK'   # 'NIFTY BANK'  and not  'BANKNIFTY'  Do not change
   RADIOBUTTON_1_TEXT: 'N'
   RADIOBUTTON_2_TEXT: 'BN'
+
 TIU:
   USE_GSHEET_TOKEN: 'NO' #YES NO
   GOOGLE_SHEET:
@@ -25,6 +26,30 @@ TIU:
   TOKEN_FILE: null
   CRED_FILE:  './data/cred/user_cred.yml' 
 
+  SAVE_TOKEN_FILE_CFG: 'YES'   #YES NO
+  SAVE_TOKEN_FILE_NAME: './log/user_token.json'  
+
+  VIRTUAL_ENV_CRED_FILE:  null
+  VIRTUAL_ENV_SAVE_TOKEN_FILE_CFG: 'NO'   #YES NO
+  VIRTUAL_ENV_SAVE_TOKEN_FILE_NAME: null
+
+DIU:
+  GOOGLE_SHEET:
+    CLIENT_SECRET: null
+    URL: null
+    NAME: null
+  TOKEN_FILE: './log/user_token.json'
+  CRED_FILE: './data/cred/user_cred.yml' 
+
+  SAVE_TOKEN_FILE_CFG: 'NO'   #YES NO
+  SAVE_TOKEN_FILE_NAME: null   #Full Path to json file 
+
+  VIRTUAL_ENV_CRED_FILE: null
+  VIRTUAL_ENV_TOKEN_FILE: null
+BKU:
+  TRADES_RECORD_FILE: './log/orders.csv'
+
+TRADE_DETAILS:
   ############################################################################################
   # Risk Disclosure on Derivatives.
   ############################################################################################
@@ -43,6 +68,16 @@ TIU:
 
   EXCHANGE: 'NSE'             # valid values : NSE NFO
   ###########################################################################################
+
+  EXPIRY_DATE_CFG: 'AUTO'           # Options : 'AUTO' 'MANUAL' Auto - means, nearest next expiry is chosen till 0DTE, 
+                                    # on Exp day, Next Expiry date is chosen
+                                    # Other option is Manual
+  CE_STRIKE_OFFSET_CFG: 'AUTO'      # Options : 'AUTO' 'MANUAL' Till 1 DTE, ATM is chosen, On 1DTE, ITM are chosen, 
+                                    # On exp day ATM is chosen
+  PE_STRIKE_OFFSET_CFG: 'AUTO'      # Options : 'AUTO' 'MANUAL'
+
+  EXPIRY_DATE_CALC_URL1: 'https://api.shoonya.com/NFO_symbols.txt.zip'
+  EXPIRY_DATE_CALC_URL2: 'https://assets.upstox.com/market-quote/instruments/exchange/complete.csv.gz'
 
   PRODUCT: 'MIS'
   USE_GTT_OCO: 'NO'       # 'YES' 'NO'
@@ -102,20 +137,6 @@ TIU:
       PROFIT_POINTS: 60                   # Points in Option Price 
       STOPLOSS_POINTS: 20                 # Points in Option Price
 
-  TRADES_RECORD_FILE: './log/orders.csv'
-  SAVE_TOKEN_FILE_CFG: 'YES'   #YES NO
-  SAVE_TOKEN_FILE_NAME: './log/user_token.json'  
-
-DIU:
-  GOOGLE_SHEET:
-    CLIENT_SECRET: null
-    URL: null
-    NAME: null
-  TOKEN_FILE: './log/user_token.json'
-  CRED_FILE: './data/cred/user_cred.yml' 
-
-  SAVE_TOKEN_FILE_CFG: 'NO'   #YES NO
-  SAVE_TOKEN_FILE_NAME: null   #Full Path to json file 
 SYSTEM:
   LOG_FILE: './log/app.log'
   DL_FOLDER: './log'
@@ -123,6 +144,8 @@ SYSTEM:
     OPEN: "09:15"   #Zero padded
     CLOSE: "15:30"
   SQ_OFF_TIMING: "15:15"                  # format : HH:MM 
+  LMT_ORDER_FEATURE : "DISABLED"    #Do not change
+  VIRTUAL_ENV: "NO"  
   TELEGRAM:          #Future Use
     NOTIFY : "OFF"  #Notifier is created but only the notifications are not pushed by this control parameter.
     CFG_FILE: null

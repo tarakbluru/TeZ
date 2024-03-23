@@ -11,7 +11,7 @@ def main():
     r = app_mods.get_system_config()
     print(r)
 
-    instruments = app_mods.get_system_info("TIU", "INSTRUMENT_INFO")
+    instruments = app_mods.get_system_info("TRADE_DETAILS", "INSTRUMENT_INFO")
 
     if instruments:
         print(instruments)

@@ -30,6 +30,7 @@ import app_utils
 logger = app_utils.get_logger(__name__)
 
 try:
+    import copy
     import json
     from datetime import datetime
     from sre_constants import FAILURE, SUCCESS
@@ -39,10 +40,10 @@ try:
     import pyotp
     import yaml
 
+    from .fv_api_extender import ShoonyaApiPy,ShoonyaApiPy_CreateConfig
     from .shared_classes import (BaseInst, Component_Type, Ctrl, FVInstrument,
                                  LiveFeedStatus, SimpleDataPort, SysInst,
                                  TickData)
-    from .fv_api_extender import ShoonyaApiPy
 
 except Exception as e:
     logger.debug(traceback.format_exc())
@@ -60,6 +61,7 @@ class WS_WrapU(object):
 
     def __init__(self,
                  port_cfg: SimpleDataPort = None,
+                 order_port_cfg: SimpleDataPort = None,
                  fv: ShoonyaApiPy = None,
                  at_stocks: list = None,
                  bm_stocks: list = None,
@@ -79,6 +81,8 @@ class WS_WrapU(object):
         self._fv_connected = False
 
         self.port: SimpleDataPort = port_cfg
+        self.order_port: SimpleDataPort = order_port_cfg
+
         mo_hr = datetime.strptime(mo, "%H:%M").hour
         mo_min = datetime.strptime(mo, "%H:%M").minute
         mc_hr = datetime.strptime(mc, "%H:%M").hour
@@ -107,7 +111,9 @@ class WS_WrapU(object):
             cred_file: str = r'../../../Finvasia_login/cred/tarak_fv.yml'
             token_file: str = r'../../../Finvasia_login/temp/tarak_token.json'
             dl_filepath: str = r'../log'
-            fv = ShoonyaApiPy(dl_filepath=dl_filepath, ws_monitor_cfg=True)
+            
+            s_cc = ShoonyaApiPy_CreateConfig(dl_filepath=dl_filepath, ws_monitor_cfg=True)
+            fv = ShoonyaApiPy(cc=s_cc)
             with open(cred_file) as f:
                 cred = yaml.load(f, Loader=yaml.FullLoader)
 
@@ -209,6 +215,8 @@ class WS_WrapU(object):
 
         self.tr = tr
         self.notifier = notifier
+        
+        self._fv_send_data = True
 
         return
 
@@ -221,9 +229,10 @@ class WS_WrapU(object):
     def __set_send_data__(self, new_value):
         if new_value:
             logger.debug("Enabling Data Send")
+            self._send_data = True
         else:
             logger.debug("Disabling Data Send")
-        self._send_data = new_value
+            self._send_data = False
 
     send_data = property(None, __set_send_data__)
 
@@ -286,11 +295,14 @@ class WS_WrapU(object):
 
                     ohlc_obj.ft = tick_data['ft']
 
+                    if self._send_data and self._fv_send_data:
+                        new_obj = copy.copy(ohlc_obj)
+                        self.port.send_data(new_obj)
             return
 
         def app_event_handler_order_update(msg):
-            if self.port is not None:
-                self.port.send_data(msg)
+            if self.order_port is not None:
+                self.order_port.send_data(msg)
             return
 
         retval = self.fv.connect_to_datafeed_server(on_message=app_event_handler_quote_update,

@@ -37,6 +37,7 @@ try:
     import urllib.parse
     from enum import Enum
     from typing import List, NamedTuple, Union
+    from dataclasses import dataclass
 
     import app_utils
     import pandas as pd
@@ -63,8 +64,12 @@ class Tiu_OrderStatus (Enum):
 class LoginFailureException(Exception):
     pass
 
+class OrderExecutionException(Exception):
+    pass
 
-class Biu_CreateConfig(NamedTuple):
+@dataclass
+class Biu_CreateConfig(object):
+    inst_prefix: str
     cred_file: str  # ='../../../Finvasia_login/cred/tarak_fv.yml'
     susertoken: str  # =''
     token_file: str  # ='../../../Finvasia_login/temp/tarak_token.json'
@@ -73,15 +78,25 @@ class Biu_CreateConfig(NamedTuple):
     notifier: None  # =None
     save_tokenfile_cfg: bool  # =False
     save_token_file: str  # ='../../Finvasia_login/temp/tarak_token_new.json'
+    test_env:bool=False
+    
+    def __str__(self):
+        return f'''cred_file: {self.cred_file} susertoken: {self.susertoken} 
+                  token_file:{self.token_file} use_pool:{self.use_pool} 
+                  dl_filepath:{self.dl_filepath} notifier:{self.notifier} 
+                  save_tokenfile_cfg: {self.save_tokenfile_cfg} 
+                  save_token_file:{self.save_tokenfile_cfg} test_env:{self.test_env}'''
 
-
+@dataclass
 class Diu_CreateConfig(Biu_CreateConfig):
-    ...
+    out_port: shared_classes.SimpleDataPort=None
 
+    def __str__(self):
+        return f"{super().__str__()} out_port: {self.out_port}"
 
+@dataclass
 class Tiu_CreateConfig(Biu_CreateConfig):
     ...
-
 
 class BaseIU (object):
     def __init__(self, bcc: Biu_CreateConfig):
@@ -96,7 +111,9 @@ class BaseIU (object):
         self.df = None
         usefile = True if bcc.dl_filepath else False
         dl_file = True if bcc.dl_filepath else False
-        self.fv = fv_api_extender.ShoonyaApiPy(dl_file=dl_file, use_file=usefile, dl_filepath=bcc.dl_filepath)
+        s_cc = fv_api_extender.ShoonyaApiPy_CreateConfig(inst_prefix=bcc.inst_prefix, dl_file=dl_file, use_file=usefile, dl_filepath=bcc.dl_filepath, test_env=bcc.test_env)
+
+        self.fv = fv_api_extender.ShoonyaApiPy(cc=s_cc)
         fv = self.fv
 
         with open(bcc.cred_file) as f:
@@ -109,7 +126,10 @@ class BaseIU (object):
                     susertoken = json.load(f)['susertoken']
                     logger.debug(f'susertoken: {susertoken}')
             except BaseException:
-                totp = pyotp.TOTP(cred['token']).now()
+                if s_cc.test_env:
+                    totp = cred['token']
+                else:
+                    totp = pyotp.TOTP(cred['token']).now()
                 try:
                     r = fv.login(userid=cred['userId'], password=cred['pwd'],
                                  twoFA=totp, vendor_code=cred['vc'],
@@ -145,7 +165,7 @@ class BaseIU (object):
                     logger.error(mesg)
                     raise
             else:
-                logger.info(f'skipping login: setting the session!! : {bcc.susertoken}')
+                logger.info(f'skipping login: setting the session!! : {susertoken}')
                 ret = fv.set_session(userid=cred['userId'], password=cred['pwd'], usertoken=susertoken)
                 logger.debug(f'ret: {ret} type: {type(ret)}')
 
@@ -163,6 +183,9 @@ class BaseIU (object):
                 if r is not None and 'emsg' in r:
                     emsg = r.get('emsg')
 
+                if r is None or r ['stat'] == 'Not_Ok':
+                    raise LoginFailureException
+
                 logger.info(f'Acct: {act_id} dmsg:{dmsg} emsg:{emsg}')
 
             finally:
@@ -177,28 +200,35 @@ class BaseIU (object):
 
         if symbol == 'NIFTY':
             search_text = (symbol + ' INDEX')
+            logger.info (f'Searching {search_text}')
         elif symbol == 'NIFTY BANK':
             search_text = symbol
+            logger.info (f'Searching {search_text}')
         else:
             symbol = symbol.replace(" ", "")
             symbol = "".join(re.findall("[a-zA-Z0-9-_&]+", symbol)).upper()
             search_text = (symbol + '-EQ') if exchange == 'NSE' else symbol
 
-        ret = fv.searchscrip(exchange=exchange, searchtext=search_text)
-
-        logger.debug(ret)
-
-        token = tsym = None
-        if ret is not None and ret['stat'] == 'Ok' and isinstance(ret['values'], list):
-            token = ret['values'][0]['token']
-            tsym = ret['values'][0]['tsym']
-        else:
-            logger.debug('Not found in -EQ, Trying in -BE')
-            ret = fv.searchscrip(exchange=exchange, searchtext=(symbol + '-BE'))
-            if ret is not None and isinstance(ret, list):
+        try:
+            ret = fv.searchscrip(exchange=exchange, searchtext=search_text)
+            token = tsym = None
+            if ret is not None and ret['stat'] == 'Ok' and isinstance(ret['values'], list):
                 token = ret['values'][0]['token']
                 tsym = ret['values'][0]['tsym']
-
+            else:
+                logger.debug('Not found in -EQ, Trying in -BE')
+                ret = fv.searchscrip(exchange=exchange, searchtext=(symbol + '-BE'))
+                if ret is not None and isinstance(ret, list):
+                    token = ret['values'][0]['token']
+                    tsym = ret['values'][0]['tsym']
+            if token is None or tsym is None:
+                raise ValueError(f"token {token} or tsym {tsym} is None")
+        except Exception:
+            raise
+        else :
+            if token is None or tsym is None:
+                logger.error (f'Major issue {token} {tsym}')
+        
         return (str(token), tsym)
 
 
@@ -206,17 +236,40 @@ class Diu (BaseIU):
     def __init__(self, dcc: Diu_CreateConfig):
         super().__init__(dcc)
 
-        token, tsym = self.__search_sym_token_tsym__(symbol='NIFTY')
-        self._ul_symbol = {'symbol': 'NIFTY',
-                           'token': token}
+        token = None
+        tsym = None
+        logger.info (f'Setting the default Index: Symobl and token')
+        try:
+            token, tsym = self.__search_sym_token_tsym__(symbol='NIFTY')
+        except Exception:
+            logger.error (f'token: {token} tsym:{tsym}')
+            raise 
+        
+        self._ul_symbol = {'symbol': 'NIFTY', 'token': token}
         logger.debug(f'{json.dumps(self._ul_symbol, indent=2)}')
         ws_wrap.WS_WrapU.DEBUG = False
-        self.ws_wrap = ws_wrap.WS_WrapU(fv=self.fv)
+        self.ws_wrap = ws_wrap.WS_WrapU(fv=self.fv, port_cfg=dcc.out_port)
 
         return
 
     def connect_to_data_feed_servers(self):
         self.ws_wrap.connect_to_data_feed_servers()
+
+    @property
+    def live_df_ctrl(self):
+        return self.ws_wrap.send_data
+
+    @live_df_ctrl.setter
+    def live_df_ctrl(self, new_value:shared_classes.Ctrl):
+        if new_value: 
+            logger.debug ("Enabling Data Send")
+        else :
+            logger.debug ("Disabling Data Send")
+        self.ws_wrap.send_data = new_value
+
+    @property
+    def ul_token(self):
+        return self._ul_symbol['token']
 
     @property
     def ul_symbol(self):
@@ -370,15 +423,23 @@ class Tiu (BaseIU):
     SQ_OFF_FAILURE_COUNT = 2
 
     def __init__(self, tcc: Tiu_CreateConfig):
-        super().__init__(tcc)
+        self.login = False
+        try:
+            super().__init__(tcc)
+        except Exception:
+            raise
+        else:
+            self.login = True
+
         self.__post_init__()
 
     def __post_init__(self):
-        try:
-            self.fv_amount_in_ac = self.fv_ac_balance()
-        except ValueError:
-            logger.info('Exception occured: Login Faiulre')
-            raise LoginFailureException
+        if self.login:
+            try:
+                self.fv_amount_in_ac = self.fv_ac_balance()
+            except ValueError:
+                logger.info('Exception occured: Login Faiulre')
+                raise LoginFailureException
 
         mesg = f'Amount available in Finvasia A/c: INR {self.fv_amount_in_ac:n} /-'
         logger.info(mesg)
@@ -543,10 +604,13 @@ class Tiu (BaseIU):
             else:
                 ...
         if tsym is None and token is None:
-            logger.info(f'searching symbol in the file : {symbol} ')
+            logger.debug(f'searching symbol in the file : {symbol} ')
             token, tsym = self.__search_sym_token_tsym__(symbol, exchange=exchange)
+            logger.debug(f'token: {token} tsym: {tsym}')
+            if (token is None or tsym is None) and exchange == 'NFO':
+                logger.error (f'!!! Please check Expiry Date !!!')
+                raise RuntimeError
 
-            logger.info(f'token: {token} tsym: {tsym}')
         return (str(token), tsym)
 
     def create_sym_token_tsym_q_access(self, symbol_list=None, instruments=None):
@@ -619,7 +683,7 @@ class Tiu (BaseIU):
                     logger.info(f'place_order : Failure {r["emsg"]}')
                     ord_status.emsg = r['emsg']
                 else:
-                    logger.info(f'Order Attempt success:: order id  : {r["norenordno"]}')
+                    logger.debug(f'Order Attempt success:: order id  : {r["norenordno"]}')
                     order_id = ord_status.order_id = r["norenordno"]
                     reason1 = "rms:blocked"  # TO BE TESTED
                     reason2 = "margin"
@@ -640,7 +704,7 @@ class Tiu (BaseIU):
                         # INVALID_STATUS_TYPE
 
                         # logger.debug(f'{tag}: order status: {r_os_dict["status"]} {json.dumps(r_os_dict,indent=2)}')
-                        logger.info(f'{tag}: order_id: {order_id} order status: {r_os_dict["status"]}')
+                        logger.debug(f'{tag}: order_id: {order_id} order status: {r_os_dict["status"]}')
 
                         if r_os_dict['status'].lower() == 'rejected':
                             rej_reason = r_os_dict['rejreason'].lower()
@@ -822,7 +886,7 @@ class Tiu (BaseIU):
                     resp_ok = resp_ok + 1
                     order.order_id = ord_status.order_id
                     oco_order = (order, r_tuple)
-                    logger.info(f'{ord_status}')
+                    logger.debug(f'{ord_status}')
                     oco_tuple_list.append(oco_order)
 
         if use_gtt_oco:
@@ -898,11 +962,11 @@ class Tiu (BaseIU):
                         if (status == 'open' or status == 'pending' or status == 'trigger_pending') and int(row['snoordt']) == 0:
                             r = fv.exit_order(row['snonum'], 'B')
                             if r is None:
-                                logger.info("Exit order result is None. Check Manually")
+                                logger.error("Exit order result is None. Check Manually")
                             if 'stat' in r and r['stat'] == 'Ok':
                                 logger.debug(f'child order of {row["norenordno"]} : {row["snonum"]}, status: {json.dumps (r, indent=2)}')
                             else:
-                                logger.info('Exit order Failed, Check Manually')
+                                logger.error('Exit order Failed, Check Manually')
         else:
             logger.info('get_order_book Failed, Check Manually')
             return
@@ -1030,3 +1094,4 @@ class Tiu (BaseIU):
 
                 if failure_cnt > 2 or exit_qty:
                     logger.info(f'Exit order InComplete: order_id: {order_id} Check Manually')
+                    raise OrderExecutionException

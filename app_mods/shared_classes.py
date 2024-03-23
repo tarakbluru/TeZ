@@ -58,6 +58,10 @@ class TickData (object):
         return (f"ft: {self.ft} c: {self.c:.2f}  h: {self.h:.2f}  l: {self.l:.2f} tk: {self.tk} o: {self.o:.2f} v: {self.v} oi: {self.oi}")
 
 
+class Ctrl(Enum):
+    OFF=0
+    ON=1
+
 @dataclass
 class Order:
     seq_num: int
@@ -82,7 +86,7 @@ class Order:
     # Setter for the 'remarks' property
     @property
     def remarks(self):
-        logger.info(self._remarks)
+        logger.debug(self._remarks)
         return self._remarks
 
     @remarks.setter
@@ -294,7 +298,7 @@ class Combi_Primary_B_MKT_And_OCO_S_MKT_I_Order_NSE:
             remarks = re.sub("[-,&]+", "_", remarks)
         self.primary_order = I_B_MKT_Order(tradingsymbol=tradingsymbol, quantity=quantity, _remarks=remarks)
         if bl_alert_p and bp_alert_p:
-            logger.info(f'bl_alert_p: {bl_alert_p} bp_alert_p: {bp_alert_p}')
+            logger.debug(f'bl_alert_p: {bl_alert_p} bp_alert_p: {bp_alert_p}')
             self.follow_up_order = OCO_FOLLOW_UP_MKT_I_Order(buy_or_sell='S',
                                                              tradingsymbol=tradingsymbol,
                                                              quantity=quantity,
@@ -312,7 +316,7 @@ class Combi_Primary_B_MKT_And_OCO_S_MKT_I_Order_NSE:
     def primary_order_quantity(self, value):
         if not isinstance(value, int):
             raise ValueError("Quantity should be integer")
-        logger.info(value)
+        logger.debug(value)
         self.primary_order.quantity = value
 
     # Setter for the 'prime_quantity' property
@@ -323,7 +327,7 @@ class Combi_Primary_B_MKT_And_OCO_S_MKT_I_Order_NSE:
     @order_id.setter
     def order_id(self, value):
         if not isinstance(value, str):
-            logger.info(traceback.print_exc())
+            logger.debug(traceback.print_exc())
             raise ValueError("value should be a string")
         self.primary_order.order_id = value
 
@@ -362,7 +366,7 @@ class Combi_Primary_S_MKT_And_OCO_B_MKT_I_Order_NSE:
             remarks = re.sub("[-,&]+", "_", remarks)
         self.primary_order = I_S_MKT_Order(tradingsymbol=tradingsymbol, quantity=quantity, _remarks=remarks)
         if bl_alert_p and bp_alert_p:
-            logger.info(f'bl_alert_p: {bl_alert_p} bp_alert_p: {bp_alert_p}')
+            logger.debug(f'bl_alert_p: {bl_alert_p} bp_alert_p: {bp_alert_p}')
             self.follow_up_order = OCO_FOLLOW_UP_MKT_I_Order(buy_or_sell='B',
                                                              tradingsymbol=tradingsymbol,
                                                              quantity=quantity,
@@ -380,7 +384,7 @@ class Combi_Primary_S_MKT_And_OCO_B_MKT_I_Order_NSE:
     def primary_order_quantity(self, value):
         if not isinstance(value, int):
             raise ValueError("Quantity should be integer")
-        logger.info(value)
+        logger.debug(value)
         self.primary_order.quantity = value
 
     # Setter for the 'prime_quantity' property
@@ -391,7 +395,7 @@ class Combi_Primary_S_MKT_And_OCO_B_MKT_I_Order_NSE:
     @order_id.setter
     def order_id(self, value):
         if not isinstance(value, str):
-            logger.info(traceback.print_exc())
+            logger.debug(traceback.print_exc())
             raise ValueError("value should be a string")
         self.primary_order.order_id = value
 
@@ -437,11 +441,14 @@ class Combi_Primary_B_MKT_And_OCO_S_MKT_I_Order_NFO (Combi_Primary_B_MKT_And_OCO
 
 
 @dataclass
-class SimpleDataPort(object):
+class SimpleDataPort:
     """Generic port """
     data_q: ExtSimpleQueue
     evt: Event
-    id: int = 0
+    id: int = field(init=False, default=0)
+
+    def __post_init__(self):
+        type(self).id += 1
 
     def send_data(self, data):
         self.data_q.put(data)
