@@ -80,7 +80,7 @@ TIU:
       SYMBOL: 'NIFTY'                     # Fixed: Do not change    
       UL_INSTRUMENT: 'NIFTY'              # Fixed: Do not change
       EXCHANGE: 'NFO'                     # Fixed: Do not change    
-      EXPIRY_DATE: '22-FEB-2024'          # Format: '01-FEB-2024'  
+      EXPIRY_DATE: '28-MAR-2024'          # Format: '01-FEB-2024'  
       CE_STRIKE_OFFSET: 0                 # 0 means ATM,   1 is OTM, -1 means ITM
       PE_STRIKE_OFFSET: 0                 # 0 means ATM,  -1 is OTM, 1 means ITM
       STRIKE_DIFF: 50                     # Fixed: Do not change
@@ -93,7 +93,7 @@ TIU:
       SYMBOL: 'BANKNIFTY'                 # Fixed: Do not change     
       UL_INSTRUMENT: 'NIFTY BANK'         # Fixed: Do not change  
       EXCHANGE: 'NFO'                     # Fixed: Do not change
-      EXPIRY_DATE: '21-FEB-2024'          # Format: '01-FEB-2024'  
+      EXPIRY_DATE: '27-MAR-2024'          # Format: '01-FEB-2024'  
       CE_STRIKE_OFFSET: 0                # 0 means ATM,   1 is OTM, -1 means ITM
       PE_STRIKE_OFFSET: 0                 # 0 means ATM,  -1 is OTM, 1 means ITM
       STRIKE_DIFF: 100                    # Fixed: Do not change
