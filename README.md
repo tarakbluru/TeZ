@@ -46,13 +46,13 @@ The app has been tested under Python version 3.10.5. Any recent versions also sh
 Step1: Update the Finvasia credentials in the file 'user_cred.yml' which is available in the folder
 \data\cred.
 
-Step2: Update the system configuration for NSE/NFO and required Expiry Date in the system config file. [Refer to sys_cfg.yml](/data/sys_cfg.yml) 
+Step2: Update the system configuration for NSE/NFO and required Expiry Date in the system config file. [sys_cfg.yml](/data/sys_cfg.yml) 
 
 Step3: Create virtual environment for Apps use. For ease of use, a powershell script is given in the ps_scripts folder. To run this, 
 you can refer: [Installation](#installation) This step is to be done only once.
 
 #### Configuration File Explanation
-[Refer to sys_cfg.yml](/data/sys_cfg.yml) This has all configurations required for using the app.
+[sys_cfg.yml](/data/sys_cfg.yml) This has all configurations required for using the app.
 
 ```yaml
 # Configuration File details
