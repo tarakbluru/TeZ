@@ -55,22 +55,41 @@ you can refer: [Installation](#installation)
 
 ```yaml
 # Configuration File details
-GUI_CONFIG:  
-  APP_TITLE: 'TeZ - NIFTY'
-  APP_GEOMETRY: '250x125'    # Default Size of the app. can be updated by changing here.
-  LONG_BUTTON: ' Buy '
-  SHORT_BUTTON: 'Short'
-  EXIT_BUTTON: 'Exit App'
-  SQUARE_OFF_BUTTON: 'Square Off'
-
+GUI_CONFIG:
+  APP_TITLE: 'TeZ'
+  APP_GEOMETRY: '250x250'
+  ...
 TIU:
+  ...
   TOKEN_FILE: null     #if the session id is to be shared with other algos, the session id file is given here.
   CRED_FILE:  './data/cred/user_cred.yml' 
   ...
-  PROFIT_PER: 0.4      # Profit Percentage  - Used for calculating profit points 
-  STOPLOSS_PER: 0.2    # Stop loss percentage - Used for calculating stoploss points 
-  ...
+  EXCHANGE: 'NSE'      # valid values : NSE NFO  ...
   QUANTITY: 1
+  USE_GTT_OCO: 'NO'    # 'YES' 'NO'
+  N_LEGS: 1            # ice berg orders, total qty is boken into N_legs
+
+  INSTRUMENT_INFO:
+    INST_1:
+      SYMBOL: 'NIFTYBEES'                 # Fixed: Do not change 
+      ...
+    INST_3:
+      SYMBOL: 'NIFTY'                     # Fixed: Do not change    
+      UL_INSTRUMENT: 'NIFTY'              # Fixed: Do not change
+      EXCHANGE: 'NFO'                     # Fixed: Do not change    
+      EXPIRY_DATE: '28-MAR-2024'          # Format: '01-FEB-2024'  
+      CE_STRIKE_OFFSET: 0                 # 0 means ATM,   1 is OTM, -1 means ITM
+      PE_STRIKE_OFFSET: 0                 # 0 means ATM,  -1 is OTM, 1 means ITM
+      STRIKE_DIFF: 50                     # Fixed: Do not change
+      PROFIT_PER: null                    # Fixed: Do not change
+      STOPLOSS_PER: null                  # Fixed: Do not change
+      PROFIT_POINTS: 30                   # Points in Option Price 
+      STOPLOSS_POINTS: 10                 # Points in Option Price
+
+    INST_4:
+      SYMBOL: 'BANKNIFTY'                 # Fixed: Do not change     
+      UL_INSTRUMENT: 'NIFTY BANK'         # Fixed: Do not change  
+      ...
   ...
   TRADES_RECORD_FILE: './log/orders.csv'
   SAVE_TOKEN_FILE_CFG: 'YES'   #if the session id file has to be generated, make this as 'YES'
