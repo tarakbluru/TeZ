@@ -113,6 +113,25 @@ SYSTEM:
   ...
 ```
 
+## Usage
+
+On clicking 'Buy' market, in the NSE Exchange (in config file), NIFTYBEES/BANKBEES are bought. 
+On clicking 'Short' market, in the NSE Exchange, NIFTYBEES/BANKBEES are Shorted. 
+
+On clicking 'Buy' market, in the NFO Exchange (in config file), NIFTY/BANKNIFTY CE options are bought. 
+The expiry date and strike rate configuration is to be set before starting the app.
+
+On clicking 'Short' market, in the NFO Exchange (in config file), NIFTY/BANKNIFTY PE options are bought. 
+The expiry date and strike rate configuration is to be set before starting the app.
+
+By setting OCO feature, even options can have OCO orders placed on broker terminal. 
+In case of any failure, user should take manual control.
+
+Note: This app is not designed to replace the broker terminal. It only helps in reducing pain point 
+(choosing the strikes and quick entry and exit).  The design goal was to build very simple looking tool and 
+avoid complexity in UI and have most parameters pre configured; while trading, too many parameters 
+actually hampers clarity in thinking (my empirical observation).
+
 ## Contributing
 
 Thank you for considering contributing to this project! We welcome bug reports to help improve the quality of the software.
