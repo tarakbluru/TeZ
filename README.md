@@ -70,7 +70,7 @@ TIU:
   CRED_FILE:  './data/cred/user_cred.yml' 
   ...
   EXCHANGE: 'NSE'      # valid values : NSE NFO  ...
-  QUANTITY: 1
+  QUANTITY: 1          # In case of NSE, it is actual quantity. Incase of NFO, it is lots. 
   USE_GTT_OCO: 'NO'    # 'YES' 'NO'
   N_LEGS: 1            # ice berg orders, total qty is boken into N_legs
 
@@ -112,6 +112,25 @@ SYSTEM:
   DL_FOLDER: './log'         # intermediate files such as symbol files are downloaded here.
   ...
 ```
+
+## Usage
+
+On clicking 'Buy' market, in the NSE Exchange (in config file), NIFTYBEES/BANKBEES are bought. 
+On clicking 'Short' market, in the NSE Exchange, NIFTYBEES/BANKBEES are Shorted. 
+
+On clicking 'Buy' market, in the NFO Exchange (in config file), NIFTY/BANKNIFTY CE options are bought. 
+The expiry date and strike rate configuration is to be set before starting the app.
+
+On clicking 'Short' market, in the NFO Exchange (in config file), NIFTY/BANKNIFTY PE options are bought. 
+The expiry date and strike rate configuration is to be set before starting the app.
+
+By setting OCO feature, even options can have OCO orders placed on broker terminal. 
+In case of any failure, user should take manual control.
+
+Note: This app is not designed to replace the broker terminal. It only helps in reducing pain point 
+(choosing the strikes and quick entry and exit).  The design goal was to build very simple looking tool and 
+avoid complexity in UI and have most parameters pre configured; while trading, too many parameters 
+actually hampers clarity in thinking (my empirical observation).
 
 ## Contributing
 
