@@ -70,7 +70,7 @@ TIU:
   CRED_FILE:  './data/cred/user_cred.yml' 
   ...
   EXCHANGE: 'NSE'      # valid values : NSE NFO  ...
-  QUANTITY: 1          # In case of NSE, it is acutal quantity. Incase of NFO, it is lots. 
+  QUANTITY: 1          # In case of NSE, it is actual quantity. Incase of NFO, it is lots. 
   USE_GTT_OCO: 'NO'    # 'YES' 'NO'
   N_LEGS: 1            # ice berg orders, total qty is boken into N_legs
 
