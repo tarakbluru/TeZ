@@ -46,7 +46,7 @@ TIU:
 
   PRODUCT: 'MIS'
   USE_GTT_OCO: 'NO'       # 'YES' 'NO'
-  QUANTITY: 1
+  QUANTITY: 1          # In case of NSE, it is acutal quantity. Incase of NFO, it is lots.
   N_LEGS: 1            # ice berg orders, total qty is boken into N_legs
 
   INSTRUMENT_INFO:
