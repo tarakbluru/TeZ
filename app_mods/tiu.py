@@ -35,9 +35,10 @@ try:
     import re
     import time
     import urllib.parse
-    from enum import Enum
-    from typing import List, NamedTuple, Union
     from dataclasses import dataclass
+    from enum import Enum
+    from threading import Lock
+    from typing import List, NamedTuple, Union
 
     import app_utils
     import pandas as pd
@@ -74,6 +75,7 @@ class Biu_CreateConfig(object):
     susertoken: str  # =''
     token_file: str  # ='../../../Finvasia_login/temp/tarak_token.json'
     use_pool: bool  # =True
+    master_file:Union[str, None]
     dl_filepath: str  # =f'../log'
     notifier: None  # =None
     save_tokenfile_cfg: bool  # =False
@@ -83,7 +85,7 @@ class Biu_CreateConfig(object):
     def __str__(self):
         return f'''cred_file: {self.cred_file} susertoken: {self.susertoken} 
                   token_file:{self.token_file} use_pool:{self.use_pool} 
-                  dl_filepath:{self.dl_filepath} notifier:{self.notifier} 
+                  dl_filepath:{self.dl_filepath} master_file: {self.master_file} notifier:{self.notifier} 
                   save_tokenfile_cfg: {self.save_tokenfile_cfg} 
                   save_token_file:{self.save_tokenfile_cfg} test_env:{self.test_env}'''
 
@@ -99,7 +101,9 @@ class Tiu_CreateConfig(Biu_CreateConfig):
     ...
 
 class BaseIU (object):
+    __count = 0
     def __init__(self, bcc: Biu_CreateConfig):
+        logger.info(f'{BaseIU.__count}: Creating  {self.__class__.__name__} Object..')
         self.notifier = bcc.notifier
         self.cred_file = bcc.cred_file
         self.token_file = bcc.token_file
@@ -109,15 +113,23 @@ class BaseIU (object):
         self._used_margin = None
         self.use_pool = bcc.use_pool
         self.df = None
-        usefile = True if bcc.dl_filepath else False
+        usefile = True if bcc.dl_filepath or bcc.master_file else False
         dl_file = True if bcc.dl_filepath else False
-        s_cc = fv_api_extender.ShoonyaApiPy_CreateConfig(inst_prefix=bcc.inst_prefix, dl_file=dl_file, use_file=usefile, dl_filepath=bcc.dl_filepath, test_env=bcc.test_env)
+        master_file = bcc.master_file if usefile and not bcc.dl_filepath else None
+        s_cc = fv_api_extender.ShoonyaApiPy_CreateConfig(inst_prefix=bcc.inst_prefix, 
+                                                         dl_file=dl_file, use_file=usefile, 
+                                                         master_file=master_file,
+                                                         dl_filepath=bcc.dl_filepath, test_env=bcc.test_env)
 
         self.fv = fv_api_extender.ShoonyaApiPy(cc=s_cc)
         fv = self.fv
 
-        with open(bcc.cred_file) as f:
-            cred = yaml.load(f, Loader=yaml.FullLoader)
+        try:
+            with open(bcc.cred_file) as f:
+                cred = yaml.load(f, Loader=yaml.FullLoader)
+        except FileNotFoundError:
+            logger.error (f'{bcc.cred_file} Not found')
+            raise
 
         if bcc.susertoken is None:
             logger.debug(f'susertoken is None trying {bcc.token_file}')
@@ -195,15 +207,18 @@ class BaseIU (object):
             ret = fv.set_session(userid=cred['userId'], password=cred['pwd'], usertoken=bcc.susertoken)
             logger.debug(f'ret: {ret}')
 
+        BaseIU.__count += 1
+        logger.info(f'Creating  {self.__class__.__name__} Object..: Done')
+
     def __search_sym_token_tsym__(self, symbol, exchange='NSE'):
         fv = self.fv
 
         if symbol == 'NIFTY':
             search_text = (symbol + ' INDEX')
-            logger.info (f'Searching {search_text}')
+            logger.debug (f'Searching {search_text}')
         elif symbol == 'NIFTY BANK':
             search_text = symbol
-            logger.info (f'Searching {search_text}')
+            logger.debug (f'Searching {search_text}')
         else:
             symbol = symbol.replace(" ", "")
             symbol = "".join(re.findall("[a-zA-Z0-9-_&]+", symbol)).upper()
@@ -231,14 +246,26 @@ class BaseIU (object):
         
         return (str(token), tsym)
 
+    def fetch_ltp(self, exchange: str, token: str):
+        fv = self.fv
+        quote = fv.get_quotes(exchange=exchange, token=token)
+        logger.debug(f'exchange:{exchange} token:{token} {json.dumps(quote,indent=2)}')
+        if quote and 'c' in quote and 'ti' in quote and 'ls' in quote:
+            return float(quote['lp']), float(quote['ti']), float(quote['ls'])
+        else:
+            return None, None, None
 
 class Diu (BaseIU):
+    __count = 0
     def __init__(self, dcc: Diu_CreateConfig):
+        logger.info(f'{Diu.__count}: Creating  {self.__class__.__name__} Object..')
+
+        self.lock = Lock()
         super().__init__(dcc)
 
         token = None
         tsym = None
-        logger.info (f'Setting the default Index: Symobl and token')
+        logger.debug (f'Setting the default Index: Symbol and token')
         try:
             token, tsym = self.__search_sym_token_tsym__(symbol='NIFTY')
         except Exception:
@@ -249,11 +276,13 @@ class Diu (BaseIU):
         logger.debug(f'{json.dumps(self._ul_symbol, indent=2)}')
         ws_wrap.WS_WrapU.DEBUG = False
         self.ws_wrap = ws_wrap.WS_WrapU(fv=self.fv, port_cfg=dcc.out_port)
-
+        
+        Diu.__count += 1
+        logger.info(f'Creating  {self.__class__.__name__} Object..Done')
         return
 
     def connect_to_data_feed_servers(self):
-        self.ws_wrap.connect_to_data_feed_servers()
+        return (self.ws_wrap.connect_to_data_feed_servers())
 
     @property
     def live_df_ctrl(self):
@@ -269,21 +298,34 @@ class Diu (BaseIU):
 
     @property
     def ul_token(self):
-        return self._ul_symbol['token']
+        with self.lock:
+            return self._ul_symbol['token']
 
     @property
     def ul_symbol(self):
-        return self._ul_symbol['symbol']
+        with self.lock:
+            return self._ul_symbol['symbol']
 
     @ul_symbol.setter
-    def ul_symbol(self, ul_symbol):
-        self._ul_symbol['symbol'] = ul_symbol
-        token, _ = self.__search_sym_token_tsym__(symbol=ul_symbol)
-        self._ul_symbol['token'] = token
-        logger.debug(f'{json.dumps(self._ul_symbol, indent=2)}')
+    def ul_symbol(self, ul_index):
+        with self.lock:
+            if ul_index == 'BANKNIFTY':
+                ul_index = 'NIFTY BANK'
+            self._ul_symbol['symbol'] = ul_index
+            token, _ = self.__search_sym_token_tsym__(symbol=ul_index)
+            self._ul_symbol['token'] = token
+            logger.debug(f'{json.dumps(self._ul_symbol, indent=2)}')
 
-    def get_latest_tick(self):
-        return self.ws_wrap.get_latest_tick(self._ul_symbol['token']).c
+    def get_latest_tick(self, token:str=None, ul_index:str=None):
+        if token:
+            return self.ws_wrap.get_latest_tick(token).c
+        else:
+            if not ul_index:
+                return self.ws_wrap.get_latest_tick(self._ul_symbol['token']).c
+            else:
+                token, _ = self.__search_sym_token_tsym__(symbol=ul_index)
+                logger.info (f'ul_index : {ul_index} token : {token}')
+                return self.ws_wrap.get_latest_tick(token).c
 
     def disconnect_data_feed_servers(self):
         self.ws_wrap.disconnect_data_feed_servers()
@@ -421,8 +463,11 @@ class Tiu (BaseIU):
     CONFIRM_COUNT = 10
     CONFIRM_SLEEP_PERIOD = 0.3
     SQ_OFF_FAILURE_COUNT = 2
-
+    __count = 0 
     def __init__(self, tcc: Tiu_CreateConfig):
+        logger.info(f'{Tiu.__count}: Creating  {self.__class__.__name__} Object..')
+
+        self.ord_lock = Lock()
         self.login = False
         try:
             super().__init__(tcc)
@@ -433,12 +478,15 @@ class Tiu (BaseIU):
 
         self.__post_init__()
 
+        Tiu.__count += 1
+        logger.info(f'Creating  {self.__class__.__name__} Object..Done')
+
     def __post_init__(self):
         if self.login:
             try:
                 self.fv_amount_in_ac = self.fv_ac_balance()
-            except ValueError:
-                logger.info('Exception occured: Login Faiulre')
+            except Exception as e:
+                logger.info(f'Exception occured: Login Faiulre {str(e)}')
                 raise LoginFailureException
 
         mesg = f'Amount available in Finvasia A/c: INR {self.fv_amount_in_ac:n} /-'
@@ -446,14 +494,20 @@ class Tiu (BaseIU):
         self.update_holdings()
         self.update_positions()
 
+    @property
+    def scripmaster_file(self):
+        return self.fv.scripmaster_file
+
     def compact_search_file(self, symbol_expdate_pairs):
         self.fv.compact_search_file(symbol_expdate_pairs)
 
-    def get_security_info(self, exchange, symbol, token=None):
+    def get_security_info(self, exchange, symbol=None, token=None):
 
         if token is None:
-            token, tsym = self.__search_sym_token_tsym__(exchange=exchange, symbol=symbol)
-
+            if not symbol:
+                token, tsym = self.__search_sym_token_tsym__(exchange=exchange, symbol=symbol)
+            else :
+                return None
         if token:
             return self.fv.get_security_info(exchange=exchange, token=str(token))
         else:
@@ -644,33 +698,21 @@ class Tiu (BaseIU):
         self.df = pd.DataFrame(data)
         logger.info(f'\n{self.df}')
 
-    def fetch_ltp(self, exchange: str, token: str):
-        fv = self.fv
-
-        quote = fv.get_quotes(exchange=exchange, token=token)
-        logger.debug(f'exchange:{exchange} token:{token} {json.dumps(quote,indent=2)}')
-        if quote and 'c' in quote and 'ti' in quote and 'ls' in quote:
-            return float(quote['lp']), float(quote['ti']), float(quote['ls'])
-        else:
-            return None, None, None
-
-    def fetch_security_info(self, exchange, token):
-        fv = self.fv
-        r = fv.get_security_info(exchange=exchange, token=token)
-        return r
-
-    def get_enabled_gtts(self):
-        return self.fv.get_enabled_gtts()
-
-    def get_pending_gtt_order(self):
-        return self.fv.get_pending_gtt_order()
+    # def fetch_ltp(self, exchange: str, token: str):
+    #     fv = self.fv
+    #     quote = fv.get_quotes(exchange=exchange, token=token)
+    #     logger.debug(f'exchange:{exchange} token:{token} {json.dumps(quote,indent=2)}')
+    #     if quote and 'c' in quote and 'ti' in quote and 'ls' in quote:
+    #         return float(quote['lp']), float(quote['ti']), float(quote['ls'])
+    #     else:
+    #         return None, None, None
 
     def place_and_confirm_tez_order(self, orders: List[Union[shared_classes.I_B_MKT_Order, shared_classes.I_S_MKT_Order,
                                                              shared_classes.BO_B_MKT_Order,
                                                              shared_classes.Combi_Primary_B_MKT_And_OCO_S_MKT_I_Order_NSE,
                                                              shared_classes.Combi_Primary_B_MKT_And_OCO_S_MKT_I_Order_NFO,
                                                              shared_classes.Combi_Primary_S_MKT_And_OCO_B_MKT_I_Order_NSE]],
-                                    tag: str | None = None, use_gtt_oco=False):
+                                    tag: str | None = None, use_gtt_oco:bool=False):
 
         def process_result(order, r):
             nonlocal self
@@ -803,7 +845,7 @@ class Tiu (BaseIU):
             if isinstance(order, shared_classes.Combi_Primary_B_MKT_And_OCO_S_MKT_I_Order_NFO) or \
                isinstance(order, shared_classes.Combi_Primary_B_MKT_And_OCO_S_MKT_I_Order_NSE) or \
                isinstance(order, shared_classes.Combi_Primary_S_MKT_And_OCO_B_MKT_I_Order_NSE):
-                order = order.primary_order
+               order = order.primary_order
 
             logger.debug(f'placing {order.buy_or_sell} order {order}')
             r = self.fv.place_order(buy_or_sell=order.buy_or_sell,
@@ -863,235 +905,97 @@ class Tiu (BaseIU):
 
                 return status, ord_status
 
-        resp_exception = 0
-        resp_ok = 0
-        result = []
-        oco_tuple_list = []
+        with self.ord_lock:
+            resp_exception = 0
+            resp_ok = 0
+            result = []
+            oco_tuple_list = []
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-            futures = {executor.submit(place_ind_order, order): order for order in orders}
-
-        for future in concurrent.futures.as_completed(futures):
-            order = futures[future]
-            try:
-                r_tuple = future.result()
-                result.append(r_tuple)
-            except Exception as e:
-                logger.error(f"Exception for item {order}: {e}")
-                logger.error(traceback.format_exc())
-                resp_exception = resp_exception + 1
-            else:
-                status, ord_status = r_tuple
-                if status == Tiu_OrderStatus.SUCCESS:
-                    resp_ok = resp_ok + 1
-                    order.order_id = ord_status.order_id
-                    oco_order = (order, r_tuple)
-                    logger.debug(f'{ord_status}')
-                    oco_tuple_list.append(oco_order)
-
-        if use_gtt_oco:
             with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-                futures = {executor.submit(place_ind_oco_order, oco_tuple): oco_tuple for oco_tuple in oco_tuple_list}
+                futures = {executor.submit(place_ind_order, order): order for order in orders}
 
             for future in concurrent.futures.as_completed(futures):
-                oco_tuple = futures[future]
+                order = futures[future]
                 try:
                     r_tuple = future.result()
+                    result.append(r_tuple)
                 except Exception as e:
-                    logger.error(f"Exception for item {oco_tuple}: {e}")
+                    logger.error(f"Exception for item {order}: {e}")
                     logger.error(traceback.format_exc())
                     resp_exception = resp_exception + 1
                 else:
                     status, ord_status = r_tuple
                     if status == Tiu_OrderStatus.SUCCESS:
                         resp_ok = resp_ok + 1
-                        order, r_tuple = oco_tuple
-                        order.al_id = ord_status.al_id
+                        order.order_id = ord_status.order_id
+                        oco_order = (order, r_tuple)
+                        logger.debug(f'{ord_status}')
+                        oco_tuple_list.append(oco_order)
 
-        return resp_exception, resp_ok, result
+            if use_gtt_oco:
+                with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+                    futures = {executor.submit(place_ind_oco_order, oco_tuple): oco_tuple for oco_tuple in oco_tuple_list}
 
-    def square_off_position(self, df: pd.DataFrame, symbol=None):
-        fv = self.fv
-
-        try:
-            df_filtered = df[(df['Qty'] != 0) & (df['Status'] == 'SUCCESS')]
-        except Exception:
-            logger.info('No position to Square off')
-            return
-        else:
-            ...
-
-        if symbol:
-            try:
-                df_filtered = df_filtered[df_filtered['TradingSymbol_Token'].str.startswith(symbol)]
-            except Exception:
-                logger.info('No position to Square off')
-                return
-            else:
-                ...
-        try:
-            order_id_list = df_filtered['Order_ID'].tolist()
-        except TypeError:
-            logger.info('No order to square off')
-            return
-
-        r = fv.get_order_book()
-        if r is not None and isinstance(r, list):
-            order_book_df = pd.DataFrame(r)
-            try:
-                filtered_df = order_book_df[order_book_df['norenordno'].isin(order_id_list)]
-                logger.debug(f'\n{filtered_df.to_string()}')
-            except Exception as e:
-                logger.debug(f'Exception : {e}')
-            else:
-                for index, row in filtered_df.iterrows():
-                    status = row['status'].lower()
-                    if status == 'open' or status == 'pending' or status == 'trigger_pending':
-                        fv.cancel_order(row['norenordno'])
-
-            # order_book_df remains intact even after filtered df, so can be reused.
-            try:
-                filtered_df = order_book_df[order_book_df['snonum'].isin(order_id_list)]
-                logger.debug(f'\n{filtered_df.to_string()}')
-            except Exception as e:
-                logger.debug(f'Exception : {e}')
-            else:
-                for index, row in filtered_df.iterrows():
-                    if '-EQ' in row['tsym']:
-                        status = row['status'].lower()
-                        if (status == 'open' or status == 'pending' or status == 'trigger_pending') and int(row['snoordt']) == 0:
-                            r = fv.exit_order(row['snonum'], 'B')
-                            if r is None:
-                                logger.error("Exit order result is None. Check Manually")
-                            if 'stat' in r and r['stat'] == 'Ok':
-                                logger.debug(f'child order of {row["norenordno"]} : {row["snonum"]}, status: {json.dumps (r, indent=2)}')
-                            else:
-                                logger.error('Exit order Failed, Check Manually')
-        else:
-            logger.info('get_order_book Failed, Check Manually')
-            return
-
-        r = self.fv.get_pending_gtt_order()
-
-        if r is not None and isinstance(r, list):
-            gtt_p_df = pd.DataFrame(r)
-            logger.debug(f'\n{gtt_p_df}')
-            try:
-                alert_id_list = df_filtered['OCO_Alert_ID'].tolist()
-            except Exception as e:
-                logger.debug(f'Exception : {e}')
-            else:
-                # Check oco order pending ..
-                # if there are orders still open ..cancel the orders
-                if gtt_p_df is not None and len(gtt_p_df):
-                    for alert_id in alert_id_list:
-                        if not pd.isna(alert_id) and alert_id in gtt_p_df['al_id'].values:
-                            logger.debug(f'cancelling al_id : {alert_id}')
-                            r = self.fv.cancel_gtt_order(al_id=str(alert_id))
-                            if r is not None and isinstance(r, dict):
-                                if 'emsg' in r:
-                                    logger.debug(f'alert_id: {alert_id} : {r["emsg"]}')
-                                if alert_id == r['al_id'] and r['stat'] == "OI deleted":
-                                    logger.debug(f'alert id {alert_id} cancellation success')
-
-        # Important
-        # if the gtt orders are triggered, there will be pending orders
-        # In this project, all OCO orders are triggered at market. So, there will not be any pending OCO triggered orders.
-        # But, to ensure OCO orders are complete or have hit a terminal state, need to do some thing.
-        # e.g, filter the orders that have remarks 'TEZ' parent order-id which is in the order_id_list, cancel those.
-
-        try:
-            sum_qty_by_symbol = df_filtered.groupby('TradingSymbol_Token')['Qty'].sum().reset_index()
-        except Exception as e:
-            logger.info(f'Not able to sum qty by symbol: {e}')
-            return
-
-        r = fv.get_positions()
-        if r is not None and isinstance(r, list):
-            posn_df = pd.DataFrame(r)
-            posn_df.loc[posn_df['prd'] == 'I', 'netqty'] = posn_df.loc[posn_df['prd'] == 'I', 'netqty'].apply(lambda x: int(x))
-            posn_df = posn_df.loc[(posn_df['prd'] == 'I')]
-
-        for index, row in sum_qty_by_symbol.iterrows():
-            symbol = row['TradingSymbol_Token']
-            token = symbol.split('_')[1]
-            tsym = symbol.split('_')[0]
-            rec_qty = row['Qty']
-            if len(posn_df):
-                try:
-                    posn_qty = posn_df.loc[posn_df['token'] == str(token), 'netqty'].values[0]
-                except IndexError:
-                    posn_qty = 0
-                else:
-                    ...
-            else:
-                posn_qty = 0
-            net_qty = abs(posn_qty)
-
-            # It is possible that manually, user could do following:
-            # case 1: nothing
-            #         System finds the net quantity is equal to the recorded qty and proceeds
-            #         if rec_qty is +ve, it should sell else buy
-            # case 2: square off partially
-            #         Recorded qty > net_qty,   so, in this case square off remaining qty.
-            #         rem_qty = min(abs(rec_qty), net_qty)
-            #         example1 : rec_qty = 8,  net_qty = 6  exit_qty = 6
-            #         example2 : rec_qty = -8,  net_qty = -6  exit_qty = 6
-            # case 3: square off fully
-            #         net_qty is 0, so nothing should be done.
-            # case 4: Taken additional qty.
-            #         Now, it is user's responsibility to manually exit the extra position.
-            #         System would square off only those, which it has triggered.
-            #         rem_qty = min(abs(rec_qty), net_qty)
-            #         example1 : rec_qty = 8,  net_qty = 10   exit_qty = 8
-            #         example2 : rec_qty = -8,  net_qty = -10  exit_qty = 8
-            #         example3 : rec_qty = 8,   net_qty = -10, exit_qty = 8 sell
-            #         example4 : rec_qty = -8,   net_qty = +10, exit_qty = 8 buy
-
-            if net_qty > 0:
-                # exit the position
-                # important, rec_qty and net_qty should be both +ve values.
-                exit_qty = min(abs(rec_qty), net_qty)
-                logger.info(f'exit qty:{exit_qty}')
-                exch = 'NSE' if '-EQ' in tsym else 'NFO'
-                # Very Important:  Following should use frz_qty for breaking order into slices
-                r = self.fv.get_security_info(exchange=exch, token=token)
-                logger.debug(f'{json.dumps(r, indent=2)}')
-
-                frz_qty = None
-                if isinstance(r, dict) and 'frzqty' in r:
-                    frz_qty = int(r['frzqty'])
-                else:
-                    frz_qty = exit_qty+1
-
-                if isinstance(r, dict) and 'ls' in r:
-                    ls = int(r['ls'])  # lot size
-                else:
-                    ls = 1
-
-                failure_cnt = 0
-                buy_or_sell = 'S' if rec_qty > 0 else 'B'
-                while (exit_qty and failure_cnt <= Tiu.SQ_OFF_FAILURE_COUNT):
-                    per_leg_exit_qty = frz_qty if exit_qty > frz_qty else exit_qty
-                    per_leg_exit_qty = int(per_leg_exit_qty / ls) * ls
-                    r = self.fv.place_order(buy_or_sell, product_type='I', exchange=exch, tradingsymbol=tsym,
-                                            quantity=per_leg_exit_qty, price_type='MKT', discloseqty=0.0)
-
-                    if r is None or r['stat'] == 'Not_Ok':
-                        logger.info(f'Exit order Failed:  {r["emsg"]}')
-                        failure_cnt += 1
+                for future in concurrent.futures.as_completed(futures):
+                    oco_tuple = futures[future]
+                    try:
+                        r_tuple = future.result()
+                    except Exception as e:
+                        logger.error(f"Exception for item {oco_tuple}: {e}")
+                        logger.error(traceback.format_exc())
+                        resp_exception = resp_exception + 1
                     else:
-                        logger.info(f'Exit Order Attempt success:: order id  : {r["norenordno"]}')
-                        order_id = r["norenordno"]
-                        r_os_list = self.fv.single_order_history(order_id)
-                        # Shoonya gives a list for all status of order, we are interested in first one
-                        r_os_dict = r_os_list[0]
-                        if r_os_dict["status"].lower() == "complete":
-                            logger.info(f'Exit order Complete: order_id: {order_id}')
-                        else:
-                            logger.info(f'Exit order InComplete: order_id: {order_id} Check Manually')
-                        exit_qty -= per_leg_exit_qty
+                        status, ord_status = r_tuple
+                        if status == Tiu_OrderStatus.SUCCESS:
+                            resp_ok = resp_ok + 1
+                            order, r_tuple = oco_tuple
+                            order.al_id = ord_status.al_id
 
-                if failure_cnt > 2 or exit_qty:
-                    logger.info(f'Exit order InComplete: order_id: {order_id} Check Manually')
-                    raise OrderExecutionException
+            return resp_exception, resp_ok, result
+
+    # TODO: By deriving the tiu module from fv, we can avoid the translations.
+
+    def get_order_book (self):
+        return self.fv.get_order_book()
+    
+    def get_pending_gtt_order (self):
+        return self.fv.get_pending_gtt_order()
+
+    def get_positions (self):
+        return self.fv.get_positions()
+   
+    def place_order(self,order):
+        with self.ord_lock:
+            return self.fv.place_order(buy_or_sell=order.buy_or_sell,
+                                    product_type=order.product_type,
+                                    exchange=order.exchange,
+                                    tradingsymbol=order.tradingsymbol,
+                                    quantity=order.quantity, discloseqty=0,
+                                    trigger_price=order.trigger_price,
+                                    price=order.price,
+                                    price_type=order.price_type,
+                                    bookloss_price=order.book_loss_price,
+                                    bookprofit_price=order.book_profit_price,
+                                    trail_price=0.0,  # trail_price should be 0 for finvasia.
+                                    retention=order.retention, remarks=order.remarks)
+    
+    def cancel_gtt_order(self,  al_id: str):
+        return self.fv.cancel_gtt_order(al_id=al_id)
+    
+    def single_order_history(self,order_id):
+        return self.fv.single_order_history(orderno=order_id)
+    
+    def cancel_order (self, order_id):
+        return self.fv.cancel_order(orderno=order_id)
+
+    def exit_order (self, order_id, product_type):
+        return self.fv.exit_order(orderno=order_id, product_type=product_type)
+
+    def fetch_security_info(self, exchange, token):
+        return self.fv.get_security_info(exchange=exchange, token=token)
+
+    def get_enabled_gtts(self):
+        return self.fv.get_enabled_gtts()
+
+    def get_pending_gtt_order(self):
+        return self.fv.get_pending_gtt_order()

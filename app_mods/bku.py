@@ -29,9 +29,9 @@ logger = app_utils.get_logger(__name__)
 try:
     import os
     import shutil
+    from dataclasses import dataclass
     from datetime import datetime
     from threading import Lock
-    from dataclasses import dataclass
 
     import pandas as pd
     from rich.console import Console

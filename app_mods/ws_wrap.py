@@ -40,7 +40,7 @@ try:
     import pyotp
     import yaml
 
-    from .fv_api_extender import ShoonyaApiPy,ShoonyaApiPy_CreateConfig
+    from .fv_api_extender import ShoonyaApiPy, ShoonyaApiPy_CreateConfig
     from .shared_classes import (BaseInst, Component_Type, Ctrl, FVInstrument,
                                  LiveFeedStatus, SimpleDataPort, SysInst,
                                  TickData)
@@ -324,6 +324,7 @@ class WS_WrapU(object):
             if retval == SUCCESS:
                 self._fv_connected = True
                 logger.debug("Data feed connected")
+            return retval
 
     def disconnect_data_feed_servers(self):
         if self.fv is not None and self._fv_connected:

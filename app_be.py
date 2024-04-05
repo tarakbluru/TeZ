@@ -29,7 +29,9 @@ logger = utils.get_logger(__name__)
 
 try:
     import time
+    from dataclasses import dataclass
     from datetime import datetime
+    from enum import Enum
     from threading import Event, Timer
     from typing import NamedTuple
 
@@ -45,6 +47,26 @@ except Exception as e:
 
 class TeZ_App_BE_CreateConfig(NamedTuple):
     limit_order_cfg:bool
+
+
+class SquareOff_Mode(Enum):
+    ALL = 0
+    SELECT = 1
+
+class SquareOff_InstType(Enum):
+    BEES = 0
+    CE = 1
+    PE = 2
+    ALL = 3
+
+@dataclass
+class SquareOff_Info:
+    mode:SquareOff_Mode
+    per: float
+    ul_index: str
+    exch:str
+    inst_type:SquareOff_InstType=SquareOff_InstType.ALL
+    partial_exit:bool = False
 
 class TeZ_App_BE:
     name = "APBE"
@@ -95,6 +117,7 @@ class TeZ_App_BE:
                                             susertoken=session_id,
                                             token_file=tiu_token_file,
                                             use_pool=False,
+                                            master_file=None,
                                             dl_filepath=dl_filepath,
                                             notifier=None,
                                             save_tokenfile_cfg=tiu_save_token_file_cfg,
@@ -122,7 +145,7 @@ class TeZ_App_BE:
 
             return tiu
 
-        def create_diu(live_data_output_port:app_mods.SimpleDataPort):
+        def create_diu(live_data_output_port:app_mods.SimpleDataPort, master_file):
             if app_mods.get_system_info("SYSTEM","VIRTUAL_ENV") == 'NO':
                 diu_cred_file = app_mods.get_system_info("DIU", "CRED_FILE")
                 diu_token_file = app_mods.get_system_info("DIU", "TOKEN_FILE")
@@ -138,12 +161,14 @@ class TeZ_App_BE:
                 logger.info(f'token_file: {diu_token_file}')
                 diu_save_token_file_cfg = False
                 diu_save_token_file = None
-                virtual_env = True
+                virtual_env = False
 
+            
             dcc = app_mods.Diu_CreateConfig(inst_prefix='diu', cred_file=diu_cred_file,  
                                             susertoken=None,
                                             token_file=diu_token_file, 
                                             use_pool=False, 
+                                            master_file=master_file,
                                             dl_filepath=None, 
                                             notifier=None, 
                                             save_tokenfile_cfg=diu_save_token_file_cfg,
@@ -164,27 +189,27 @@ class TeZ_App_BE:
 
             return diu
 
-        def create_pfmu(tiu):
-            pfmu_file = app_mods.get_system_info("BKU", "TRADES_RECORD_FILE")
-            pfmu_cc = app_mods.PFMU_CreateConfig(tiu=tiu, rec_file=pfmu_file)
+        def create_pfmu(tiu, diu, port):
+            pfmu_ord_file = app_mods.get_system_info("BKU", "TRADES_RECORD_FILE")
+            pf_file = app_mods.get_system_info("PFMU", "PF_RECORD_FILE")
+            mo = app_mods.get_system_info("MARKET_TIMING", "OPEN")
+            pfmu_cc = app_mods.PFMU_CreateConfig(tiu=tiu, diu=diu, rec_file=pfmu_ord_file, 
+                                                 mo=mo, pf_file=pf_file, 
+                                                 reset=False, port=port, 
+                                                 limit_order_cfg=self.cc_cfg.limit_order_cfg)
             pfmu = app_mods.PFMU(pfmu_cc)
             return pfmu
 
-        logger.debug ('APBE initialization ...')
+        logger.info ('APBE initialization ...')
 
         self.data_q = utils.ExtSimpleQueue()
         self.evt = Event()
         self.diu_op_port = app_mods.SimpleDataPort(data_q=self.data_q, evt=self.evt)
 
         self.tiu = create_tiu()
-        self.diu = create_diu(live_data_output_port=self.diu_op_port)
-        self.pfmu = create_pfmu(tiu=self.tiu)
-
-        pmu_cc = app_mods.PMU_cc(inp_dataPort=self.diu_op_port)
-        self.pmu = app_mods.PriceMonitoringUnit(pmu_cc=pmu_cc)
-
-        ocpu_cc = app_mods.Ocpu_CreateConfig(tiu=self.tiu,diu=self.diu, pfmu=self.pfmu, pmu=self.pmu, lmt_order=self.cc_cfg.limit_order_cfg)
-        self.ocpu = app_mods.OCPU(ocpu_cc=ocpu_cc)
+        master_file = self.tiu.scripmaster_file
+        self.diu = create_diu(live_data_output_port=self.diu_op_port, master_file=master_file)
+        self.pfmu = create_pfmu(tiu=self.tiu, diu=self.diu, port=self.diu_op_port)
 
         self._sqoff_time = None
         self.sqoff_timer = None
@@ -206,12 +231,12 @@ class TeZ_App_BE:
         else:
             logger.debug("Square off Timer Is not Created.. as Time has elapsed ")
 
-        self.pmu.start_monitoring()
+        self.pfmu.start_monitoring()
         time.sleep(0.1)
         self.diu.live_df_ctrl = app_mods.Ctrl.ON
 
         self.__count += 1
-        logger.debug (f"APBE initialization ...done Inst: {TeZ_App_BE.name} {TeZ_App_BE.__count} {TeZ_App_BE.__componentType}")
+        logger.info (f"APBE initialization ...done Inst: {TeZ_App_BE.name} {TeZ_App_BE.__count} {TeZ_App_BE.__componentType}")
         return
 
     def __square_off_position_timer__(self):
@@ -219,12 +244,12 @@ class TeZ_App_BE:
         self.square_off_position(mode='ALL')
 
     @property
-    def ul_symbol(self):
+    def ul_index(self):
         return self.diu.ul_symbol
 
-    @ul_symbol.setter
-    def ul_symbol(self, ul_symbol):
-        self.diu.ul_symbol = ul_symbol
+    @ul_index.setter
+    def ul_index(self, ul_index):
+        self.diu.ul_symbol = ul_index
 
     def exit_app_be(self):
         if self.sqoff_timer is not None:
@@ -232,8 +257,7 @@ class TeZ_App_BE:
                 self.sqoff_timer.cancel()
         self.diu.live_df_ctrl = app_mods.Ctrl.OFF
         logger.debug ('Cancelling all waiting orders')
-        self.ocpu.cancel_all_waiting_orders ()
-        self.pmu.hard_exit()
+        self.pfmu.cancel_all_waiting_orders (exit_flag=True)
 
     @staticmethod
     def get_instrument_info(exchange, ul_inst):
@@ -241,7 +265,7 @@ class TeZ_App_BE:
         instrument_info = None
         for inst_id, info in instruments.items():
             logger.debug(f"Instrument: {inst_id}")
-            if info['EXCHANGE'] == exchange and info['UL_INSTRUMENT'] == ul_inst:
+            if info['EXCHANGE'] == exchange and info['UL_INDEX'] == ul_inst:
                 instrument_info = info
                 break
         return instrument_info  # symbol, exp_date, ce_offset, pe_offset
@@ -266,52 +290,51 @@ class TeZ_App_BE:
                     return None
             logger.info (f'row_id {row_id}')
             for rn in row_id:
-                self.ocpu.cancel_waiting_order (id=rn-1)
+                self.pfmu.cancel_waiting_order (id=rn-1)
 
-    def show_records (self):
-        self.ocpu.wo_table_show ()
+    def show_records (self) -> None:
         self.pfmu.show()
 
-    def market_action(self, action, trade_price=None):
+    def market_action(self, action:str, trade_price=None):
 
-        nlegs = app_mods.get_system_info("TRADE_DETAILS", "N_LEGS")
-
-        ul_sym = self.diu.ul_symbol
+        ul_index = self.diu.ul_symbol
         exch = app_mods.get_system_info("TRADE_DETAILS", "EXCHANGE")
 
-        inst_info_dict = TeZ_App_BE.get_instrument_info(exch, ul_sym)
+        inst_info_dict = TeZ_App_BE.get_instrument_info(exch, ul_index)
         inst_info = {key.lower(): value for key, value in inst_info_dict.items()}
+        inst_info['use_gtt_oco'] = True if inst_info['order_prod_type'].lower() == 'o' else False
+        inst_info = app_mods.shared_classes.InstrumentInfo(**inst_info)
 
-
-        qty = round(app_mods.get_system_info("TRADE_DETAILS", "QUANTITY"), 0)
-        use_gtt_oco = True if app_mods.get_system_info("TRADE_DETAILS", "USE_GTT_OCO").upper() == 'YES' else False
-
-        inst_info = app_mods.OcpuInstrumentInfo(**inst_info, 
-                                                use_gtt_oco=use_gtt_oco,
-                                                qty=qty, 
-                                                n_legs=nlegs 
-                                                )
         try:
-            self.ocpu.create_and_place_order(action, inst_info=inst_info, trade_price=trade_price)
+            qty_taken = self.pfmu.take_position(action, inst_info=inst_info, trade_price=trade_price)
         except RuntimeError:
-            ...
+            raise
+        else :
+            return qty_taken
 
-    def square_off_position(self, mode='SELECT'):
-        exch = app_mods.get_system_info("TRADE_DETAILS", "EXCHANGE")
-        if mode == 'SELECT':
-            ul_sym = self.diu.ul_symbol
-            inst_info = TeZ_App_BE.get_instrument_info(exch, ul_sym)
-            sq_off_ul_symbol = inst_info['SYMBOL']
-            logger.info(f'Sq_off_symbol:{sq_off_ul_symbol}')
+    def square_off_position(self, sq_off_info:SquareOff_Info):
+        logger.info (repr(sq_off_info))
+        exch = sq_off_info.exch
+        if sq_off_info.mode == SquareOff_Mode.SELECT:
+            ul_index = sq_off_info.ul_index
+            if sq_off_info.inst_type == SquareOff_InstType.ALL:
+                inst_info = TeZ_App_BE.get_instrument_info(exch, ul_index)
+                sq_off_ul_symbol = inst_info['SYMBOL']
+                logger.info(f'Sq_off_symbol:{sq_off_ul_symbol}')
+            else:
+                sq_off_ul_symbol = ul_index
+            inst_type = sq_off_info.inst_type.name
         else:
             sq_off_ul_symbol = None
+            inst_type = 'ALL'
 
-        # IMPORTANT : Incase of Partial Exits, ensure ul_sym is taken from the TM gui 
-
-        self.pfmu.square_off_position (mode=mode, ul_symbol=sq_off_ul_symbol)
+        partial_exit = sq_off_info.partial_exit
+        logger.info (f'{sq_off_ul_symbol} {sq_off_info.mode.name} {inst_type}')
+        per = sq_off_info.per
+        self.pfmu.square_off_position (mode=sq_off_info.mode.name, ul_index=sq_off_ul_symbol, per=per, inst_type=inst_type, partial_exit=partial_exit)
 
     def data_feed_connect(self):
-        self.diu.connect_to_data_feed_servers()
+        return (self.diu.connect_to_data_feed_servers())
 
     def data_feed_disconnect(self):
         self.diu.disconnect_data_feed_servers()

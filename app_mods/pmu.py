@@ -28,11 +28,11 @@ from app_utils import app_logger
 logger = app_logger.get_logger(__name__)
 
 try:
-    import threading
     import time
     from collections import defaultdict
     from datetime import datetime
     from enum import Enum
+    from threading import Event, Lock, Thread, current_thread
     from typing import NamedTuple
 
     from .shared_classes import (Component_Type, LiveFeedStatus,
@@ -42,7 +42,7 @@ except Exception as e:
     logger.error(("Import Error " + str(e)))
     sys.exit(1)
 
-class PMU_cc(NamedTuple):
+class PMU_CreateConfig(NamedTuple):
     inp_dataPort: SimpleDataPort
 
 class PMU_State(Enum):
@@ -61,11 +61,11 @@ class PriceMonitoringUnit:
     DATAFEED_TIMEOUT:float = 20.0
     SYS_MONITOR_MAX_COUNT:int = 15    
 
-    def __init__(self, pmu_cc: PMU_cc):
+    def __init__(self, pmu_cc: PMU_CreateConfig):
         logger.debug ("PMU initialization ...")
         self._state:PMU_State = PMU_State.NOT_DEFINED
         self.inst_id :str = f'{PriceMonitoringUnit.name}_{str(PriceMonitoringUnit.__count)}'
-        self.lock = threading.Lock()
+        self.lock = Lock()
         self.sys_monitor = None
         self.notifier = None
         self._send_hb:bool = False
@@ -77,9 +77,9 @@ class PriceMonitoringUnit:
 
         self.inport = pmu_cc.inp_dataPort
         self.conditions = defaultdict(list)  # Dictionary to store conditions for each index
-        self.hard_exit_event = threading.Event()  # Event object to signal hard exit
+        self.hard_exit_event = Event()  # Event object to signal hard exit
 
-        self.data_rx_price_monitor_thread = threading.Thread(name='PMU Data_Rx Price Monitor',target=self.monitor_prices, daemon=True)
+        self.data_rx_price_monitor_thread = Thread(name='PMU Data_Rx Price Monitor',target=self.monitor_prices, daemon=True)
         self._state:PMU_State = PMU_State.CREATED
         self.__count += 1
 
@@ -171,7 +171,7 @@ class PriceMonitoringUnit:
                     self._data_feed_status_callback ()
             return        
 
-        t_name = threading.current_thread().name
+        t_name = current_thread().name
         logger.debug ("In PMU Data_Rx Price Monitor.."+ t_name)
         self.state = PMU_State.RUNNING
 

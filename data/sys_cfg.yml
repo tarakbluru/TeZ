@@ -49,6 +49,9 @@ DIU:
 BKU:
   TRADES_RECORD_FILE: './log/orders.csv'
 
+PFMU:  
+  PF_RECORD_FILE: './log/pf.csv'
+
 TRADE_DETAILS:
   ############################################################################################
   # Risk Disclosure on Derivatives.
@@ -79,15 +82,10 @@ TRADE_DETAILS:
   EXPIRY_DATE_CALC_URL1: 'https://api.shoonya.com/NFO_symbols.txt.zip'
   EXPIRY_DATE_CALC_URL2: 'https://assets.upstox.com/market-quote/instruments/exchange/complete.csv.gz'
 
-  PRODUCT: 'MIS'
-  USE_GTT_OCO: 'NO'       # 'YES' 'NO'
-  QUANTITY: 1          # In case of NSE, it is actual quantity. Incase of NFO, it is lots.
-  N_LEGS: 1            # ice berg orders, total qty is boken into N_legs
-
   INSTRUMENT_INFO:
     INST_1:
       SYMBOL: 'NIFTYBEES'                 # Fixed: Do not change 
-      UL_INSTRUMENT: 'NIFTY'              # Fixed: Do not change    
+      UL_INDEX: 'NIFTY'              # Fixed: Do not change    
       EXCHANGE: 'NSE'                     # Fixed: Do not change     
       EXPIRY_DATE: null                   # Fixed: Do not change       
       STRIKE_DIFF: null                   # Fixed: Do not change       
@@ -97,10 +95,13 @@ TRADE_DETAILS:
       STOPLOSS_PER: 0.2           # 0.2 % of LTP 
       PROFIT_POINTS: null                 # Fixed: Do not change     
       STOPLOSS_POINTS: null               # Fixed: Do not change      
+      ORDER_PROD_TYPE: 'I'        # I - M'I'S, B - 'B'racket   O - GTT_'O'CO
+      QUANTITY: 1            
+      N_LEGS: 1
 
     INST_2:
       SYMBOL: 'BANKBEES'                  # Fixed: Do not change      
-      UL_INSTRUMENT: 'NIFTY BANK'         # Fixed: Do not change
+      UL_INDEX: 'NIFTY BANK'         # Fixed: Do not change
       EXCHANGE: 'NSE'                     # Fixed: Do not change  
       EXPIRY_DATE: null                   # Fixed: Do not change
       CE_STRIKE_OFFSET: null              # Fixed: Do not change 
@@ -110,10 +111,13 @@ TRADE_DETAILS:
       STOPLOSS_PER: 0.2           # 0.2 % of LTP 
       PROFIT_POINTS: null                 # Fixed: Do not change
       STOPLOSS_POINTS: null               # Fixed: Do not change     
+      ORDER_PROD_TYPE: 'I'        # I - M'I'S, B - 'B'racket   O - GTT_'O'CO
+      QUANTITY: 1          
+      N_LEGS: 1
 
     INST_3:
       SYMBOL: 'NIFTY'                     # Fixed: Do not change    
-      UL_INSTRUMENT: 'NIFTY'              # Fixed: Do not change
+      UL_INDEX: 'NIFTY'              # Fixed: Do not change
       EXCHANGE: 'NFO'                     # Fixed: Do not change    
       EXPIRY_DATE: '28-MAR-2024'          # Format: '01-FEB-2024'  
       CE_STRIKE_OFFSET: 0                 # 0 means ATM,   1 is OTM, -1 means ITM
@@ -123,10 +127,13 @@ TRADE_DETAILS:
       STOPLOSS_PER: null                  # Fixed: Do not change
       PROFIT_POINTS: 30                   # Points in Option Price 
       STOPLOSS_POINTS: 10                 # Points in Option Price
+      ORDER_PROD_TYPE: 'I'        # I - M'I'S  O - GTT_'O'CO
+      QUANTITY: 1          #  In lots
+      N_LEGS: 1
 
     INST_4:
       SYMBOL: 'BANKNIFTY'                 # Fixed: Do not change     
-      UL_INSTRUMENT: 'NIFTY BANK'         # Fixed: Do not change  
+      UL_INDEX: 'NIFTY BANK'         # Fixed: Do not change  
       EXCHANGE: 'NFO'                     # Fixed: Do not change
       EXPIRY_DATE: '27-MAR-2024'          # Format: '01-FEB-2024'  
       CE_STRIKE_OFFSET: 0                # 0 means ATM,   1 is OTM, -1 means ITM
@@ -136,6 +143,9 @@ TRADE_DETAILS:
       STOPLOSS_PER: null                  # Fixed: Do not change        
       PROFIT_POINTS: 60                   # Points in Option Price 
       STOPLOSS_POINTS: 20                 # Points in Option Price
+      ORDER_PROD_TYPE: 'I'        # I - M'I'S  O - GTT_'O'CO
+      QUANTITY: 1          #  In lots
+      N_LEGS: 1
 
 SYSTEM:
   LOG_FILE: './log/app.log'
@@ -145,7 +155,7 @@ SYSTEM:
     CLOSE: "15:30"
   SQ_OFF_TIMING: "15:15"                  # format : HH:MM 
   LMT_ORDER_FEATURE : "DISABLED"    #Do not change
-  VIRTUAL_ENV: "NO"  
+  VIRTUAL_ENV: "NO"                 #Fixed, Do not change
   TELEGRAM:          #Future Use
     NOTIFY : "OFF"  #Notifier is created but only the notifications are not pushed by this control parameter.
     CFG_FILE: null

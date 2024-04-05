@@ -19,22 +19,32 @@ __license__ = "MIT"
 __maintainer__ = "Tarak"
 __status__ = "Development"
 
-import datetime
-import json
-import os
-from sre_constants import FAILURE, SUCCESS
+
+import sys
+import traceback
 
 import app_utils
-import gspread
-import yaml
 
 logger = app_utils.get_logger(__name__)
+
+try:
+    import datetime
+    import json
+    import os
+    from sre_constants import FAILURE, SUCCESS
+
+    import app_utils
+    import gspread
+    import yaml
+except Exception as e:
+    logger.error(traceback.format_exc())
+    logger.error(("Import Error " + str(e)))
+    sys.exit(1)
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 SYSTEM_CFG_FILE = os.path.join(current_dir, '..', 'data', 'sys_cfg.yml')
 
 _G_SYSTEM_CFG = None
-
 
 def get_system_config():
     """Reads the system configuration fromt the yaml file

@@ -31,18 +31,18 @@ try:
     import io
     import json
     import os
-    import threading
     import time
     import urllib
     import zipfile
+    from dataclasses import dataclass
     from datetime import datetime
     from difflib import SequenceMatcher
-    from dataclasses import dataclass
     from sre_constants import FAILURE, SUCCESS
+    from threading import Event, Thread
 
+    import pandas as pd
     import requests
     from NorenRestApiPy.NorenApi import NorenApi
-    import pandas as pd
 
     from .shared_classes import Market_Timing
 
@@ -53,16 +53,16 @@ except Exception as e:
 
 
 class FeedBaseObj(object):
-    DATAFEED_TIMEOUT = float(5)
+    DATAFEED_TIMEOUT = float(3)
 
     def __init__(self, ws_monitor_cfg: bool = True):
-        # self.lock = threading.Lock ()
+        # self.lock = Lock ()
         self.ws_connected = False
 
         self.ws_monitor_flag = ws_monitor_cfg
         self.ws_v2_th = None
-        self.ws_v2_data_flow_evt = threading.Event()
-        self.ws_v2_exit_evt = threading.Event()
+        self.ws_v2_data_flow_evt = Event()
+        self.ws_v2_exit_evt = Event()
 
         self.app_cb_on_open = None
         self.app_cb_on_disconnect = None
@@ -77,6 +77,7 @@ class ShoonyaApiPy_CreateConfig (object):
     inst_prefix:str
     dl_file: bool = True
     use_file: bool = True
+    master_file: str = None
     dl_filepath: str = None
     market_hours: Market_Timing = None
     ws_monitor_cfg: bool = True
@@ -85,7 +86,8 @@ class ShoonyaApiPy_CreateConfig (object):
 
 class ShoonyaApiPy(NorenApi, FeedBaseObj):
     __name = "FINVASIA_IF"
-    DATAFEED_TIMEOUT: float = float(20.0)  # 5 secs time out
+    DATAFEED_TIMEOUT: float = float(10.0)  # 5 secs time out
+    INITIAL_TIMEOUT: float = float(100.0)
     __count = 0
 
     def __init__(self, cc: ShoonyaApiPy_CreateConfig):
@@ -137,7 +139,7 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
         self.scripmaster_url: str = "https://api.shoonya.com/NSE_symbols.txt.zip"
         self.nfo_scripmaster_url: str = 'https://api.shoonya.com/NFO_symbols.txt.zip'
         self.scripmaster_folder: str = dl_filepath
-        self.scripmaster_file: str = ""
+        self._scripmaster_file: str = cc.master_file if cc.master_file and not dl_file else None
         self.use_file = cc.use_file
 
         self.shoonya_userid = None
@@ -165,23 +167,23 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
             filename = os.path.basename(url)  # Get the filename from the URL
             filename = filename[:-4]  # Remove the .zip extension
 
-            dstfilename = self.scripmaster_file = os.path.join(self.scripmaster_folder, f'FV_{filename}')
+            dstfilename = self._scripmaster_file = os.path.join(self.scripmaster_folder, f'FV_{filename}')
             srcfilename = os.path.join(self.scripmaster_folder, filename)
 
             logger.debug(f'{self.inst_id} srcfilename: {srcfilename} dstfilename:{dstfilename}')
 
-            logger.info(f'{self.inst_id} scripmaster_file: {self.scripmaster_file}')
+            logger.info(f'{self.inst_id} scripmaster_file: {self._scripmaster_file}')
             new_file = False
-            if os.path.exists(self.scripmaster_file):
-                timestamp = os.path.getmtime(self.scripmaster_file)
+            if os.path.exists(self._scripmaster_file):
+                timestamp = os.path.getmtime(self._scripmaster_file)
                 modification_datetime = datetime.fromtimestamp(timestamp)
 
                 # modification time should be more than 8:30 am
                 if modification_datetime >= datetime.now().replace(hour=8, minute=45, second=0, microsecond=0):
                     new_file = True
                 if not new_file:
-                    logger.debug(f'{self.inst_id} Removing the file: {self.scripmaster_file}')
-                    os.remove(self.scripmaster_file)
+                    logger.debug(f'{self.inst_id} Removing the file: {self._scripmaster_file}')
+                    os.remove(self._scripmaster_file)
             if not new_file:
                 download_unzip_symbols_file(url=url, folder=self.scripmaster_folder, srcfile=srcfilename, dstfile=dstfilename)
 
@@ -200,6 +202,10 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
         
         ShoonyaApiPy.__count += 1
         logger.info(f'{self.inst_id} Creating Shoonya Object..Done')
+
+    @property
+    def scripmaster_file(self):
+        return self._scripmaster_file
 
     def login(self, userid, password, twoFA, vendor_code, api_secret, imei):
         self.shoonya_userid = userid
@@ -332,7 +338,7 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
 
         found = False
         if exchange == 'NSE':
-            scripmaster_file = self.scripmaster_file
+            scripmaster_file = self._scripmaster_file
 
         elif exchange == 'NFO':
             scripmaster_file = self.nfo_scripmaster_file
@@ -761,16 +767,26 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
             self.ws_v2_data_flow_evt.set()
             if self.app_cb_subscribe is not None:
                 self.app_cb_subscribe(mesg)
-
+            return
+        
         def order_update_callback(mesg):
             nonlocal self
             self.ws_v2_data_flow_evt.set()
             if self.app_cb_order_update is not None:
                 self.app_cb_order_update(mesg)
+            return
+
+        def close_callback():
+            logger.debug('Socket is Closed and Disconnected')
+            return
+
+        def error_callback(mesg):
+            logger.info (f'Web socket Error Call back: mesg:{json.dumps(mesg,indent=2)}')
+            return
 
         def ws_v2_connect_and_monitor(self):
-            # import websocket
-            # websocket.enableTrace (True)
+            import websocket
+            websocket.enableTrace (False,level='DEBUG')
             logger.debug(f'{self.inst_id} In finvasia ws_v2_connect_and_monitor..')
             data_flow_evt = self.ws_v2_data_flow_evt
             exit_evt = self.ws_v2_exit_evt
@@ -778,18 +794,21 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
 
             exit = False
             while not exit:
-                if re_connect_count:
-                    logger.debug(f'{self.inst_id} Creating Websocket {re_connect_count}')
+                logger.debug(f'{self.inst_id} Creating Websocket re_connect_count :: {re_connect_count} :')
                 self.start_websocket(order_update_callback=order_update_callback,
                                      subscribe_callback=subscribe_callback,
-                                     socket_open_callback=open_callback)
-                re_connect = False
-                re_connect_count += 1
+                                     socket_open_callback=open_callback, 
+                                     socket_error_callback=error_callback)
 
+                time.sleep (1)
+                re_connect = False
+                to = ShoonyaApiPy.INITIAL_TIMEOUT if not re_connect_count else ShoonyaApiPy.DATAFEED_TIMEOUT
+                    
+                re_connect_count += 1
                 while not re_connect:
-                    evt_flag = data_flow_evt.wait(timeout=self.DATAFEED_TIMEOUT)
+                    evt_flag = data_flow_evt.wait(timeout=to)
                     if evt_flag:
-                        exit_evt_flag = exit_evt.wait(timeout=self.DATAFEED_TIMEOUT)
+                        exit_evt_flag = exit_evt.wait(timeout=to)
                         if exit_evt_flag:
                             exit = True
                             exit_evt.clear()
@@ -809,8 +828,8 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
                 if not exit and re_connect:
                     logger.debug(f"{self.inst_id} Making ready for re-connection..")
                     self.unsubscribe(self.streamingdata)
-                    if self.close_websocket() == FAILURE:
-                        logger.error(f"{self.inst_id} Data feed Error")
+                    self.close_websocket()
+                    time.sleep (0.2)
 
             logger.debug(f"{self.inst_id} Exiting from Finvasia ws_v2_connect_and_monitor..")
             return
@@ -822,21 +841,29 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
         self.app_cb_order_update = on_order_update
 
         if self.ws_monitor_flag:
-            self.ws_v2_th = threading.Thread(target=ws_v2_connect_and_monitor, args=(self,), name="ws_v2_connect_and_monitor")
+            self.ws_v2_th = Thread(target=ws_v2_connect_and_monitor, args=(self,), name="ws_v2_connect_and_monitor")
             self.ws_v2_th.name = r'FV_ws_v2_connect_and_monitor'
             self.ws_v2_th.daemon = True
 
             self.ws_v2_th.start()
 
-        time.sleep(1)
+        time.sleep(2)
         cntr = 0
-        while (self.ws_connected is False):
-            time.sleep(1)
+        while (not self.ws_connected):
+            logger.info (f'Waiting for Websocket connection..')
+            to = 2 #ShoonyaApiPy.INITIAL_TIMEOUT if not cntr else 2
+            time.sleep(to)
             cntr += 1
-            if (cntr == 10):
+            if (cntr >= 5):
+                logger.info (f'Websocket failed.. Please restart the app..')
                 break
-        if (cntr == 10):
-            logger.debug(f"{self.inst_id} Socket Not Opened")
+        if (cntr >= 5):
+            logger.error(f"{self.inst_id} Socket Not Opened")
+            # self.ws_v2_exit_evt.set()
+            # self.ws_v2_data_flow_evt.set()
+            # self.ws_connected = False
+            # self.unsubscribe(self.streamingdata)
+            # self.close_websocket()
             return FAILURE
         else:
             logger.debug(f"{self.inst_id} Socket Opened")
@@ -852,4 +879,5 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
         logger.debug(f"{self.inst_id} unsubscribing..")
         self.unsubscribe(self.streamingdata)
         ret_val = self.close_websocket()
+        self.ws_connected = False
         return (ret_val)

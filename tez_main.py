@@ -20,7 +20,7 @@ __email__ = "tarakesh.nc_at_google_mail_dot_com"
 __license__ = "MIT"
 __maintainer__ = "Tarak"
 __status__ = "Development"
-__version__ = "0.6.0_Rc1"
+__version__ = "0.6.0_Rc2"
 
 import sys
 import traceback
@@ -30,34 +30,122 @@ import app_utils as utils
 logger = utils.get_logger(__name__)
 
 try:
+    import json
     import threading
     import time
     import tkinter as tk
     import winsound
     from datetime import datetime
     from multiprocessing import active_children
-    import pandas as pd
+    from sre_constants import FAILURE, SUCCESS
+
     import app_mods
-    from app_be import TeZ_App_BE_CreateConfig,TeZ_App_BE
+    import pandas as pd
+    from app_be import (SquareOff_Info, SquareOff_InstType, SquareOff_Mode,
+                        TeZ_App_BE, TeZ_App_BE_CreateConfig)
 except Exception as e:
-    logger.debug(traceback.format_exc())
+    logger.error(traceback.format_exc())
     logger.error(("Import Error " + str(e)))
     sys.exit(1)
 
 global g_app_be
 global g_slider_value
 g_app_be: TeZ_App_BE | None = None
-
+global g_price_entry
 global g_SYSTEM_FEATURE_CONFIG
+global g_window_state_flag
 
+g_window_state_flag=None
 g_SYSTEM_FEATURE_CONFIG = None
+
+def subwindow_exposure_cb (current_value, **kwargs):
+    logger.info(json.dumps(kwargs, indent=4) + f" {current_value}")
+    exch = 'NSE' if kwargs.get('Ce_Pe_Bees') == 'BEES' else 'NFO'
+    match kwargs.get('Ce_Pe_Bees'):
+        case 'BEES':
+            inst_type = SquareOff_InstType.BEES 
+        case 'CE':
+            inst_type = SquareOff_InstType.CE 
+        case 'PE':
+            inst_type = SquareOff_InstType.PE 
+
+    ix = kwargs.get('ix')
+    ix = 'NIFTY BANK' if ix == 'BANKNIFTY' else ix
+    
+    sqoff_info = SquareOff_Info(mode=SquareOff_Mode.SELECT, per=(100-current_value), 
+                                ul_index=ix, exch=exch, inst_type=inst_type, partial_exit=True)
+    g_app_be.square_off_position(sqoff_info)
+    play_notify()
+
+subwin_config_n = app_mods.SubWindow_Cc(
+    win_name='SW1',
+    win_text='N:',
+    slider_cb=subwindow_exposure_cb,  # Assuming you have a callback function defined
+    kw_args_exposure_ce={"label_name": "CE Exposure %","ix": "NIFTY", "Ce_Pe_Bees": "CE"},  # Populate kw_args with desired key-value pairs for 'N' 'CE'
+    kw_args_exposure_pe={"label_name": "PE Exposure %", "ix": "NIFTY", "Ce_Pe_Bees": "PE"}  # Populate kw_args with desired key-value pairs for 'N' 'CE'
+)
+
+subwin_config_bn = app_mods.SubWindow_Cc(
+    win_name='SW2',
+    win_text='BN:',
+    slider_cb=subwindow_exposure_cb,  # Assuming you have a callback function defined
+    kw_args_exposure_ce={"label_name": "CE Exposure %", "ix": "BANKNIFTY", "Ce_Pe_Bees": "CE"},  # Populate kw_args with desired key-value pairs for 'N' 'CE'
+    kw_args_exposure_pe={"label_name": "PE Exposure %", "ix": "BANKNIFTY", "Ce_Pe_Bees": "PE"}  # Populate kw_args with desired key-value pairs for 'N' 'CE'
+)
+
+subwin_config_n_bees = app_mods.SubWindow_Cc(
+    win_name='SW1',
+    win_text='N:',
+    slider_cb=subwindow_exposure_cb,  # Assuming you have a callback function defined
+    kw_args_exposure_ce={"label_name": "Bees Exposure %", "ix": "NIFTY", "Ce_Pe_Bees": "BEES"},  # Populate kw_args with desired key-value pairs for 'N' 'CE'
+    kw_args_exposure_pe=None
+)
+
+subwin_config_bn_bees = app_mods.SubWindow_Cc(
+    win_name='SW2',
+    win_text='BN:',
+    slider_cb=subwindow_exposure_cb,  # Assuming you have a callback function defined
+    kw_args_exposure_ce={"label_name": "Bees Exposure %", "ix": "BANKNIFTY", "Ce_Pe_Bees": "BEES"},  # Populate kw_args with desired key-value pairs for 'N' 'CE'
+    kw_args_exposure_pe=None
+)
 
 def create_trade_manager_window():
     global g_trade_manager_window
     if g_trade_manager_window is None or not g_trade_manager_window.winfo_exists():
+        # Create the first subwindow
+        if g_SYSTEM_FEATURE_CONFIG ['tm'] == 'CE_PE':
+            config1 = subwin_config_n
+            config2 = subwin_config_bn
+
+            inst_info = app_mods.get_system_info("INSTRUMENT_INFO", "INST_3")
+            if inst_info['ORDER_PROD_TYPE'] != 'I':
+                config1 = None
+
+            inst_info = app_mods.get_system_info("INSTRUMENT_INFO", "INST_4")
+            if inst_info['ORDER_PROD_TYPE'] != 'I':
+                config2 = None
+        elif g_SYSTEM_FEATURE_CONFIG ['tm'] == 'BEES':
+            config1 = subwin_config_n_bees
+            config2 = subwin_config_bn_bees
+
+            inst_info = app_mods.get_system_info("INSTRUMENT_INFO", "INST_1")
+            if inst_info['ORDER_PROD_TYPE'] != 'I':
+                config1 = None
+
+            inst_info = app_mods.get_system_info("INSTRUMENT_INFO", "INST_2")
+            if inst_info['ORDER_PROD_TYPE'] != 'I':
+                config2 = None
+        else :
+            ...
+
         g_trade_manager_window = tk.Toplevel(g_root)
         g_trade_manager_window.title("Trade Manager")
-        g_trade_manager_window.geometry("500x500+{}+{}".format(g_root.winfo_x() + 50, g_root.winfo_y() + 50))
+        if config1 and config2:
+            g_trade_manager_window.geometry("500x700+{}+{}".format(g_root.winfo_x() + 80, g_root.winfo_y() + 50))
+        elif config1 or config2:
+            g_trade_manager_window.geometry("500x350+{}+{}".format(g_root.winfo_x() + 80, g_root.winfo_y() + 50))
+        else:
+            g_trade_manager_window.geometry("500x75+{}+{}".format(g_root.winfo_x() + 80, g_root.winfo_y() + 50))
         g_trade_manager_window.transient(g_root)  # Set the TradeManager window as transient to the root window
 
        # Add "Row #" label, entry box, and "Cancel" button above frame1
@@ -65,7 +153,7 @@ def create_trade_manager_window():
         row_frame = tk.Frame(g_trade_manager_window)
         row_frame.pack(side=tk.TOP, padx=5, pady=5)
 
-        if g_SYSTEM_FEATURE_CONFIG ['limit_order']:
+        if g_SYSTEM_FEATURE_CONFIG ['limit_order_cfg']:
             row_label = tk.Label(row_frame, text="Waiting Order Row #:")
             row_label.pack(side=tk.LEFT)
 
@@ -77,61 +165,16 @@ def create_trade_manager_window():
             cancel_button = tk.Button(row_frame, text="Cancel", command=lambda: on_cancel_clicked(entry_box.get()))
             cancel_button.pack(side=tk.LEFT)
 
-        # Create two frames inside the Trade Manager window
-        frame1 = tk.Frame(g_trade_manager_window)
-        frame1.pack(fill=tk.BOTH, expand=True)
+        if config1:
+            subwin_n = app_mods.SubWindow(master=g_trade_manager_window, 
+                                        config=config1)
 
-        frame2 = tk.Frame(g_trade_manager_window)
-        frame2.pack(fill=tk.BOTH, expand=True)
+            subwin_n.pack(side=tk.TOP, padx=10, pady=10, anchor="w")  # Align subwindow to the left
 
-        # Add a label indicating Nifty (N:) at the top-left corner of frame1
-        label1 = tk.Label(frame1, text="N:", font=("Arial", 18, "bold"))
-        label1.pack(side=tk.TOP, anchor="nw", padx=10, pady=(5, 2))
-
-        # Create a subframe within frame1
-        subframe1 = tk.Frame(frame1, bd=2, relief=tk.GROOVE) 
-        subframe1.pack(side=tk.LEFT, padx=10, pady=(5, 0), fill=tk.Y)
-
-        # Add a label indicating Exposure: (%) above the slider in frame1
-        top_label1 = tk.Label(subframe1, text="Exposure: (%)")
-        top_label1.pack(side=tk.TOP, anchor="w", padx=10, pady=(0, 2))
-
-        # Add a vertical slider to frame1 with values from 100% to 0%
-        slider1 = tk.Scale(subframe1, from_=100, to=0, orient=tk.VERTICAL, length=100, width=10, resolution=10)
-        slider1.set(100)  # Set the initial position of the slider to 100%
-        slider1.pack(side=tk.TOP, padx=10, pady=(0, 2))
-
-        # Define the function to print the slider value
-        def print_percentage(value, ix):
-            print(f"{ix} Slider value: {value}%")
-
-        # Add a button to frame1
-        par_sq_off_button1 = tk.Button(subframe1, text="PartialSqOff", command=lambda: print_percentage(slider1.get(), 'N'))
-        par_sq_off_button1.pack(side=tk.TOP, padx=10, pady=0)
-
-        label2 = tk.Label(frame2, text="BN:", font=("Arial", 18, "bold"))
-        label2.pack(side=tk.TOP, anchor="nw", padx=10, pady=10)
-
-        # Create a subframe within frame1
-        # subframe2 = tk.Frame(frame2)
-        # subframe2.pack(side=tk.LEFT, padx=10, pady=(5, 0))
-
-        subframe2 = tk.Frame(frame2, bd=2, relief=tk.GROOVE) 
-        subframe2.pack(side=tk.LEFT, padx=10, pady=(5, 0), fill=tk.Y)
-
-
-        # Add a label indicating Exposure: (%) above the slider in frame1
-        top_label2 = tk.Label(subframe2, text="Exposure: (%)")
-        top_label2.pack(side=tk.TOP, anchor="w", padx=10, pady=(0, 2))
-
-        # Add a vertical slider to frame1 with values from 100% to 0%
-        slider2 = tk.Scale(subframe2, from_=100, to=0, orient=tk.VERTICAL, length=100, width=10, resolution=10)
-        slider2.set(100)  # Set the initial position of the slider to 100%
-        slider2.pack(side=tk.TOP, padx=10, pady=(0, 2))
-
-        # Add a button to frame1
-        par_sq_off_button2 = tk.Button(subframe2, text="PartialSqOff", command=lambda: print_percentage(slider2.get(), 'BN'))
-        par_sq_off_button2.pack(side=tk.TOP, padx=10, pady=0)
+        if config2:
+            # Create the second subwindow
+            subwin_p = app_mods.SubWindow(master=g_trade_manager_window, config=config2)
+            subwin_p.pack(side=tk.TOP, padx=10, pady=10, anchor="w")  # Align subwindow to the left
 
         g_trade_manager_window.protocol("WM_DELETE_WINDOW", on_closing_trade_manager)
 
@@ -144,9 +187,13 @@ def create_trade_manager_window():
         g_trade_manager_window.lift()  # Bring the existing window to the front
         return 2
 
+def app_slider_position_cb_func():
+    raise NotImplementedError
+
 def on_cancel_clicked(data):
     logger.info(f"Row ID #: {data}")
     g_app_be.gen_action(action='cancel_waiting_order',data=data)
+
 
 def on_closing_trade_manager():
     global g_trade_manager_window
@@ -154,11 +201,14 @@ def on_closing_trade_manager():
         g_trade_manager_window.destroy()
         g_trade_manager_window = None
 
+
 def long_market():
+    global g_price_entry
     logger.info(f'{datetime.now()}: Buy Click')
     if g_slider_value.lower() == 'unlocked':
         tp = None
-        if g_SYSTEM_FEATURE_CONFIG ['limit_order']:
+        qty_taken = 0
+        if g_SYSTEM_FEATURE_CONFIG ['limit_order_cfg']:
             price = g_price_entry.get()
             if price:
                 logger.info(f"Buy button clicked with price: {price}")
@@ -166,18 +216,26 @@ def long_market():
             else:
                 logger.info("Buy button clicked with no price entered")
                 tp = None
-        g_app_be.market_action(action='Buy',trade_price=tp)
-        play_notify()
-        create_trade_manager_window ()
+        try:
+            qty_taken = g_app_be.market_action(action='Buy',trade_price=tp)
+        except Exception:
+            logger.error(traceback.format_exc())
+            logger.error (f'Major Exception Occured.. Check Manually..')
+        else:
+            play_notify()
+            # if qty_taken or tp is not None:
+            #     create_trade_manager_window ()
     else:
         logger.info('Unlock to take position')
 
 
 def short_market():
+    global g_price_entry
     logger.info(f'{datetime.now()}: Short Click')
     if g_slider_value.lower() == 'unlocked':
         tp = None
-        if g_SYSTEM_FEATURE_CONFIG ['limit_order']:
+        qty_taken = 0
+        if g_SYSTEM_FEATURE_CONFIG ['limit_order_cfg']:
             price = g_price_entry.get()
             if price:
                 logger.info(f"Short button clicked with price:{price}")
@@ -185,9 +243,14 @@ def short_market():
             else:
                 logger.info("Short button clicked with no price entered")
                 tp = None
-        g_app_be.market_action(action='Short',trade_price=tp)
-        play_notify()
-        create_trade_manager_window ()        
+        try:
+            qty_taken = g_app_be.market_action(action='Short',trade_price=tp)
+        except Exception :
+            logger.error (f'Major Exception Occured.. Check Manually..')
+        else:
+            play_notify()
+            # if qty_taken or tp is not None:
+            #     create_trade_manager_window ()        
     else:
         logger.info('Unlock to take position')
 
@@ -210,7 +273,9 @@ def tm_action():
 def square_off_action():
     logger.info(f'{datetime.now()}: Square Off Click')
     if g_slider_value.lower() == 'unlocked':
-        g_app_be.square_off_position()
+        exch = app_mods.get_system_info("TRADE_DETAILS", "EXCHANGE")
+        sqoff_info = SquareOff_Info(mode=SquareOff_Mode.SELECT, per=100.0, ul_index=g_app_be.ul_index, exch=exch)
+        g_app_be.square_off_position(sqoff_info)
         play_notify()
     else:
         logger.info('Unlock to Squareoff position')
@@ -300,7 +365,7 @@ def gui_tk_layout():
 
     validate_float = root.register(validate_price)
 
-    if g_SYSTEM_FEATURE_CONFIG ['limit_order']:
+    if g_SYSTEM_FEATURE_CONFIG ['limit_order_cfg']:
         label_entry_price = tk.Label(frame_mid, text="Entry Price:")
         label_entry_price.pack(side=tk.LEFT, padx=(5, 10)) 
 
@@ -368,11 +433,12 @@ def gui_tk_layout():
         old_value = ul_selection
         ul_selection = selection.get()
         logger.debug(f'{old_value} -> {ul_selection}')
-        g_app_be.ul_symbol = ul_selection
+        g_app_be.ul_index = ul_selection
         clear_price_entry()
 
     def clear_price_entry():
-        g_price_entry.delete(0, tk.END)
+        if g_price_entry:
+            g_price_entry.delete(0, tk.END)
 
     # Create a StringVar to store the selection and set default value to "N"
     def_value = app_mods.get_system_info("GUI_CONFIG", "RADIOBUTTON_DEF_VALUE")
@@ -426,7 +492,7 @@ def get_nth_nearest_expiry_date(symbol_prefix, n, url='EXPIRY_DATE_CALC_URL1'):
     symboldf = pd.read_csv(file_url)
     symboldf = symboldf.rename(columns=str.lower)
     symboldf = symboldf.rename(columns=lambda x: x.strip())
-    symboldf['expiry'] = pd.to_datetime(symboldf['expiry'])
+    symboldf['expiry'] = pd.to_datetime(symboldf['expiry'], format='%d-%b-%Y')
     today = pd.Timestamp.now().floor('D').date()
     symboldf['days_until_expiry'] = (symboldf['expiry'] - pd.Timestamp(today)).dt.days
 
@@ -441,7 +507,7 @@ def get_nth_nearest_expiry_date(symbol_prefix, n, url='EXPIRY_DATE_CALC_URL1'):
                          (symboldf.exchange == 'NFO') & 
                          (symboldf.ticksize == 0.05) & 
                          (symboldf.instrument == 'OPTIDX')]
-
+    
     # Get unique expiry dates and sort them
     unique_expiry_dates = sorted(nfodf['expiry'].unique())
 
@@ -452,7 +518,7 @@ def get_nth_nearest_expiry_date(symbol_prefix, n, url='EXPIRY_DATE_CALC_URL1'):
     # Get the nth unique expiry date
     nth_expiry_date = unique_expiry_dates[n - 1]
     
-    return pd.Timestamp(nth_expiry_date).strftime('%d-%b-%Y')
+    return pd.Timestamp(nth_expiry_date).strftime('%d-%b-%Y').upper()
 
 def update_expiry_date(symbol_prefix):
     exp_date = get_nth_nearest_expiry_date (symbol_prefix, n=1)
@@ -479,18 +545,18 @@ def update_strike(symbol_prefix, ce_or_pe):
     opt_diff = (exp_date_obj - current_date).days
 
     if ce_or_pe == 'CE':
-        ce_or_pe = 'CE_STRIKE_OFFSET'
+        ce_or_pe_offset = 'CE_STRIKE_OFFSET'
         if opt_diff == 1:
             strike_offset = -1
         else:
             strike_offset = 0        
     else:
-        ce_or_pe = 'PE_STRIKE_OFFSET'
+        ce_or_pe_offset = 'PE_STRIKE_OFFSET'
         if opt_diff == 1:
             strike_offset = 1
         else:
             strike_offset = 0
-    app_mods.replace_system_config ('SYMBOL', symbol_prefix, 'EXCHANGE', 'NFO', ce_or_pe, strike_offset)
+    app_mods.replace_system_config ('SYMBOL', symbol_prefix, 'EXCHANGE', 'NFO', ce_or_pe_offset, strike_offset)
 
 
 def update_system_config ():
@@ -525,10 +591,15 @@ def main():
     update_system_config ()
 
     g_SYSTEM_FEATURE_CONFIG = dict()
-    g_SYSTEM_FEATURE_CONFIG ['limit_order'] = True if app_mods.get_system_info("SYSTEM", "LMT_ORDER_FEATURE")=='ENABLED' else False
-
+    g_SYSTEM_FEATURE_CONFIG ['limit_order_cfg'] = True if app_mods.get_system_info("SYSTEM", "LMT_ORDER_FEATURE")=='ENABLED' else False
+    
     exch = app_mods.get_system_info("TRADE_DETAILS", "EXCHANGE")
-        
+
+    g_SYSTEM_FEATURE_CONFIG ['tm'] = 'CE_PE' if exch == 'NFO' else None
+    if not g_SYSTEM_FEATURE_CONFIG ['tm']:
+        g_SYSTEM_FEATURE_CONFIG ['tm'] = 'BEES' if exch == 'NSE' else None
+
+    logger.info (f'{json.dumps(g_SYSTEM_FEATURE_CONFIG, indent=2)}')
     # Verification Step: 
     # If the exchange is NFO and the expiry dates are already lapsed, 
     # it should be flagged.
@@ -536,7 +607,7 @@ def main():
         inst_info = app_mods.get_system_info("TRADE_DETAILS", "INSTRUMENT_INFO")
         check_expiry_dates (inst_info)
 
-    app_be_cc_cfg = TeZ_App_BE_CreateConfig(g_SYSTEM_FEATURE_CONFIG ['limit_order'])
+    app_be_cc_cfg = TeZ_App_BE_CreateConfig(g_SYSTEM_FEATURE_CONFIG ['limit_order_cfg'])
     try:
         g_app_be = TeZ_App_BE(app_be_cc_cfg)
     except app_mods.tiu.LoginFailureException:
@@ -547,7 +618,11 @@ def main():
         logger.info(f'Exception occured: {e}')
         return
 
-    g_app_be.data_feed_connect()
+    if g_app_be.data_feed_connect() == FAILURE:
+        g_app_be.data_feed_disconnect()
+        logger.error (f'Web socket Failure, exiting')
+        sys.exit (1)
+
     g_root = gui_tk_layout()
     g_trade_manager_window = None
 

@@ -33,7 +33,7 @@ try:
     from dataclasses import dataclass, field
     from enum import Enum
     from threading import Event
-    from typing import NamedTuple, Optional
+    from typing import NamedTuple, Optional, Union
 
     from app_utils import ExtQueue, ExtSimpleQueue
 
@@ -59,8 +59,9 @@ class TickData (object):
 
 
 class Ctrl(Enum):
-    OFF=0
-    ON=1
+    OFF = 0
+    ON = 1
+
 
 @dataclass
 class Order:
@@ -166,8 +167,8 @@ class I_B_MKT_Order(Order):
     # Initialize default values using default_factory to avoid sharing mutable defaults
     seq_num: int = field(default=1, init=False)
     buy_or_sell: str = field(default='B', init=False)
-    product_type: str = field(default='I',  init=False)
-    price_type: str = field(default='MKT',  init=False)
+    product_type: str = field(default='I', init=False)
+    price_type: str = field(default='MKT', init=False)
     price: float = field(default=0.0, init=False)
 
 
@@ -176,8 +177,8 @@ class I_S_MKT_Order(Order):
     # Initialize default values using default_factory to avoid sharing mutable defaults
     seq_num: int = field(default=1, init=False)
     buy_or_sell: str = field(default='S', init=False)
-    product_type: str = field(default='I',  init=False)
-    price_type: str = field(default='MKT',  init=False)
+    product_type: str = field(default='I', init=False)
+    price_type: str = field(default='MKT', init=False)
     price: float = field(default=0.0, init=False)
 
 
@@ -190,8 +191,8 @@ class BO_B_SL_LMT_Order(Order):
 
     # Initialize default values using default_factory to avoid sharing mutable defaults
     buy_or_sell: str = field(default='B', init=False)
-    product_type: str = field(default='B',  init=False)
-    price_type: str = field(default='SL-LMT',  init=False)
+    product_type: str = field(default='B', init=False)
+    price_type: str = field(default='SL-LMT', init=False)
 
     def __post_init__(self):
         # Calculate discloseqty as 12% of the quantity
@@ -209,8 +210,8 @@ class BO_B_LMT_Order(Order):
 
     # Initialize default values using default_factory to avoid sharing mutable defaults
     buy_or_sell: str = field(default='B', init=False)
-    product_type: str = field(default='B',  init=False)
-    price_type: str = field(default='LMT',  init=False)
+    product_type: str = field(default='B', init=False)
+    price_type: str = field(default='LMT', init=False)
 
     def __post_init__(self):
         # Calculate discloseqty as 12% of the quantity
@@ -227,8 +228,8 @@ class BO_B_MKT_Order(Order):
     # Initialize default values using default_factory to avoid sharing mutable defaults
     seq_num: int = field(default=1, init=False)
     buy_or_sell: str = field(default='B', init=False)
-    product_type: str = field(default='B',  init=False)
-    price_type: str = field(default='MKT',  init=False)
+    product_type: str = field(default='B', init=False)
+    price_type: str = field(default='MKT', init=False)
     price: float = field(default=0.0, init=False)
     bo_remarks: str = field(default='', init=True)
 
@@ -246,8 +247,8 @@ class BO_S_MKT_Order(Order):
     # Initialize default values using default_factory to avoid sharing mutable defaults
     seq_num: int = field(default=1, init=False)
     buy_or_sell: str = field(default='S', init=False)
-    product_type: str = field(default='B',  init=False)
-    price_type: str = field(default='MKT',  init=False)
+    product_type: str = field(default='B', init=False)
+    price_type: str = field(default='MKT', init=False)
     price: float = field(default=0.0, init=False)
     bo_remarks: str = field(default='', init=True)
 
@@ -266,8 +267,8 @@ class OCO_FOLLOW_UP_MKT_MIS_I_Order_V2(OCO_BaseOrder):
 
     oco_seq_num: int = field(default=2, init=False)
     buy_or_sell: str = field(default='S', init=False)
-    oco_product_type: str = field(default='I',  init=False)
-    oco_price_type: str = field(default='MKT',  init=False)
+    oco_product_type: str = field(default='I', init=False)
+    oco_price_type: str = field(default='MKT', init=False)
     price: float = field(default=0.0, init=False)
 
 
@@ -279,8 +280,8 @@ class OCO_FOLLOW_UP_MKT_I_Order(Order):
 
     # Initialize default values using default_factory to avoid sharing mutable defaults
     seq_num: int = field(default=2, init=False)
-    product_type: str = field(default='I',  init=False)
-    price_type: str = field(default='MKT',  init=False)
+    product_type: str = field(default='I', init=False)
+    price_type: str = field(default='MKT', init=False)
     price: float = field(default=0.0, init=False)
     book_loss_price = float(0.0)
     book_profit_price = float(0.0)
@@ -555,3 +556,21 @@ class OrderStatus():
     def __str__(self):
         return f'''Sym: {self.sym} fillshares: {self.fillshares} unfilledsize: {self.unfilledsize} trantype:{self.trantype}
                 avg_price: {self.avg_price} rejReason:{self.rejReason} remarks:{self.remarks} order_id: {self.order_id} al_id: {self.al_id}'''
+
+
+InstrumentInfo = NamedTuple('InstrumentInfo', [('symbol', str),
+                                               ('ul_index', str),
+                                               ('exchange', str),
+                                               ('expiry_date', str),
+                                               ('strike_diff', int),
+                                               ('ce_strike_offset', str),
+                                               ('pe_strike_offset', str),
+                                               ('profit_per', float),
+                                               ('stoploss_per', float),
+                                               ('profit_points', float),
+                                               ('stoploss_points', float),
+                                               ('order_prod_type', str),
+                                               ('use_gtt_oco', Union[str, bool]),
+                                               ('quantity', int),
+                                               ("n_legs", int),
+                                               ])
