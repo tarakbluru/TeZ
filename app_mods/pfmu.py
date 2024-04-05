@@ -185,7 +185,7 @@ class PFMU:
         logger.info(f'{PFMU.__count}: Creating PFMU Object..')
         self.inst_id = f'{self.__class__.__name__}:{PFMU.__count}'
         PFMU.__count += 1
-        self.ord_lock = Lock()
+        
         self.pf_lock = Lock()
 
         self.tiu = pfmu_cc.tiu
@@ -200,7 +200,9 @@ class PFMU:
         self.prec_factor = 100
 
         self.wo_df = None
+        self.ord_lock = None
         if pfmu_cc.limit_order_cfg:
+            self.ord_lock = Lock()
             self.wo_df = pd.DataFrame(
                 columns=[
                     "price_at_click",
@@ -392,8 +394,9 @@ class PFMU:
                 self.wo_df.at[key_name, "status"] = "Cancelled"  # Use at[] for setting single values
 
     def cancel_all_waiting_orders(self, ul_token=None, exit_flag=False, show_table=True):
-        with self.ord_lock:
-            self.__cancel_all_waiting_orders_com__(ul_token=ul_token)
+        if self.limit_order_cfg:
+            with self.ord_lock:
+                self.__cancel_all_waiting_orders_com__(ul_token=ul_token)
 
         if exit_flag:
             self.pmu.hard_exit()
@@ -843,7 +846,8 @@ class PFMU:
         if mode == 'ALL':
             # System Square off - At square off time
             try:
-                self.cancel_all_waiting_orders(exit_flag=True, show_table=False)
+                if self.limit_order_cfg:
+                    self.cancel_all_waiting_orders(exit_flag=True, show_table=False)
                 __square_off_position__(df=df)
                 with self.pf_lock:
                     self.portfolio.reset()
@@ -858,7 +862,8 @@ class PFMU:
             else:
                 try:
                     ul_token = self.diu.ul_token
-                    self.cancel_all_waiting_orders(ul_token=ul_token)
+                    if self.limit_order_cfg:
+                        self.cancel_all_waiting_orders(ul_token=ul_token)
 
                     __square_off_position__(df=df, symbol=ul_index)
 
