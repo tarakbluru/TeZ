@@ -195,3 +195,6 @@ powershell -executionpolicy bypass .\ps_scripts\tez.ps1
 
 ### Console Image 
 ![Refer](/images/records.png)
+
+### Trade Manager Image 
+![Refer](/images/Trademanager.png)
