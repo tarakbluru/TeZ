@@ -154,7 +154,7 @@ SYSTEM:
     OPEN: "09:15"   #Zero padded
     CLOSE: "15:30"
   SQ_OFF_TIMING: "15:15"                  # format : HH:MM 
-  LMT_ORDER_FEATURE : "DISABLED"    #Do not change
+  LMT_ORDER_FEATURE : "ENABLED"    #Do not change
   VIRTUAL_ENV: "NO"                 #Fixed, Do not change
   TELEGRAM:          #Future Use
     NOTIFY : "OFF"  #Notifier is created but only the notifications are not pushed by this control parameter.
