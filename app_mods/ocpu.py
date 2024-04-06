@@ -166,7 +166,7 @@ class OCPU(object):
                 # Generic and mathematical solution for order Slicing:
                 # +++++++++++++++++++++++++++++++++++++++++++++++++++++
                 # Problem statement: required_nlegs, lot size, frz qty and trade_qty are given
-                # Find no. of nlegs, per_leg_qty and residual qty.
+                # determine optimum no. of nlegs, per_leg_qty and residual qty.
                 #
 
                 def lcm(x, y):
@@ -174,10 +174,12 @@ class OCPU(object):
                     return x * y // math.gcd(x, y)
 
                 def find_nearest_lcm(lotsize, freezeqty, qty):
+
+
                     """Find the nearest LCM of lotsize and freezeqty that is less than qty."""
                     # Calculate the LCM of lotsize and freezeqty
-                    lcm_value = lcm(lotsize, freezeqty)
-
+                    lcm_value = lcm(int(lotsize), int(freezeqty))
+                    
                     # Determine the nearest multiple of lcm_value less than qty
                     nearest_multiple = (qty // lcm_value) * lcm_value
 
@@ -206,7 +208,7 @@ class OCPU(object):
                 # else:
                 #     nlegs = given_nlegs
 
-                nlegs = max(min(given_nlegs, max_legs), min_legs)
+                nlegs = int(max(min(given_nlegs, max_legs), min_legs))
                 per_leg_qty = ((nearest_lcm_qty / nlegs) // ls) * ls
                 logger.debug(f'n_given_legs: {given_nlegs}, nlegs: {nlegs} per_leg_qty:{per_leg_qty}')
 
