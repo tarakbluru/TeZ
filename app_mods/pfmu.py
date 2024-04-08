@@ -557,6 +557,7 @@ class PFMU:
                     return
                 else:
                     total_reduce_qty = 0
+                    new_available_qty = None
                     if inst_type == 'CE' or inst_type == 'PE':
                         pattern = r'([CP])(\d+)'
                         # Function to extract option type ('C' or 'P') and strike price
@@ -614,7 +615,7 @@ class PFMU:
 
                     logger.info(f'Total Available : {total_available_qty} New_Available: {new_available_qty} ')
 
-                    if abs(new_available_qty) < abs(total_available_qty):
+                    if new_available_qty is not None and abs(new_available_qty) < abs(total_available_qty):
                         diff_qty = abs(total_available_qty) - abs(new_available_qty)
                         if max_qty < 0:
                             diff_qty *= -1
