@@ -23,11 +23,11 @@ TIU:
     CLIENT_SECRET: null
     URL: null
     NAME: null
-  TOKEN_FILE: null
-  CRED_FILE:  './data/cred/user_cred.yml' 
+  TOKEN_FILE: './data/cred/user_token.json'                            
+  CRED_FILE:  './data/cred/user_cred.yml'    
 
-  SAVE_TOKEN_FILE_CFG: 'YES'        #YES NO
-  SAVE_TOKEN_FILE_NAME: './log/user_token.json'  
+  SAVE_TOKEN_FILE_CFG: 'YES'        #YES NO      To use externally generated session ID, make this NO
+  SAVE_TOKEN_FILE_NAME: './data/cred/user_token.json'  
 
   VIRTUAL_ENV_CRED_FILE:  null
   VIRTUAL_ENV_SAVE_TOKEN_FILE_CFG: 'NO'   #YES NO
@@ -38,7 +38,7 @@ DIU:
     CLIENT_SECRET: null
     URL: null
     NAME: null
-  TOKEN_FILE: './log/user_token.json'
+  TOKEN_FILE: './data/cred/user_token.json'   
   CRED_FILE: './data/cred/user_cred.yml' 
 
   SAVE_TOKEN_FILE_CFG: 'NO'         #YES NO

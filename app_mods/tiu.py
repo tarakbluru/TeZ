@@ -137,6 +137,8 @@ class BaseIU (object):
                 with open(bcc.token_file, 'r') as f:
                     susertoken = json.load(f)['susertoken']
                     logger.debug(f'susertoken: {susertoken}')
+                    if not susertoken:  # Check if susertoken is empty
+                        raise BaseException("Susertoken is empty")                    
             except BaseException:
                 if s_cc.test_env:
                     totp = cred['token']
@@ -146,6 +148,7 @@ class BaseIU (object):
                     r = fv.login(userid=cred['userId'], password=cred['pwd'],
                                  twoFA=totp, vendor_code=cred['vc'],
                                  api_secret=cred['app_key'], imei=cred['imei'])
+                    
                     logger.debug(f'finvasia login: {json.dumps(r, indent=2)}')
                     act_id = None
                     if r is not None and 'actid' in r:
@@ -158,9 +161,12 @@ class BaseIU (object):
                         emsg = r.get('emsg')
 
                     logger.info(f'Acct: {act_id} dmsg:{dmsg} emsg:{emsg}')
-                    if bcc.save_tokenfile_cfg and bcc.save_token_file is not None:
+                    
+                    if r is not None and 'susertoken' in r and bcc.save_tokenfile_cfg and bcc.save_token_file is not None:
+                        susertoken_value = r.get("susertoken")
+                        susertoken_json_object = {"susertoken": susertoken_value}
                         with open(bcc.save_token_file, "w") as outfile:
-                            outfile.write(json.dumps(r, indent=2))
+                            outfile.write(json.dumps(susertoken_json_object, indent=2))
 
                 except ValueError:
                     mesg = 'Finvasia log in error'
