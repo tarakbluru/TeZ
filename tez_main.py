@@ -246,6 +246,7 @@ def short_market():
         try:
             qty_taken = g_app_be.market_action(action='Short',trade_price=tp)
         except Exception :
+            logger.error(traceback.format_exc())
             logger.error (f'Major Exception Occured.. Check Manually..')
         else:
             play_notify()
