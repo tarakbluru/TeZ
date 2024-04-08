@@ -130,8 +130,12 @@ class OCPU(object):
             # Ideally, for breakout orders need to use the margin available
             # For option buying it is cash availablity.
             # To keep it simple, using available cash for both.
+            
+            if exch == 'NFO':
+                buy_or_sell = 'B'
+            else:
+                buy_or_sell = 'B' if action == 'Buy' else 'S'
 
-            buy_or_sell = 'B' if action == 'Buy' else 'S'
             prod_type = 'I' if inst_info.order_prod_type == 'O' else inst_info.order_prod_type
 
             def find_optimum_qty(initial_qty):
