@@ -164,6 +164,22 @@ class Portfolio:
         logger.info(f'ul_index: {ul_index}')
         return (self.stock_data[self.stock_data["ul_index"] == ul_index].copy())
 
+    def show (self):
+        df = self.stock_data
+        console = Console()
+        table = Table(title='Portfolio-Records')
+        table.add_column("#", justify="center")
+
+        # Add header row
+        for column in df.columns:
+            table.add_column(column, justify="center")
+
+        # Add data rows
+        for i, (_, row) in enumerate(df.iterrows(), start=1):
+            table.add_row(str(i), *[str(value) for value in row.tolist()])
+
+        console.print(table)
+
 
 @dataclass
 class PFMU_CreateConfig:
@@ -253,6 +269,7 @@ class PFMU:
     def show(self):
         self.bku.show()
         self.wo_table_show()
+        self.portfolio.show()
 
     def _add_order(
             self,
@@ -466,7 +483,7 @@ class PFMU:
 
     def square_off_position(self, mode, ul_index: str = None, per: float = 100, inst_type: str = None, partial_exit: bool = False):
 
-        def place_sq_off_order(tsym: str, b_or_s: str, exit_qty: int, ls: int, frz_qty: int):
+        def place_sq_off_order(tsym: str, b_or_s: str, exit_qty: int, ls: int, frz_qty: int, exchange='NSE'):
             nonlocal self
             failure_cnt = 0
             order = None
@@ -475,16 +492,25 @@ class PFMU:
                 per_leg_exit_qty = frz_qty if exit_qty > frz_qty else exit_qty
                 per_leg_exit_qty = int(per_leg_exit_qty / ls) * ls
 
+                if not per_leg_exit_qty:
+                    break
+
                 if order and order.quantity == per_leg_exit_qty:
                     ...
                 else:
                     if b_or_s == 'S':
-                        order = I_S_MKT_Order(tradingsymbol=tsym, quantity=per_leg_exit_qty)
+                        order = I_S_MKT_Order(tradingsymbol=tsym, quantity=per_leg_exit_qty, exchange=exchange)
                     if b_or_s == 'B':
-                        order = I_B_MKT_Order(tradingsymbol=tsym, quantity=per_leg_exit_qty)
+                        order = I_B_MKT_Order(tradingsymbol=tsym, quantity=per_leg_exit_qty, exchange=exchange)
+
+                logger.info (f'order:{str(order)}')
 
                 r = self.tiu.place_order(order)
-                if r is None or r['stat'] == 'Not_Ok':
+                if r is None:
+                    logger.info(f'Exit order Failed: Check Manually')
+                    break
+
+                if r['stat'] == 'Not_Ok':
                     logger.info(f'Exit order Failed:  {r["emsg"]}')
                     failure_cnt += 1
                 else:
@@ -501,10 +527,10 @@ class PFMU:
                     exit_qty -= per_leg_exit_qty
 
             if failure_cnt > 2 or exit_qty:
-                logger.info(f'Exit order InComplete: order_id: {order_id} Check Manually')
+                logger.info(f'Exit order InComplete: Check Manually')
                 raise OrderExecutionException
-            elif closed_qty:
-                logger.info(f'tsym_token:{tsym} qty: {closed_qty} squared off..')
+
+            logger.info(f'tsym_token:{tsym} qty: {closed_qty} squared off..')
 
             return closed_qty
 
@@ -600,14 +626,15 @@ class PFMU:
 
                         for index, row in sq_df.iterrows():
                             tsym_token = str(index)
-                            tsym, token = tsym_token.split('_')
+                            tsym = tsym_token.split('_')[0] 
+                            token = tsym_token.split('_')[1]
                             if abs(row["available_qty"]) > 0:
                                 if max_qty > 0:
                                     b_or_s = 'S'
                                 else:
                                     b_or_s = 'B'
 
-                                logger.info(f'Reducing tsym_token: {tsym_token} reduce_qty: {act_sq_off_qty} of {diff_qty}')
+                                logger.info(f'Reducing tsym_token: {tsym_token} {tsym} {token} reduce_qty: {act_sq_off_qty} of {diff_qty}')
                                 exch = 'NSE' if '-EQ' in tsym else 'NFO'
                                 r = self.tiu.get_security_info(exchange=exch, token=token)
                                 logger.debug(f'{json.dumps(r, indent=2)}')
@@ -620,10 +647,16 @@ class PFMU:
                                     ls = int(r['ls'])  # lot size
                                 else:
                                     ls = 1
+                                
+                                if not abs(diff_qty) // ls:
+                                    break
+
                                 try:
-                                    closed_qty = place_sq_off_order(tsym=tsym, b_or_s=b_or_s, exit_qty=abs(act_sq_off_qty), ls=ls, frz_qty=frz_qty)
-                                except Exception:
-                                    logger.error(f'Orders not going through.. Check manually')
+                                    closed_qty = place_sq_off_order(tsym=tsym, b_or_s=b_or_s, 
+                                                                    exit_qty=abs(act_sq_off_qty), ls=ls, 
+                                                                    frz_qty=frz_qty, exchange=exch)
+                                except Exception as e:
+                                    logger.error(f'Orders not going through.. Check manually {str(e)}')
                                     raise
                                 if b_or_s == 'B':
                                     self.portfolio.update_position_closed(tsym_token=tsym_token, qty=-closed_qty)
@@ -806,9 +839,9 @@ class PFMU:
                                 ...
                             else:
                                 if rec_qty > 0:
-                                    order = I_S_MKT_Order(tradingsymbol=tsym, quantity=per_leg_exit_qty)
+                                    order = I_S_MKT_Order(tradingsymbol=tsym, quantity=per_leg_exit_qty, exchange=exch)
                                 else:
-                                    order = I_B_MKT_Order(tradingsymbol=tsym, quantity=per_leg_exit_qty)
+                                    order = I_B_MKT_Order(tradingsymbol=tsym, quantity=per_leg_exit_qty, exchange=exch)
 
                             # r = self.fv.place_order(buy_or_sell, product_type='I', exchange=exch, tradingsymbol=tsym,
                             #                         quantity=per_leg_exit_qty, price_type='MKT', discloseqty=0.0)

@@ -130,15 +130,76 @@ class OCPU(object):
             # Ideally, for breakout orders need to use the margin available
             # For option buying it is cash availablity.
             # To keep it simple, using available cash for both.
-            margin = self.tiu.avlble_margin
-            if margin < (ltp * 1.1 * qty):
-                old_qty = qty
-                qty = math.floor(margin / (1.1 * ltp))  # 10% buffer
-                qty = int(qty / ls) * ls  # Important as above value will not be a multiple of lot
-                logger.info(f'Available Margin: {self.tiu.avlble_margin:.2f} Required Amount: {ltp * old_qty} Updating qty: {old_qty} --> {qty} ')
+
+            buy_or_sell = 'B' if action == 'Buy' else 'S'
+            prod_type = 'I' if inst_info.order_prod_type == 'O' else inst_info.order_prod_type
+
+            def find_optimum_qty(initial_qty):
+                # Check if initial_qty results in "Order Success"
+                try:
+                    r = tiu.get_order_margin(buy_or_sell=buy_or_sell, exchange=exch,
+                                                product_type=prod_type, tradingsymbol=tsym, 
+                                                quantity=initial_qty, price_type='MKT', price=0.0)
+                except Exception as e:
+                    logger.error (f'Exception occured {repr(e)}')
+                    return None
+                else:
+                    logger.debug (f"qty: {initial_qty} {json.dumps(r, indent=2)}")
+                    if r and r['stat'] == 'Ok' and r['remarks'] == "Order Success":
+                        return initial_qty
+
+                # Start with initial_qty and reduce it by half iteratively
+                qty = initial_qty
+                while True:
+                    try:
+                        r = tiu.get_order_margin(buy_or_sell=buy_or_sell, exchange=exch,
+                                                    product_type=prod_type, tradingsymbol=tsym, 
+                                                    quantity=qty, price_type='MKT', price=0.0)
+                    except Exception as e:
+                        logger.error (f'Exception occured {repr(e)}')
+                        return None
+                    else:
+                        logger.debug (f"qty: {qty} {json.dumps(r, indent=2)}")
+                        if r and r['stat'] == 'Ok' and r['remarks'] == "Order Success":
+                            break
+                    qty //= 2
+
+                # Perform binary search within the range [qty, initial_qty] to find the optimum qty
+                low = qty
+                high = (qty * 2) + 1
+
+                while low <= high:
+                    mid = (low + high) // 2
+                    try:
+                        r = tiu.get_order_margin(buy_or_sell=buy_or_sell, exchange=exch,
+                                                    product_type=prod_type, tradingsymbol=tsym, 
+                                                    quantity=mid, price_type='MKT', price=0.0)
+                    except Exception as e:
+                        logger.error (f'Exception occured {repr(e)}')
+                        return None
+                    else:
+                        logger.debug (f"qty: {mid} {json.dumps(r, indent=2)}")
+                        if r and r['stat'] == 'Ok' :
+                            if r['remarks'] == "Order Success":
+                                low = mid + 1
+                            else:
+                                high = mid - 1
+                return high
+
+            qty_within_margin = find_optimum_qty (qty)
+            logger.debug (f'qty_within_margin: {qty_within_margin}')
+            if qty_within_margin:
+                qty = qty_within_margin
+            else :
+                margin = self.tiu.avlble_margin
+                if margin < (ltp * 1.1 * qty):
+                    old_qty = qty
+                    qty = math.floor(margin / (1.1 * ltp))  # 10% buffer
+                    qty = int(qty / ls) * ls  # Important as above value will not be a multiple of lot
+                    logger.info(f'Available Margin: {self.tiu.avlble_margin:.2f} Required Amount: {ltp * old_qty} Updating qty: {old_qty} --> {qty} ')
 
             logger.debug(f'''strike: {strike}, sym: {sym}, tsym: {tsym}, token: {token},
-                        qty:{qty}, ul_ltp:{ul_ltp}, ltp: {ltp}, ti:{ti} ls:{ls} frz_qty: {frz_qty}''')
+                    qty:{qty}, ul_ltp:{ul_ltp}, ltp: {ltp}, ti:{ti} ls:{ls} frz_qty: {frz_qty}''')
 
             return strike, sym, tsym, token, qty, ul_ltp, ltp, ti, frz_qty, ls
 

@@ -409,6 +409,42 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
 
         return resDict
 
+    def get_order_margin (self, buy_or_sell, 
+                          product_type, exchange, tradingsymbol, 
+                          quantity, price_type, 
+                          price=0.0, trigger_price=None):
+
+        url = f'{self.shoonya_api_host}/GetOrderMargin'
+
+        # prepare the data
+        values = {'ordersource': 'API'}
+        values["uid"] = self.shoonya_userid
+        values["actid"] = self.shoonya_accountid
+        values["trantype"] = buy_or_sell
+        values["prd"] = product_type
+        values["exch"] = exchange
+        values["tsym"] = urllib.parse.quote_plus(tradingsymbol)
+        values["qty"] = str(quantity)
+        values["prctyp"] = price_type
+        values["prc"] = str(price)
+        values["rorgqty"] = "0"
+        values["rorgprc"] = "0"
+
+        if (price_type == "SL-LMT" or price_type == "SL_MKT"):
+            values['trgprc'] = str(trigger_price)
+
+        payload = 'jData=' + json.dumps(values) + f'&jKey={self.shoonya_susertoken}'
+
+        res = requests.post(url, data=payload)
+
+        resDict = json.loads(res.text)
+        if resDict['stat'] == 'Not_Ok':
+            print(resDict['emsg'])
+            return None
+
+        return resDict
+
+
     def place_gtt_order(self, buy_or_sell, alert_cond: str,
                         product_type, exchange, tradingsymbol, quantity,
                         discloseqty, alert_price, price_type, price=0.0,

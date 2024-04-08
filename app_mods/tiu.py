@@ -955,6 +955,15 @@ class Tiu (BaseIU):
 
     # TODO: By deriving the tiu module from fv, we can avoid the translations.
 
+    def get_order_margin (self, buy_or_sell, 
+                          product_type, exchange, tradingsymbol, 
+                          quantity, price_type, 
+                          price=0.0, trigger_price=None):
+        return self.fv.get_order_margin (buy_or_sell, 
+                          product_type, exchange, tradingsymbol, 
+                          quantity, price_type, 
+                          price, trigger_price)    
+
     def get_order_book (self):
         return self.fv.get_order_book()
     

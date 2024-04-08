@@ -269,6 +269,8 @@ def tm_action():
 
     if create_trade_manager_window () != 1:
         toggle_window_state (g_trade_manager_window, g_window_state_flag)
+    else :
+        g_app_be.show_records()
 
 def square_off_action():
     logger.info(f'{datetime.now()}: Square Off Click')
