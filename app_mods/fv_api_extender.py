@@ -38,7 +38,7 @@ try:
     from datetime import datetime
     from difflib import SequenceMatcher
     from sre_constants import FAILURE, SUCCESS
-    from threading import Event, Thread
+    from threading import Event, Thread, Lock
 
     import pandas as pd
     import requests
@@ -56,7 +56,7 @@ class FeedBaseObj(object):
     DATAFEED_TIMEOUT = float(3)
 
     def __init__(self, ws_monitor_cfg: bool = True):
-        # self.lock = Lock ()
+        self.lock = Lock ()
         self.ws_connected = False
 
         self.ws_monitor_flag = ws_monitor_cfg
@@ -87,7 +87,7 @@ class ShoonyaApiPy_CreateConfig (object):
 class ShoonyaApiPy(NorenApi, FeedBaseObj):
     __name = "FINVASIA_IF"
     DATAFEED_TIMEOUT: float = float(10.0)  # 5 secs time out
-    INITIAL_TIMEOUT: float = float(100.0)
+    INITIAL_TIMEOUT: float = float(110.0)
     __count = 0
 
     def __init__(self, cc: ShoonyaApiPy_CreateConfig):
@@ -791,7 +791,8 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
 
         def open_callback():
             nonlocal self
-            self.ws_connected = True
+            with self.lock:
+                self.ws_connected = True
             if self.streamingdata is not None:
                 logger.debug(f'{self.inst_id} Subscribing instruments..{str(self.streamingdata)}')
                 self.subscribe(self.streamingdata)
@@ -813,11 +814,17 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
             return
 
         def close_callback():
-            logger.debug('Socket is Closed and Disconnected')
+            nonlocal self
+            with self.lock:
+                self.ws_connected = False
+            logger.info('Socket is Closed and Disconnected')
             return
 
         def error_callback(mesg):
-            logger.info (f'Web socket Error Call back: mesg:{json.dumps(mesg,indent=2)}')
+            try:
+                logger.info (f'Web socket Error Call back: mesg:{json.dumps(mesg,indent=2)}')
+            except Exception as e:
+                logger.debug (f'Exception :{str(e)}')
             return
 
         def ws_v2_connect_and_monitor(self):
@@ -830,16 +837,20 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
 
             exit = False
             while not exit:
-                logger.debug(f'{self.inst_id} Creating Websocket re_connect_count :: {re_connect_count} :')
-                self.start_websocket(order_update_callback=order_update_callback,
-                                     subscribe_callback=subscribe_callback,
-                                     socket_open_callback=open_callback, 
-                                     socket_error_callback=error_callback)
+                logger.info (f're_connect_count: {re_connect_count} :: ws_connected:{self.ws_connected} ')
+                if not self.ws_connected:
+                    logger.info(f'{self.inst_id} Creating Websocket re_connect_count :: {re_connect_count} :')
+                    self.start_websocket(order_update_callback=order_update_callback,
+                                        subscribe_callback=subscribe_callback,
+                                        socket_open_callback=open_callback, 
+                                        socket_close_callback=close_callback,
+                                        socket_error_callback=error_callback)
 
-                time.sleep (1)
+                    time.sleep (1)
+                else :
+                    logger.info (f'ws_connected:{self.ws_connected}')
                 re_connect = False
-                to = ShoonyaApiPy.INITIAL_TIMEOUT if not re_connect_count else ShoonyaApiPy.DATAFEED_TIMEOUT
-                    
+                to = (ShoonyaApiPy.INITIAL_TIMEOUT) if not re_connect_count else ShoonyaApiPy.DATAFEED_TIMEOUT
                 re_connect_count += 1
                 while not re_connect:
                     evt_flag = data_flow_evt.wait(timeout=to)
@@ -862,10 +873,19 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
                                 re_connect = True
                                 break
                 if not exit and re_connect:
-                    logger.debug(f"{self.inst_id} Making ready for re-connection..")
-                    self.unsubscribe(self.streamingdata)
+                    logger.info(f"{self.inst_id} Making ready for re-connection..")
+                    # self.unsubscribe(self.streamingdata)
+                    logger.info(f"{self.inst_id} Unsubscribe..Done")
                     self.close_websocket()
-                    time.sleep (0.2)
+                    logger.info(f"{self.inst_id} close socket..Done")
+                    
+                    wait_count = 5
+                    while self.ws_connected and wait_count:
+                        time.sleep (2.0)
+                        wait_count -= 1
+                    with self.lock:
+                        self.ws_connected = False
+                    logger.info(f"{self.inst_id} Making ready for re-connection..Done")
 
             logger.debug(f"{self.inst_id} Exiting from Finvasia ws_v2_connect_and_monitor..")
             return
@@ -886,9 +906,16 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
         time.sleep(2)
         cntr = 0
         while (not self.ws_connected):
-            logger.info (f'Waiting for Websocket connection..')
-            to = 2 #ShoonyaApiPy.INITIAL_TIMEOUT if not cntr else 2
-            time.sleep(to)
+            now = datetime.now()
+            to = ShoonyaApiPy.INITIAL_TIMEOUT if not cntr else 2
+            if to ==  ShoonyaApiPy.INITIAL_TIMEOUT:
+                logger.info (f'time: c{now} : FV Websocket issue: Waiting for Websocket connection..{to} sec. You can CTRL+C and re-run OR wait')
+                while to > 0:
+                    time.sleep (10)
+                    to -= 10
+                    logger.info (f'Waiting for Websocket connection..{to} sec')
+            else:
+                time.sleep(to)
             cntr += 1
             if (cntr >= 5):
                 logger.info (f'Websocket failed.. Please restart the app..')
@@ -906,14 +933,18 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
             return SUCCESS
 
     def disconnect_from_datafeed_server(self):
+        ret_val = None
+        if self.ws_connected:
+            logger.debug(f"{self.inst_id} unsubscribing..")
+            self.unsubscribe(self.streamingdata)
+            self.close_websocket()
+            with self.lock:
+                self.ws_connected = False
         if self.ws_v2_th:
             self.ws_v2_exit_evt.set()
             self.ws_v2_data_flow_evt.set()
             self.ws_v2_th.join(2.0)
             if self.ws_v2_th.is_alive():
                 logger.error(f"{self.inst_id} {self.ws_v2_th.name} is still alive")
-        logger.debug(f"{self.inst_id} unsubscribing..")
-        self.unsubscribe(self.streamingdata)
-        ret_val = self.close_websocket()
-        self.ws_connected = False
+        
         return (ret_val)

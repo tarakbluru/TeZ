@@ -88,10 +88,11 @@ class Portfolio:
             # Create an empty DataFrame with specified columns
             self.stock_data = pd.DataFrame(columns=["tsym_token", "ul_index", "available_qty", "max_qty"])
             logger.debug("File is absent or modification time is more than cutoff time. Empty DataFrame created.")
-        else:
-            # Read the CSV file into a DataFrame
-            self.stock_data = pd.read_csv(file_path)
-            logger.debug("File was modified after 9:15 am today. DataFrame created successfully.")
+            self.stock_data.to_csv(self.store_file, index=False)
+
+        # Read the CSV file into a DataFrame
+        self.stock_data = pd.read_csv(file_path)
+        logger.debug("File was modified after 9:15 am today. DataFrame created successfully.")
 
         self.stock_data.set_index("tsym_token", inplace=True)
 
@@ -107,14 +108,14 @@ class Portfolio:
             self.stock_data.loc[tsym_token, "max_qty"] = min(self.stock_data.loc[tsym_token, "max_qty"],
                                                              self.stock_data.loc[tsym_token, "available_qty"])
         logger.debug(f'\n{self.stock_data}')
-        self.stock_data.to_csv(self.store_file)
+        self.stock_data.to_csv(self.store_file, index=True)
 
     def update_position_closed(self, tsym_token, qty):
         if tsym_token in self.stock_data.index:
             self.stock_data.loc[tsym_token, "available_qty"] -= qty
             if self.stock_data.loc[tsym_token, "available_qty"] == 0:
                 self.stock_data.loc[tsym_token, "max_qty"] = 0
-            self.stock_data.to_csv(self.store_file)
+            self.stock_data.to_csv(self.store_file, index=True)
 
         logger.debug(f'\n{self.stock_data}')
 
@@ -143,7 +144,7 @@ class Portfolio:
                 df.loc[df['ul_index'] == ul_index, ['available_qty', 'max_qty']] = 0
             else:
                 self.stock_data = pd.DataFrame(columns=self.stock_data.columns)
-            self.stock_data.to_csv(self.store_file)
+            self.stock_data.to_csv(self.store_file, index=True)
 
     def update_portfolio_from_position(self, posn_df):
         pf_df = self.stock_data
@@ -157,7 +158,7 @@ class Portfolio:
             else:
                 net_qty = max(posn_qty, rec_qty)
             pf_df.loc[tsym_token, 'available_qty'] = net_qty
-        self.stock_data.to_csv(self.store_file)
+        self.stock_data.to_csv(self.store_file, index=True)
         logger.info(f'\n{pf_df}')
 
     def fetch_all_available_qty(self, ul_index):

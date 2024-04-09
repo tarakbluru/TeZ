@@ -241,7 +241,9 @@ class TeZ_App_BE:
 
     def __square_off_position_timer__(self):
         logger.info(f'{datetime.now().time()} !! Auto Square Off Time !!')
-        self.square_off_position(mode='ALL')
+        exch = app_mods.get_system_info("TRADE_DETAILS", "EXCHANGE")
+        sqoff_info = SquareOff_Info(mode=SquareOff_Mode.ALL, per=100.0, ul_index=None, exch=exch)
+        self.square_off_position(sq_off_info=sqoff_info)
 
     @property
     def ul_index(self):
@@ -329,7 +331,7 @@ class TeZ_App_BE:
             inst_type = 'ALL'
 
         partial_exit = sq_off_info.partial_exit
-        logger.info (f'{sq_off_ul_symbol} {sq_off_info.mode.name} {inst_type}')
+        logger.info (f'sq_off_ul_symbol: {sq_off_ul_symbol} mode: {sq_off_info.mode.name} inst_type: {inst_type}')
         per = sq_off_info.per
         self.pfmu.square_off_position (mode=sq_off_info.mode.name, ul_index=sq_off_ul_symbol, per=per, inst_type=inst_type, partial_exit=partial_exit)
 

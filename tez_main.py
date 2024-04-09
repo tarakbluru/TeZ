@@ -20,7 +20,7 @@ __email__ = "tarakesh.nc_at_google_mail_dot_com"
 __license__ = "MIT"
 __maintainer__ = "Tarak"
 __status__ = "Development"
-__version__ = "0.6.0_Rc8"
+__version__ = "0.6.0_Rc9"
 
 import sys
 import traceback
@@ -601,14 +601,16 @@ def main():
     g_SYSTEM_FEATURE_CONFIG ['tm'] = 'CE_PE' if exch == 'NFO' else None
     if not g_SYSTEM_FEATURE_CONFIG ['tm']:
         g_SYSTEM_FEATURE_CONFIG ['tm'] = 'BEES' if exch == 'NSE' else None
-
     logger.info (f'{json.dumps(g_SYSTEM_FEATURE_CONFIG, indent=2)}')
+
     # Verification Step: 
     # If the exchange is NFO and the expiry dates are already lapsed, 
     # it should be flagged.
     if exch == 'NFO':
         inst_info = app_mods.get_system_info("TRADE_DETAILS", "INSTRUMENT_INFO")
         check_expiry_dates (inst_info)
+        logger.info (f'NIFTY OPTION: {json.dumps(app_mods.get_system_info("INSTRUMENT_INFO", "INST_3"),indent=2)}')
+        logger.info (f'BANK NIFTY OPTION: {json.dumps(app_mods.get_system_info("INSTRUMENT_INFO", "INST_4"),indent=2)}')
 
     app_be_cc_cfg = TeZ_App_BE_CreateConfig(g_SYSTEM_FEATURE_CONFIG ['limit_order_cfg'])
     try:
