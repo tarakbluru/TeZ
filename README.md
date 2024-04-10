@@ -170,21 +170,21 @@ Trade Manager Window - Toggle functionality - when TM window is open, you can hi
 clicking the 'TM' Button again.
 
 Difference between Sqoff in main window and 0% exposure in partial square off
-  1. When sqoff in main window is clicked, waiting orders are cancelled.
+1. When sqoff in main window is clicked, waiting orders are cancelled.
 	where as partial square off with 0% is clicked, waiting orders are not cancelled.
 
-	2. When sqoff in main window is clicked, only N or BN (based on radio button selection)
+2. When sqoff in main window is clicked, only N or BN (based on radio button selection)
 	is squared off but not Both.
 
-	3. Auto square off at specified time would square off both N and BN.
+3. Auto square off at specified time would square off both N and BN.
 
 Behaviour of Auto in strike and expiry date selection in config file
-	1. When Auto is selected, Nearest expiry date is chosen. On 0DTE,  next expiry is chosen.
+1. When Auto is selected, Nearest expiry date is chosen. On 0DTE,  next expiry is chosen.
 
-	2. When strike offset configuration is Auto,  Except on 1DTE, strikes are at ATM. 
+2. When strike offset configuration is Auto,  Except on 1DTE, strikes are at ATM. 
 	On 1DTE, ITM by one strike is selelected. Objective for this is to avoid theta decay.
 	
-  However, User can overridde by making config Manual and also specifying the offset in the 
+However, User can overridde by making config Manual and also specifying the offset in the 
 INSTRUMENT details.
 
 Note: This app is NOT designed to replace the broker terminal. It only helps in reducing pain point 
