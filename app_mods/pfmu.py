@@ -599,7 +599,7 @@ class PFMU:
                             pe_df_sorted = pe_df.sort_values(by='distance_from_ul_ltp', ascending=False)
                             logger.info(f'{pe_df_sorted}')
                             if not pe_df_sorted.empty:
-                                max_qty = ce_df_sorted['max_qty'].sum()
+                                max_qty = pe_df_sorted['max_qty'].sum()
                                 total_reduce_qty = int(max_qty * (reduce_per / 100))
                                 new_available_qty = max_qty - total_reduce_qty
                                 logger.info(f'PE: new_available_qty {new_available_qty} total_reduce_qty_pe: {total_reduce_qty}')
