@@ -627,11 +627,19 @@ def main():
         logger.info(f'Exception occured: {e}')
         return
 
-    if g_app_be.data_feed_connect() == FAILURE:
-        g_app_be.data_feed_disconnect()
-        logger.error (f'Web socket Failure, exiting')
-        sys.exit (1)
-
+    try:
+        if g_app_be.data_feed_connect() == FAILURE:
+            g_app_be.data_feed_disconnect()
+            logger.error (f'Web socket Failure, exiting')
+            sys.exit (1)
+    except KeyboardInterrupt:
+        logger.info (f'CTRL+C interrupt..Exiting')
+        sys.exit (2)
+    except Exception as e:
+        logger.error (f'Exception Occured {repr(e)}')
+        sys.exit (3)
+    else:
+        ...
     g_root = gui_tk_layout()
     g_trade_manager_window = None
 

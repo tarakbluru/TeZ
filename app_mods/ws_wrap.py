@@ -305,10 +305,18 @@ class WS_WrapU(object):
                 self.order_port.send_data(msg)
             return
 
-        retval = self.fv.connect_to_datafeed_server(on_message=app_event_handler_quote_update,
-                                                    on_order_update=app_event_handler_order_update,
-                                                    on_open=app_open,
-                                                    on_close=app_close)
+        try:
+            retval = self.fv.connect_to_datafeed_server(on_message=app_event_handler_quote_update,
+                                                        on_order_update=app_event_handler_order_update,
+                                                        on_open=app_open,
+                                                        on_close=app_close)
+        except KeyboardInterrupt:
+            logger.info (f'Ctrl+C Interrupt..')
+            raise
+        except Exception as e:
+            logger.error (f'Exception Occured..')
+        else :
+            ...
         return retval
 
     def fv_disconnect_wsfeed(self):
@@ -320,11 +328,15 @@ class WS_WrapU(object):
         if self.fv is not None:
             logger.debug(f'setting the tokens {self.fv_ws_tokens}')
             self.fv.setstreamingdata(self.fv_ws_tokens)
-            retval = self.fv_create_connect_wsfeed()
-            if retval == SUCCESS:
-                self._fv_connected = True
-                logger.debug("Data feed connected")
-            return retval
+            try:
+                retval = self.fv_create_connect_wsfeed()
+            except Exception as e:
+                raise
+            else:
+                if retval == SUCCESS:
+                    self._fv_connected = True
+                    logger.debug("Data feed connected")
+                return retval
 
     def disconnect_data_feed_servers(self):
         if self.fv is not None and self._fv_connected:

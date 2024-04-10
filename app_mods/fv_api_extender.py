@@ -903,19 +903,40 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
 
             self.ws_v2_th.start()
 
-        time.sleep(2)
+        try:
+            time.sleep(2)
+        except KeyboardInterrupt:
+            logger.info (f'keyboard Interrupt.. Exiting..')
+            raise
+        else:
+            ...
+
         cntr = 0
         while (not self.ws_connected):
             now = datetime.now()
             to = ShoonyaApiPy.INITIAL_TIMEOUT if not cntr else 2
             if to ==  ShoonyaApiPy.INITIAL_TIMEOUT:
                 logger.info (f'time: c{now} : FV Websocket issue: Waiting for Websocket connection..{to} sec. You can CTRL+C and re-run OR wait')
-                while to > 0:
-                    time.sleep (10)
-                    to -= 10
-                    logger.info (f'Waiting for Websocket connection..{to} sec')
+                try:
+                    while to > 0:
+                        try:
+                            time.sleep (10)
+                        except KeyboardInterrupt:
+                            logger.info("Keyboard interrupt received. Exiting loop.")
+                            break  # Exit the loop
+                        else:
+                            to -= 10
+                            logger.info (f'Waiting for Websocket connection..{to} sec')
+                except Exception as e:
+                    logger.error(f"An error occurred: {e}")
+                    raise
             else:
-                time.sleep(to)
+                try:
+                    time.sleep(to)
+                except KeyboardInterrupt:
+                    raise
+                else:
+                    ...
             cntr += 1
             if (cntr >= 5):
                 logger.info (f'Websocket failed.. Please restart the app..')

@@ -259,7 +259,8 @@ class TeZ_App_BE:
                 self.sqoff_timer.cancel()
         self.diu.live_df_ctrl = app_mods.Ctrl.OFF
         logger.debug ('Cancelling all waiting orders')
-        self.pfmu.cancel_all_waiting_orders (exit_flag=True)
+        self.pfmu.cancel_all_waiting_orders (exit_flag=True, show_table=False)
+        self.pfmu.show()
 
     @staticmethod
     def get_instrument_info(exchange, ul_inst):

@@ -107,7 +107,7 @@ class BookKeeperUnit:
     def show(self):
         df = self.orders_df
         console = Console()
-        table = Table(title='Records')
+        table = Table(title='Position Order - Records')
 
         # Add header row
         for column in df.columns:
