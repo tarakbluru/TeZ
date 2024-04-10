@@ -108,6 +108,7 @@ class BookKeeperUnit:
         df = self.orders_df
         console = Console()
         table = Table(title='Position Order - Records')
+        table.add_column("#", justify="center")
 
         # Add header row
         for column in df.columns:
