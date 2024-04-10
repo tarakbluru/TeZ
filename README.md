@@ -156,7 +156,38 @@ The expiry date and strike rate configuration is to be set before starting the a
 By setting OCO feature, even options can have OCO orders placed on broker terminal. 
 In case of any failure, user should take manual control.
 
-Note: This app is not designed to replace the broker terminal. It only helps in reducing pain point 
+By having a specific price, system will wait for price to touch or cross over that price for taking position.
+
+Order which is waiting for index to cross or touch can be cancelled by specifying in the 
+TM(TradeManager) window. This window appears on clicking TM button. 
+If there are multiple rows, they can be specified as (say 5-9, in increasing order).
+
+Partial square off can be achieved by setting slider and clicking on the Partial SqOff Button in TM window.
+Important Note: Partial square off is available only for the ordertype MIS. It is not available for 
+Bracket/OCO order
+
+Trade Manager Window - Toggle functionality - when TM window is open, you can hide it by 
+clicking the 'TM' Button again.
+
+Difference between Sqoff in main window and 0% exposure in partial square off
+  i. When sqoff in main window is clicked, waiting orders are cancelled.
+	where as partial square off with 0% is clicked, waiting orders are not cancelled.
+
+	ii. When sqoff in main window is clicked, only N or BN (based on radio button selection)
+	is squared off but not Both.
+	
+	iii. Auto square off at specified time would square off both N and BN.
+
+Behaviour of Auto in strike and expiry date selection in config file
+
+	i. When Auto is selected, Nearest expiry date is chosen. On 0DTE,  next expiry is chosen.
+	ii. When strike offset configuration is Auto,  Except on 1DTE, strikes are at ATM. 
+	On 1DTE, ITM by one strike is selelected. Objective for this is to avoid theta decay.
+	
+  However, User can overridde by making config Manual and also specifying the offset in the 
+INSTRUMENT details.
+
+Note: This app is NOT designed to replace the broker terminal. It only helps in reducing pain point 
 (choosing the strikes and quick entry and exit).  The design goal was to build very simple looking tool and 
 avoid complexity in UI and have most parameters pre configured; while trading, too many parameters 
 actually hampers clarity in thinking (my empirical observation).
