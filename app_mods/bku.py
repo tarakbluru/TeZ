@@ -115,8 +115,8 @@ class BookKeeperUnit:
             table.add_column(column, justify="center")
 
         # Add data rows
-        for _, row in df.iterrows():
-            table.add_row(*[str(value) for value in row.tolist()])
+        for i, (_, row) in enumerate(df.iterrows(), start=1):
+            table.add_row(str(i), *[str(value) for value in row.tolist()])
 
         console.print(table)
 
