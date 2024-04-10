@@ -20,7 +20,7 @@ __email__ = "tarakesh.nc_at_google_mail_dot_com"
 __license__ = "MIT"
 __maintainer__ = "Tarak"
 __status__ = "Development"
-__version__ = "0.6.0_Rc9"
+__version__ = "0.6.0_Rc10"
 
 import sys
 import traceback
@@ -611,6 +611,10 @@ def main():
         check_expiry_dates (inst_info)
         logger.info (f'NIFTY OPTION: {json.dumps(app_mods.get_system_info("INSTRUMENT_INFO", "INST_3"),indent=2)}')
         logger.info (f'BANK NIFTY OPTION: {json.dumps(app_mods.get_system_info("INSTRUMENT_INFO", "INST_4"),indent=2)}')
+
+    if exch == 'NSE':
+        logger.info (f'NIFTYBEES: {json.dumps(app_mods.get_system_info("INSTRUMENT_INFO", "INST_1"),indent=2)}')
+        logger.info (f'BANKBEES: {json.dumps(app_mods.get_system_info("INSTRUMENT_INFO", "INST_2"),indent=2)}')
 
     app_be_cc_cfg = TeZ_App_BE_CreateConfig(g_SYSTEM_FEATURE_CONFIG ['limit_order_cfg'])
     try:
