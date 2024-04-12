@@ -294,6 +294,8 @@ class TeZ_App_BE:
             logger.info (f'row_id {row_id}')
             for rn in row_id:
                 self.pfmu.cancel_waiting_order (id=rn-1)
+            
+            self.pfmu.wo_table_show()
 
     def show_records (self) -> None:
         self.pfmu.show()
@@ -335,6 +337,8 @@ class TeZ_App_BE:
         logger.info (f'sq_off_ul_symbol: {sq_off_ul_symbol} mode: {sq_off_info.mode.name} inst_type: {inst_type}')
         per = sq_off_info.per
         self.pfmu.square_off_position (mode=sq_off_info.mode.name, ul_index=sq_off_ul_symbol, per=per, inst_type=inst_type, partial_exit=partial_exit)
+        if inst_type == 'ALL':
+            self.pfmu.show()
 
     def data_feed_connect(self):
         return (self.diu.connect_to_data_feed_servers())
