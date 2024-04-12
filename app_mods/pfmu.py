@@ -395,8 +395,6 @@ class PFMU:
                         self.pmu.unregister_callback(ul_token, callback_id=key_name)
                         self.wo_df.iloc[id, self.wo_df.columns.get_loc("status")] = "Cancelled"
 
-            self.wo_table_show()
-
     def __cancel_all_waiting_orders_com__(self, ul_token):
         for index, row in self.wo_df.iterrows():
             key_name = index
@@ -888,7 +886,7 @@ class PFMU:
                     self.portfolio.reset()
             except OrderExecutionException:
                 logger.error('Major Exception Happened: Take Manual control..')
-            self.bku.show()
+
         else:
             if partial_exit:
                 ul_ltp = self.diu.get_latest_tick(ul_index=ul_index)
