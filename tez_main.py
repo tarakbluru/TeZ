@@ -20,7 +20,7 @@ __email__ = "tarakesh.nc_at_google_mail_dot_com"
 __license__ = "MIT"
 __maintainer__ = "Tarak"
 __status__ = "Development"
-__version__ = "0.6.0_Rc11"
+__version__ = "0.6.0_Rc12"
 
 import sys
 import traceback
