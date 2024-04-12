@@ -137,13 +137,38 @@ class Portfolio:
                 return ul_data['available_qty'].sum()
         return 0
 
-    def reset(self, ul_index=None):
+    def verify_reset(self, ul_index=None):
         df = self.stock_data
         if len(df):
             if ul_index:
-                df.loc[df['ul_index'] == ul_index, ['available_qty', 'max_qty']] = 0
+                not_zero_available_qty = df.loc[(df['ul_index'] == ul_index) & (df['available_qty'] != 0), 'available_qty']
+                if not_zero_available_qty.any():
+                    logger.info("available_qty is not already 0 and is being set to 0. Verify on Broker Terminal")
+                    df.loc[(df['ul_index'] == ul_index), 'available_qty'] = 0
+                
+                # Check if max_qty is not already 0, and if so, set it to 0
+                not_zero_max_qty = df.loc[(df['ul_index'] == ul_index) & (df['max_qty'] != 0), 'max_qty']
+                if not_zero_max_qty.any():
+                    logger.info("max_qty is not already 0 and is being set to 0. Verify on Broker Terminal")
+                    df.loc[(df['ul_index'] == ul_index), 'max_qty'] = 0
             else:
-                self.stock_data = pd.DataFrame(columns=self.stock_data.columns)
+            # For all rows, irrespective of ul_index
+                # Check if available_qty is not already 0, and if so, set it to 0
+                not_zero_available_qty = df[df['available_qty'] != 0]
+                if not_zero_available_qty.shape[0] > 0:  # Check if there are non-zero elements
+                    for index, row in not_zero_available_qty.iterrows():
+                        logger.info(f"Available_qty is not already 0 for ul_index {row['ul_index']} and is forced to 0.")
+                        logger.info(f"Please check the broker's terminal")
+                    df.loc[not_zero_available_qty.index, 'available_qty'] = 0
+
+                # Check if max_qty is not already 0, and if so, set it to 0
+                not_zero_max_qty = df[df['max_qty'] != 0]
+                if not_zero_max_qty.shape[0] > 0:  # Check if there are non-zero elements
+                    for index, row in not_zero_max_qty.iterrows():
+                        logger.info(f"max_qty is not already 0 for ul_index {row['ul_index']} and is forced to 0.")
+                        logger.info(f"Please check the broker's terminal")
+                    df.loc[not_zero_max_qty.index, 'max_qty'] = 0
+
             self.stock_data.to_csv(self.store_file, index=True)
 
     def update_portfolio_from_position(self, posn_df):
@@ -883,7 +908,7 @@ class PFMU:
                     self.cancel_all_waiting_orders(exit_flag=True, show_table=False)
                 __square_off_position__(df=df)
                 with self.pf_lock:
-                    self.portfolio.reset()
+                    self.portfolio.verify_reset()
             except OrderExecutionException:
                 logger.error('Major Exception Happened: Take Manual control..')
 
@@ -901,7 +926,7 @@ class PFMU:
                     __square_off_position__(df=df, symbol=ul_index)
 
                     with self.pf_lock:
-                        self.portfolio.reset(ul_index=ul_index)
+                        self.portfolio.verify_reset(ul_index=ul_index)
                 except OrderExecutionException:
                     logger.error('Major Exception Happened: Take Manual control..')
 
