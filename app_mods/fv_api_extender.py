@@ -365,9 +365,6 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
                         'token': first_matching_row['Token'],
                         'tsym': first_matching_row['TradingSymbol']
                         }
-                    # for key, value in sym_dict.items():
-                    #     print(f'Type of {key}: {type(value)}')
-
                     values.append(sym_dict)
                     resDict['stat'] = 'Ok'
                     found = True
@@ -404,7 +401,7 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
 
         resDict = json.loads(res.text)
         if resDict['stat'] == 'Not_Ok':
-            print(resDict['emsg'])
+            logger.debug(resDict['emsg'])
             return None
 
         return resDict
@@ -439,7 +436,7 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
 
         resDict = json.loads(res.text)
         if resDict['stat'] == 'Not_Ok':
-            print(resDict['emsg'])
+            logger.debug(resDict['emsg'])
             return None
 
         return resDict
@@ -483,7 +480,7 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
 
         resDict = json.loads(res.text)
         if resDict['stat'] == 'Not_Ok':
-            print(resDict['emsg'])
+            logger.debug(resDict['emsg'])
             return None
 
         return resDict
@@ -525,13 +522,11 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
 
         payload = 'jData=' + json.dumps(values) + f'&jKey={self.shoonya_susertoken}'
 
-        print(payload)
-
         res = requests.post(url, data=payload)
 
         resDict = json.loads(res.text)
         if resDict['stat'] == 'Not_Ok':
-            print(resDict['emsg'])
+            logger.debug(resDict['emsg'])
             return None
 
         return resDict
