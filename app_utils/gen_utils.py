@@ -108,6 +108,9 @@ def calcRemainingDuration(hour, minute, second=0):
     return sl_duration
 
 
+# # Usage
+# custom_sleep('09:15:05', 8)  # Sleep until 09:15:05, divided into 8 chunks
+
 def custom_sleep(fut_time, num_chunks=16):
     now = datetime.now()
 
@@ -133,5 +136,3 @@ def custom_sleep(fut_time, num_chunks=16):
             time.sleep(chunk_duration)
 
     logger.debug(f'now : {now} fut_time:{fut_time}')
-# # Usage
-# custom_sleep('09:15:05', 8)  # Sleep until 09:15:05, divided into 8 chunks
