@@ -7,7 +7,7 @@ References:
 ...
 """
 # Copyright (c) [2024] [Tarakeshwar N.C]
-# This file is part of the Tiny_TeZ project.
+# This file is part of the Tez project.
 # It is subject to the terms and conditions of the MIT License.
 # See the file LICENSE in the top-level directory of this distribution
 # for the full text of the license.
