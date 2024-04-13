@@ -2,7 +2,7 @@
 File: ui_cust_widgets.py
 Author: [Tarakeshwar NC]
 Date: March 15, 2024
-Description:  This script provides Trading Interface Unit.
+Description:  This script provides custom widgets.
 """
 # Copyright (c) [2024] [Tarakeshwar N.C]
 # This file is part of the TeZ project.
