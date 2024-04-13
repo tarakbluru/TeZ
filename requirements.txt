@@ -21,6 +21,9 @@ markdown-it-py==3.0.0
 MarkupSafe==2.1.3
 mccabe==0.7.0
 mdurl==0.1.2
+# Browser link is this NorenRestApiPy @ https://github.com/Shoonya-Dev/ShoonyaApi-py/blob/master/dist/NorenRestApiPy-0.0.22-py2.py3-none-any.whl 
+# But pip requires 'raw' instead of 'blob' in the link for download
+# if you use below link as is, you will see 404 error.
 NorenRestApiPy @ https://github.com/Shoonya-Dev/ShoonyaApi-py/raw/master/dist/NorenRestApiPy-0.0.22-py2.py3-none-any.whl
 numpy==1.26.3
 oauthlib==3.2.2
