@@ -87,7 +87,7 @@ class ShoonyaApiPy_CreateConfig (object):
 class ShoonyaApiPy(NorenApi, FeedBaseObj):
     __name = "FINVASIA_IF"
     DATAFEED_TIMEOUT: float = float(10.0)  # 5 secs time out
-    INITIAL_TIMEOUT: float = float(110.0)
+    INITIAL_TIMEOUT: float = float(5.0)
     __count = 0
 
     def __init__(self, cc: ShoonyaApiPy_CreateConfig):
@@ -918,12 +918,12 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
                 try:
                     while to > 0:
                         try:
-                            time.sleep (10)
+                            time.sleep (1)
                         except KeyboardInterrupt:
                             logger.info("Keyboard interrupt received. Exiting loop.")
                             break  # Exit the loop
                         else:
-                            to -= 10
+                            to -= 1
                             logger.info (f'Waiting for Websocket connection..{to} sec')
                 except Exception as e:
                     logger.error(f"An error occurred: {e}")

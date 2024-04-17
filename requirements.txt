@@ -56,5 +56,4 @@ websockets==11.0.3
 wsaccel==0.6.6
 # Browser link is this NorenRestApiPy @ https://github.com/tarakbluru/ShoonyaApi-py_With_My_Fixes/blob/master/dist/NorenRestApi-0.0.28-py2.py3-none-any.whl 
 # But pip requires 'raw' instead of 'blob' in the link for download
-# if you use below link as is, you will see 404 error.
-NorenRestApiPy @ https://github.com/tarakbluru/ShoonyaApi-py_With_My_Fixes/raw/master/dist/NorenRestApi-0.0.28-py2.py3-none-any.whl
+https://github.com/tarakbluru/ShoonyaApi-py_With_My_Fixes/raw/master/dist/NorenRestApi-0.0.28-py2.py3-none-any.whl
