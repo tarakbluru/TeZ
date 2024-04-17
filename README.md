@@ -190,8 +190,13 @@ powershell -executionpolicy bypass .\ps_scripts\tez.ps1
 ### App Image for NIFTYBEES
 ![Refer](/images/TeZ_App.png)  
 
+
+
 ### App Image for NIFTY Option (observe bold font)
 ![Refer](/images/Tez_NFO.png)
 
 ### Console Image 
 ![Refer](/images/records.png)
+
+### Notficaion Channel
+https://t.me/github_com_tarakbluru_TeZ
