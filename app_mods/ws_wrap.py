@@ -293,7 +293,8 @@ class WS_WrapU(object):
                     if 'oi' in tick_data:
                         ohlc_obj.oi = int(tick_data["oi"])
 
-                    ohlc_obj.ft = tick_data['ft']
+                    if 'ft' in tick_data:
+                        ohlc_obj.ft = tick_data['ft']
 
                     if self._send_data and self._fv_send_data:
                         new_obj = copy.copy(ohlc_obj)

@@ -826,8 +826,8 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
                 return
 
         def ws_v2_connect_and_monitor(self):
-            import websocket
-            websocket.enableTrace (False,level='DEBUG')
+            # import websocket
+            # websocket.enableTrace (False,level='DEBUG')
             logger.debug(f'{self.inst_id} In finvasia ws_v2_connect_and_monitor..')
             data_flow_evt = self.ws_v2_data_flow_evt
             exit_evt = self.ws_v2_exit_evt

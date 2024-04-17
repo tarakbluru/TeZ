@@ -530,7 +530,7 @@ def update_expiry_date(symbol_prefix):
         # Convert expir dates to datetime object
         exp_date_obj = datetime.strptime(exp_date, '%d-%b-%Y').date()
         opt_diff = (exp_date_obj - current_date).days
-        if not opt_diff:
+        if opt_diff <= 0:
             exp_date = get_nth_nearest_expiry_date (symbol_prefix, n=2)
         app_mods.replace_system_config ('SYMBOL', symbol_prefix, 'EXCHANGE', 'NFO', 'EXPIRY_DATE', exp_date)
 

@@ -53,7 +53,8 @@ watchdog==3.0.0
 #websocket-client==1.7.0
 websocket-client==1.5.3
 websockets==11.0.3
-# Browser link is this NorenRestApiPy 0.0.28  has some major issue. It requires older version of pandas, version 1.5.1 of websocket client and so on..
-# For now, taking the NorenRestApiPy from the google drive.
-# https://drive.usercontent.google.com/download?id=1v0O9pD9ub9pfPSuxqwqjwhQ1yuN1kxOx&export=download&authuser=0&confirm=t&uuid=71cd7c19-5e34-4f81-b8ec-df8d69c22f9b&at=APZUnTUl8ap1WyyK3zEN6me-YKFK:1713088490345
-./log/NorenRestApiPy-0.0.22-py2.py3-none-any.whl
+wsaccel==0.6.6
+# Browser link is this NorenRestApiPy @ https://github.com/tarakbluru/ShoonyaApi-py_With_My_Fixes/blob/master/dist/NorenRestApi-0.0.28-py2.py3-none-any.whl 
+# But pip requires 'raw' instead of 'blob' in the link for download
+# if you use below link as is, you will see 404 error.
+NorenRestApiPy @ https://github.com/tarakbluru/ShoonyaApi-py_With_My_Fixes/raw/master/dist/NorenRestApi-0.0.28-py2.py3-none-any.whl
