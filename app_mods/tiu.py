@@ -257,7 +257,7 @@ class BaseIU (object):
         quote = fv.get_quotes(exchange=exchange, token=token)
         logger.debug(f'exchange:{exchange} token:{token} {json.dumps(quote,indent=2)}')
         if quote and 'c' in quote and 'ti' in quote and 'ls' in quote:
-            return float(quote['lp']), float(quote['ti']), float(quote['ls'])
+            return float(quote['lp']), float(quote['ti']), int(quote['ls'])
         else:
             return None, None, None
 

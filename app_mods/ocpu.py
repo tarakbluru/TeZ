@@ -121,7 +121,7 @@ class OCPU(object):
 
             r = tiu.get_security_info(exchange=exch, symbol=tsym, token=token)
             logger.debug(f'{json.dumps(r, indent=2)}')
-            frz_qty = None
+
             if isinstance(r, dict) and 'frzqty' in r:
                 frz_qty = int(r['frzqty'])
             else:
@@ -260,8 +260,8 @@ class OCPU(object):
                 logger.debug(f"qty:{qty} Nearest LCM qty:{nearest_lcm_qty}")
 
                 res_qty1 = qty - nearest_lcm_qty
-                min_legs = (nearest_lcm_qty // (frz_qty - 1))  # Lower boundary
-                max_legs = (nearest_lcm_qty // ls)           # Upper boundary
+                min_legs = int(nearest_lcm_qty // (frz_qty - 1))  # Lower boundary
+                max_legs = int(nearest_lcm_qty // ls)           # Upper boundary
 
                 logger.debug(f"res_qty1: {res_qty1} min_legs: {min_legs} max_legs:{max_legs}")
 
@@ -272,6 +272,10 @@ class OCPU(object):
                 #     nlegs = max_legs
                 # else:
                 #     nlegs = given_nlegs
+
+                if not (min_legs) and not (max_legs):
+                    logger.info (f'Insufficient Balance : tsym:{tsym} ltp: {ltp}')
+                    return
 
                 nlegs = int(max(min(given_nlegs, max_legs), min_legs))
                 per_leg_qty = ((nearest_lcm_qty / nlegs) // ls) * ls
