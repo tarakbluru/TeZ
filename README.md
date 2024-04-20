@@ -258,3 +258,6 @@ powershell -executionpolicy bypass .\ps_scripts\tez.ps1
 
 ### Trade Manager Image 
 ![Refer](/images/Trademanager.png)
+
+### Notficaion Channel
+https://t.me/github_com_tarakbluru_TeZ
