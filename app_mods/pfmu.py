@@ -349,6 +349,7 @@ class PFMU:
                     return True
         with self.ord_lock:
             self.wo_df.loc[key_name, "prev_tick_lvl"] = ltp_level
+        return False
 
     def order_placement(self, key_name: str):
         logger.debug(f"Callback triggered for ID: {key_name}")
