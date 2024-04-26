@@ -1040,7 +1040,7 @@ class PFMU:
             self.mov_to_cost_state = MOVE_TO_COST_STATE.WAITING_UP_CROSS
             self.trail_sl_state = TRAIL_SL_STATE.WAITING_UP_CROSS
             self.max_pnl = None
-            logger.info (f'ui_reset: {atd.ui_reset}')
+            logger.debug (f'Manual -> Auto  : Reset Done')
 
         pnl = self.intra_day_pnl()
         ate = AutoTrailerEvent (pnl=pnl)

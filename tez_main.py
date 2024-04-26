@@ -481,7 +481,7 @@ def gui_tk_layout():
         nonlocal ul_selection
         old_value = ul_selection
         ul_selection = selection.get()
-        logger.debug(f'{old_value} -> {ul_selection}')
+        logger.info(f'{old_value} -> {ul_selection}')
         g_app_be.ul_index = ul_selection
         clear_price_entry()
 

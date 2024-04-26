@@ -292,13 +292,13 @@ class PNL_Window (tk.Frame):
 
         self.radio_var = tk.StringVar()  # set default value to "Manual"
 
-        rb1 = tk.Radiobutton(master=master, text="Auto", variable=self.radio_var, 
-                             value="Auto", command=self.__on_radio_button_selected__)
-        rb1.grid(row=3, column=0, padx=5, pady=5, sticky='w')
-
         rb2 = tk.Radiobutton(master=master, text="Manual", variable=self.radio_var, 
                              value="Manual", command=self.__on_radio_button_selected__)
-        rb2.grid(row=3, column=1, padx=5, pady=5, sticky='w')
+        rb2.grid(row=3, column=0, padx=5, pady=5, sticky='w')
+
+        rb1 = tk.Radiobutton(master=master, text="Auto", variable=self.radio_var, 
+                             value="Auto", command=self.__on_radio_button_selected__)
+        rb1.grid(row=3, column=1, padx=5, pady=5, sticky='w')
 
         self.radio_var.set(self.radio_var_local)
 
@@ -327,12 +327,14 @@ class PNL_Window (tk.Frame):
     def __on_radio_button_selected__(self):
         with self.lock:
             if self.radio_var.get() == 'Auto':
+                logger.info ('Manual -> Auto')
                 self.sl.disable_entry()
                 self.target.disable_entry()
                 self.mvto_cost.disable_entry()
                 self.trail_after.disable_entry()
                 self.trail_by.disable_entry()
             elif self.radio_var.get() == 'Manual':
+                logger.info ('Manual <- Auto')
                 self.sl.enable_entry()
                 self.target.enable_entry()
                 self.mvto_cost.enable_entry()
