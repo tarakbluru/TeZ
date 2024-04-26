@@ -32,13 +32,14 @@ logger = app_utils.get_logger(__name__)
 try:
     import copy
     import json
-    from datetime import datetime
+    from datetime import datetime, date
     from sre_constants import FAILURE, SUCCESS
     from threading import Lock
     from time import mktime
 
     import pyotp
     import yaml
+    import os
 
     from .fv_api_extender import ShoonyaApiPy, ShoonyaApiPy_CreateConfig
     from .shared_classes import (BaseInst, Component_Type, Ctrl, FVInstrument,
@@ -68,7 +69,8 @@ class WS_WrapU(object):
                  primary: str = 'FINVASIA',
                  sec: str = None,
                  mo: str = "09:15", mc: str = "15:30",
-                 tr: None = None,
+                 tr: bool|None = None,
+                 tr_folder:str|None = None,
                  notifier=None):
         logger.debug("WebSocket Wrapper Unit initialization ...")
 
@@ -208,12 +210,19 @@ class WS_WrapU(object):
 
         if WS_WrapU.DEBUG:
             self.fv_ws_tokens = list()
-            self.fv_ws_tokens.append('MCX|260606')
+            self.fv_ws_tokens.append('MCX|426269')
 
         self._prim_rec_tick_data: bool = False
         self._sec_rec_tick_data: bool = False
 
-        self.tr = tr
+        if tr:
+            self.tr = app_utils.TickRecorder()
+            if tr_folder is None:
+                tr_folder: str = r'../log'
+            
+            self.tr.filename = os.path.join(tr_folder, f'{date.today().strftime("%Y_%m_%d")}.txt')
+        else :
+            self.tr = None
         self.notifier = notifier
         
         self._fv_send_data = True
@@ -257,7 +266,6 @@ class WS_WrapU(object):
             self.fv_socket_opened = False
 
         def app_event_handler_quote_update(msg):
-            # print (msg)
             tick_data = msg
             if 'lp' in tick_data and 'tk' in tick_data:
                 fv_token = tick_data['tk']
@@ -292,13 +300,19 @@ class WS_WrapU(object):
 
                     if 'oi' in tick_data:
                         ohlc_obj.oi = int(tick_data["oi"])
-
+                    
                     if 'ft' in tick_data:
                         ohlc_obj.ft = tick_data['ft']
 
                     if self._send_data and self._fv_send_data:
                         new_obj = copy.copy(ohlc_obj)
-                        self.port.send_data(new_obj)
+                        # Avoiding a call to a function : self.port.send_data(new_obj)  
+                        self.port.data_q.put (new_obj)
+                        self.port.evt.set()
+
+            if self.tr is not None:
+                self.tr.put_data(msg)
+
             return
 
         def app_event_handler_order_update(msg):
@@ -322,8 +336,12 @@ class WS_WrapU(object):
 
     def fv_disconnect_wsfeed(self):
         return (self.fv.disconnect_from_datafeed_server())
-
+    
     def connect_to_data_feed_servers(self, primary: str = "FINVASIA", sec: str = ""):
+        if self.tr is not None:
+            logger.info (f'Starting Tick recorder Service...')
+            self.tr.start_service()
+
         if (self._fv_connected):
             logger.error("data feed in connected  State")
         if self.fv is not None:
@@ -340,6 +358,10 @@ class WS_WrapU(object):
                 return retval
 
     def disconnect_data_feed_servers(self):
+        if self.tr is not None:
+            logger.info (f'Stopping Tick recorder Service...')
+            self.tr.stop_service()
+
         if self.fv is not None and self._fv_connected:
             if (self.fv_disconnect_wsfeed() == FAILURE):
                 logger.debug("Finvasia ws wrapper did not disconnect cleanly")

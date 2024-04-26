@@ -6,8 +6,6 @@ import json
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app_mods import CustomCreateConfig,CustomWidget, SubWindow, SubWindow_Cc
 
-
-
 def subwindow_exposure_cb (current_value, **kwargs):
     print(json.dumps(kwargs, indent=4) + f" {current_value}")
 

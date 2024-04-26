@@ -29,11 +29,14 @@ logger = app_logger.get_logger(__name__)
 
 try:
     import json
+    import locale
     import os
     import re
     from dataclasses import dataclass
     from datetime import datetime, time
+    from enum import Enum
     from threading import Lock, Thread
+    from typing import Callable
 
     import numpy as np
     import pandas as pd
@@ -42,9 +45,10 @@ try:
 
     from .bku import BookKeeperUnit, BookKeeperUnitCreateConfig
     from .ocpu import OCPU, Ocpu_CreateConfig, Ocpu_RetObject
-    from .pmu import PMU_CreateConfig, PriceMonitoringUnit
-    from .shared_classes import (Component_Type, ExtSimpleQueue, I_B_MKT_Order,
-                                 I_S_MKT_Order, InstrumentInfo)
+    from .pmu import PMU_CreateConfig, PriceMonitoringUnit, WaitConditionData
+    from .shared_classes import (AutoTrailerData, AutoTrailerEvent,
+                                 Component_Type, ExtSimpleQueue, I_B_MKT_Order,
+                                 I_S_MKT_Order, InstrumentInfo, UI_State)
     from .tiu import Diu, OrderExecutionException, Tiu
 
 except Exception as e:
@@ -53,11 +57,25 @@ except Exception as e:
     sys.exit(1)
 
 
+locale.setlocale(locale.LC_ALL, '')
+
+class MOVE_TO_COST_STATE(Enum):
+    WAITING_UP_CROSS = 0
+    WAITING_DOWN_CROSS = 1
+
+class TRAIL_SL_STATE(Enum):
+    WAITING_UP_CROSS = 0
+    TRAIL_STARTED = 1
+    TRAIL_SL_HIT = 2
+
 @dataclass
 class Portfolio_CreateConfig:
     store_file: str
     mo: str
 
+from dataclasses import dataclass
+
+#g_count = 0
 
 class Portfolio:
     def __init__(self, pf_cc: Portfolio_CreateConfig):
@@ -217,6 +235,7 @@ class PFMU_CreateConfig:
     port: ExtSimpleQueue
     limit_order_cfg: bool = False
     reset: bool = False
+    system_sqoff_cb:Callable = None
 
 
 class PFMU:
@@ -247,16 +266,30 @@ class PFMU:
             self.ord_lock = Lock()
             self.wo_df = pd.DataFrame(
                 columns=[
-                    "price_at_click",
+                    "click_time",
+                    "click_price",
                     "tsym_token",
                     "ul_index",
                     "use_gtt_oco",
-                    "cond",
+                    "trade",
                     "wait_price_lvl",
                     "prev_tick_lvl",
                     "n_orders",
                     "order_list",
-                    "status"])
+                    "status"], 
+                # dtype={
+                #     "click_price": float,
+                #     "tsym_token": str,
+                #     "ul_index": str,
+                #     "use_gtt_oco": bool,
+                #     "cond": int,
+                #     "wait_price_lvl": int,
+                #     "prev_tick_lvl": int,
+                #     "n_orders": int,
+                #     "order_list": object,
+                #     "status": str
+                # }                    
+            )
 
         bku_cc = BookKeeperUnitCreateConfig(pfmu_cc.rec_file, pfmu_cc.reset)
         self.bku = BookKeeperUnit(bku_cc=bku_cc)
@@ -264,6 +297,12 @@ class PFMU:
         pf_cc = Portfolio_CreateConfig(store_file=pfmu_cc.pf_file, mo=pfmu_cc.mo)
         self.portfolio = Portfolio(pf_cc=pf_cc)
 
+        self.mov_to_cost_state = MOVE_TO_COST_STATE.WAITING_UP_CROSS
+        self.trail_sl_state = TRAIL_SL_STATE.WAITING_UP_CROSS
+        
+        self._system_sqoff_cb = pfmu_cc.system_sqoff_cb
+
+        self.max_pnl = None
         #
         # TODO: In case of a restart of app, portfolio should get updated based on the
         # platform quantity. If there is any difference ( due to manual exit and not manual entry...)
@@ -277,7 +316,7 @@ class PFMU:
 
     def wo_table_show(self):
         if self.limit_order_cfg:
-            df = self.wo_df[["price_at_click", "wait_price_lvl", "tsym_token", "cond", "n_orders", "use_gtt_oco", "status"]]
+            df = self.wo_df[["click_time","click_price", "wait_price_lvl", "tsym_token", "trade", "n_orders", "use_gtt_oco", "status"]]
             console = Console()
             table = Table(title='Waiting-Order-Records')
             table.add_column("#", justify="center")
@@ -303,33 +342,35 @@ class PFMU:
             ul_index: str,
             tsym_token: str,
             use_gtt_oco: bool,
-            price_at_click: float,
+            click_price: float,
             wait_price: float,
-            order_list: list):
+            order_list: list, action:str):
         # Find the index where it would lie in OrderBank
+
         index = len(self.wo_df)
-        # Create a key name "26000_<index>" using an f-string
         key_name = f"{ul_token}_{index}"
-        if wait_price >= price_at_click:
-            cond = 1
-        elif wait_price < price_at_click:
-            cond = 0
 
         wait_price_lvl = round(wait_price * self.prec_factor)
+
         # Create a new row with initial values
 
+        now = datetime.now().strftime("%H:%M:%S")
+
         new_order = {
-            "price_at_click": price_at_click,
+            "click_time" : now,
+            "click_price": click_price,
             "tsym_token": tsym_token,
             "ul_index": ul_index,
             "use_gtt_oco": use_gtt_oco,
-            "cond": cond,
+            "trade": action,
             "wait_price_lvl": int(wait_price_lvl),
             "prev_tick_lvl": np.nan,
             "n_orders": len(order_list),
             "order_list": order_list,
             "status": 'Waiting'
         }
+
+
         with self.ord_lock:
             # Append the new row to OrderBank DataFrame
             self.wo_df.loc[key_name] = new_order
@@ -337,19 +378,28 @@ class PFMU:
         return key_name
 
     def _price_condition(self, ltp: float, key_name: str):
-        order_info = self.wo_df.loc[key_name]
-        ltp_level = round(ltp * self.prec_factor)
-        wait_price_lvl = order_info.wait_price_lvl
-        if order_info.prev_tick_lvl:
-            if order_info.cond:
-                if order_info.prev_tick_lvl < wait_price_lvl and ltp_level >= wait_price_lvl:
-                    return True
-            if not order_info.cond:
-                if order_info.prev_tick_lvl > wait_price_lvl and ltp_level <= wait_price_lvl:
-                    return True
-        with self.ord_lock:
-            self.wo_df.loc[key_name, "prev_tick_lvl"] = ltp_level
-        return False
+        ...
+    #     r = False
+    #     order_info = self.wo_df.loc[key_name]
+    #     ltp_level = round(ltp * self.prec_factor)
+    #     wait_price_lvl = order_info.wait_price_lvl
+
+    #     if order_info.prev_tick_lvl:
+    #         if order_info.cond:
+    #             if order_info.prev_tick_lvl < wait_price_lvl and ltp_level >= wait_price_lvl:
+    #                 logger.debug (f'order_info.prev_tick_lvl: {order_info.prev_tick_lvl} wait_price_lvl: {wait_price_lvl} Triggered')
+    #                 r = True
+    #         else:
+    #             if order_info.prev_tick_lvl > wait_price_lvl and ltp_level <= wait_price_lvl:
+    #                 logger.debug (f'order_info.prev_tick_lvl: {order_info.prev_tick_lvl} wait_price_lvl: {wait_price_lvl} Triggered')
+    #                 r = True
+    #     if r:
+    #         self._order_placement_th (key_name=key_name)
+    #     else:
+    #         with self.ord_lock:
+    #             self.wo_df.loc[key_name, "prev_tick_lvl"] = ltp_level
+
+    #     return r
 
     def order_placement(self, key_name: str):
         logger.debug(f"Callback triggered for ID: {key_name}")
@@ -382,12 +432,12 @@ class PFMU:
                     self.portfolio.update_position_taken(tsym_token=order_info.tsym_token, ul_index=order_info.ul_index, qty=total_qty)
             self.show()
 
-            self.wo_df.loc[key_name, "status"] = "Completed"
             self.wo_table_show()
 
-    def _order_placement_th(self, key_name: str):
-        Thread(name='PMU Order Placement Thread', target=self.order_placement, args=(key_name,), daemon=True).start()
-
+    def _order_placement_th(self, key_name: str, ft:str):
+        logger.debug (f'Creating Thread: key_name:{key_name}')
+        self.wo_df.loc[key_name, "status"] = f"Trig @ {ft}"
+        Thread(name=f'PMU Order Placement Thread {key_name}', target=self.order_placement, args=(key_name,), daemon=True).start()
     #
     # def disable_waiting_order(self, id, ul_token=None):
     # def enable_waiting_order(self, id, ul_token=None):
@@ -483,14 +533,23 @@ class PFMU:
                 use_gtt_oco = True if inst_info.order_prod_type == 'O' else False
                 key_name = self._add_order(ul_token=ul_token, ul_index=inst_info.ul_index, tsym_token=r.tsym_token,
                                            use_gtt_oco=use_gtt_oco,
-                                           price_at_click=r.ul_ltp,
-                                           wait_price=trade_price, order_list=r.orders_list)
-                cond_ds = {'condition_fn': self._price_condition,
-                           'callback_function': self._order_placement_th,
-                           'cb_id': key_name}
-                self.pmu.register_callback(token=ul_token, cond_ds=cond_ds)
+                                           click_price=r.ul_ltp, 
+                                           wait_price=trade_price, order_list=r.orders_list, action=action)
+               
+                order_info = self.wo_df.loc[key_name]
+                cond_obj = WaitConditionData(condition_fn=self._price_condition, 
+                                             callback_function=self._order_placement_th,
+                                             cb_id=key_name,
+                                             wait_price_lvl=order_info.wait_price_lvl, 
+                                             prec_factor=self.prec_factor)
+
+                self.pmu.register_callback(token=ul_token, cond_obj=cond_obj)
                 self.wo_table_show()
-                # self.pmu.simulate(trade_price)
+                # global g_count
+                # g_count += 1
+
+                # if g_count == 5:
+                #     # self.pmu.simulate(ultoken=ul_token, trade_price=trade_price, cross='down')
                 logger.debug(f'Registered Call back with PMU {key_name}')
 
             return total_qty
@@ -769,6 +828,7 @@ class PFMU:
                     # Check oco order pending ..
                     # if there are orders still open ..cancel the orders
                     if gtt_p_df is not None and len(gtt_p_df):
+
                         for alert_id in alert_id_list:
                             if not pd.isna(alert_id) and alert_id in gtt_p_df['al_id'].values:
                                 logger.debug(f'cancelling al_id : {alert_id}')
@@ -910,6 +970,10 @@ class PFMU:
                 __square_off_position__(df=df)
                 with self.pf_lock:
                     self.portfolio.verify_reset()
+                
+                if self._system_sqoff_cb:
+                    self._system_sqoff_cb ()
+
             except OrderExecutionException:
                 logger.error('Major Exception Happened: Take Manual control..')
 
@@ -932,3 +996,112 @@ class PFMU:
                     logger.error('Major Exception Happened: Take Manual control..')
 
         logger.info("Square off Position - Complete.")
+
+    def intra_day_pnl (self):
+        mtm = 0.0
+        df = self.bku.fetch_order_id()
+        if df is None or df.empty:
+            return mtm
+        try:
+            df_filtered = df[(df['Qty'] != 0) & (df['Status'] == 'SUCCESS')].copy()
+            df_filtered['token'] = df_filtered['TradingSymbol_Token'].str.split('_').str[-1]
+            unique_tokens_df = df_filtered[['token']].drop_duplicates()
+        except Exception:
+            # logger.info('No position to Square off')
+            return
+        else:
+            r = self.tiu.get_positions()
+            if r is not None and isinstance(r, list):
+                try:
+                    posn_df = pd.DataFrame(r)
+                    posn_df = posn_df.loc[(posn_df['prd'] == 'I')]
+
+                    merged_df = posn_df.merge(unique_tokens_df[['token']], on='token', how='inner')
+                    merged_df.loc[merged_df['prd'] == 'I', 'urmtom'] = merged_df.loc[merged_df['prd'] == 'I', 'urmtom'].apply(lambda x: locale.atof(x))
+
+                    # Use .loc to filter rows and update the 'rpnl' column
+                    merged_df.loc[merged_df['prd'] == 'I', 'rpnl'] = merged_df.loc[merged_df['prd'] == 'I', 'rpnl'].apply(lambda x: locale.atof(x))
+
+                    # Filter the DataFrame for 'prd' == 'I' again to calculate the sums
+                    mtm_df = merged_df.loc[merged_df['prd'] == 'I']
+
+                    urmtom = mtm_df['urmtom'].sum()
+                    pnl = mtm_df['rpnl'].sum()
+                    mtm = round(urmtom + pnl, 2)
+                except Exception as e:
+                    logger.debug (f'Exception occured {str(e)}')
+                else :
+                    ...
+        return mtm
+    
+    def auto_trailer(self, atd: AutoTrailerData|None=None):
+
+        if atd and atd.ui_reset:
+            self.mov_to_cost_state = MOVE_TO_COST_STATE.WAITING_UP_CROSS
+            self.trail_sl_state = TRAIL_SL_STATE.WAITING_UP_CROSS
+            self.max_pnl = None
+            logger.info (f'ui_reset: {atd.ui_reset}')
+
+        pnl = self.intra_day_pnl()
+        ate = AutoTrailerEvent (pnl=pnl)
+
+        if self.mov_to_cost_state == MOVE_TO_COST_STATE.WAITING_DOWN_CROSS:
+            ate.mvto_cost_ui = UI_State.DISABLE
+
+        if self.trail_sl_state == TRAIL_SL_STATE.TRAIL_STARTED:
+            ate.trail_sl_ui = UI_State.DISABLE
+
+        if atd:
+            sq_off = False
+            if pnl >= atd.target:
+                sq_off = True
+                logger.info (f'Target Achieved: Squaring off')
+                ate.target_hit = True
+
+            if not sq_off and pnl <= atd.sl:
+                logger.info (f'SL Hit: Squaring off')
+                sq_off = True
+                ate.sl_hit = True
+
+            if not sq_off:
+                match self.mov_to_cost_state:
+                    case MOVE_TO_COST_STATE.WAITING_UP_CROSS:
+                        if pnl >= atd.mvto_cost:
+                            self.mov_to_cost_state = MOVE_TO_COST_STATE.WAITING_DOWN_CROSS
+                            ate.mvto_cost_ui = UI_State.DISABLE
+                            logger.info (f'mvto_cost - Threshold hit {MOVE_TO_COST_STATE.WAITING_UP_CROSS.name} -> {MOVE_TO_COST_STATE.WAITING_DOWN_CROSS.name}')
+
+                    case MOVE_TO_COST_STATE.WAITING_DOWN_CROSS:
+                        if pnl <= float(0.0):
+                            self.mov_to_cost_state = MOVE_TO_COST_STATE.WAITING_UP_CROSS
+                            logger.info (f'mvto_cost - Threshold hit {MOVE_TO_COST_STATE.WAITING_DOWN_CROSS.name} -> {MOVE_TO_COST_STATE.WAITING_UP_CROSS.name}')
+                            sq_off = True
+                    case _:
+                        ...
+
+            if not sq_off:
+                match self.trail_sl_state:
+                    case TRAIL_SL_STATE.WAITING_UP_CROSS:
+                        if pnl >= atd.trail_after:
+                            self.max_pnl = pnl
+                            self.trail_sl_state = TRAIL_SL_STATE.TRAIL_STARTED
+                            ate.trail_sl_ui = UI_State.DISABLE
+                            logger.info (f'trail_sl_state - {atd.trail_after:.2f} hit {TRAIL_SL_STATE.WAITING_UP_CROSS.name} -> {TRAIL_SL_STATE.TRAIL_STARTED.name}')
+
+                    case TRAIL_SL_STATE.TRAIL_STARTED:
+                        if pnl > self.max_pnl:
+                            self.max_pnl = pnl
+                        price_low_th = self.max_pnl - atd.trail_by
+                        if pnl <= price_low_th:
+                            self.trail_sl_state = TRAIL_SL_STATE.TRAIL_SL_HIT
+                            sq_off = True
+                            logger.info (f'trail_sl_state - {price_low_th:.2f} hit {TRAIL_SL_STATE.TRAIL_STARTED.name} -> {TRAIL_SL_STATE.TRAIL_SL_HIT.name}')
+                    case _:
+                        ...
+
+            if sq_off:
+                self.square_off_position (mode='ALL', ul_index=None, per=100, inst_type='ALL', partial_exit=False)
+                self.show()
+                ate.sq_off_done = True
+        return ate
+    

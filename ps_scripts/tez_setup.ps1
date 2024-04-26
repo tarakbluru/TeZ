@@ -1,4 +1,5 @@
 $pythonVersion = python --version 2>&1 | Select-String -Pattern 'Python (\d+\.\d+\.\d+)' | ForEach-Object { $_.Matches.Groups[1].Value }
+
 if ([version]$pythonVersion -ge [version]"3.10.5") {
     Write-Host "Python version is 3.10.5 or more recent."
 

@@ -92,6 +92,8 @@ class Biu_CreateConfig(object):
 @dataclass
 class Diu_CreateConfig(Biu_CreateConfig):
     out_port: shared_classes.SimpleDataPort=None
+    tr_folder: str|None=None
+    tr_flag:bool|None=None
 
     def __str__(self):
         return f"{super().__str__()} out_port: {self.out_port}"
@@ -149,7 +151,7 @@ class BaseIU (object):
                                  twoFA=totp, vendor_code=cred['vc'],
                                  api_secret=cred['app_key'], imei=cred['imei'])
                     
-                    logger.debug(f'finvasia login: {json.dumps(r, indent=2)}')
+                    # logger.debug(f'finvasia login: {json.dumps(r, indent=2)}')
                     act_id = None
                     if r is not None and 'actid' in r:
                         act_id = r.get('actid')
@@ -188,7 +190,7 @@ class BaseIU (object):
                 logger.debug(f'ret: {ret} type: {type(ret)}')
 
                 r = fv.get_user_details()
-                logger.debug(f'ret: {json.dumps(r, indent=2)} type: {type(r)}')
+                # logger.debug(f'ret: {json.dumps(r, indent=2)} type: {type(r)}')
 
                 act_id = None
                 if r is not None and 'actid' in r:
@@ -281,7 +283,7 @@ class Diu (BaseIU):
         self._ul_symbol = {'symbol': 'NIFTY', 'token': token}
         logger.debug(f'{json.dumps(self._ul_symbol, indent=2)}')
         ws_wrap.WS_WrapU.DEBUG = False
-        self.ws_wrap = ws_wrap.WS_WrapU(fv=self.fv, port_cfg=dcc.out_port)
+        self.ws_wrap = ws_wrap.WS_WrapU(fv=self.fv, port_cfg=dcc.out_port, tr=dcc.tr_flag, tr_folder=dcc.tr_folder)
         
         Diu.__count += 1
         logger.info(f'Creating  {self.__class__.__name__} Object..Done')
@@ -296,7 +298,7 @@ class Diu (BaseIU):
 
     @live_df_ctrl.setter
     def live_df_ctrl(self, new_value:shared_classes.Ctrl):
-        if new_value: 
+        if new_value.value: 
             logger.debug ("Enabling Data Send")
         else :
             logger.debug ("Disabling Data Send")
@@ -959,8 +961,52 @@ class Tiu (BaseIU):
 
             return resp_exception, resp_ok, result
 
-    # TODO: By deriving the tiu module from fv, we can avoid the translations.
 
+    def get_mtm (self):
+        # [
+        #   {'stat': 'Ok', 'uid': 'XXXXX', 'actid': 'XXXXX', 'exch': 'NSE', 'tsym': 'GOLDIAM-EQ', 'prd': 'C', 'token': '11971',
+        #       'frzqty': '719668', 'pp': '2', 'ls': '1', 'ti': '0.05', 'mult': '1', 'prcftr': '1.000000', 'daybuyqty': '1', 'daysellqty': '0',
+        #       'daybuyamt': '137.60', 'daybuyavgprc': '137.60', 'daysellamt': '0.00', 'daysellavgprc': '0.00', 'cfbuyqty': '0', 'cfsellqty': '0',
+        #       'openbuyqty': '0', 'opensellqty': '0', 'openbuyamt': '0.00', 'openbuyavgprc': '0.00', 'opensellamt': '0.00', 'opensellavgprc': '0.00',
+        #       'dayavgprc': '137.60', 'netqty': '1', 'netavgprc': '137.60', 'upldprc': '0.00', 'netupldprc': '137.60', 'lp': '137.60', 'urmtom': '0.00',
+        #       'bep': '137.60', 'rpnl': '-0.00'
+        #   }
+        # ]
+        
+        # Note:
+        # To ensure, not to hinder the orders that are going through, and to 
+        # make the call to mtm and oders mututally exclusive, acquiring lock.
+        # Practically also, once the orders are through, then only position is monitored.
+        with self.ord_lock:
+            r = self.fv.get_positions()
+            # (type(r)) - <class 'list'>
+            mtm = None
+            if r is not None and isinstance(r, list):
+                raw_df = pd.DataFrame(r)
+                # df = raw_df.loc[(raw_df['prd'] == 'I')]
+                # # logger.debug (df)
+                # # show_df (df)
+                # df['urmtom'] = df.urmtom.map(lambda x: locale.atof(x))
+                # urmtom = df['urmtom'].sum()
+                # df['rpnl'] = df.rpnl.map(lambda x: locale.atof(x))
+                # pnl = df['rpnl'].sum()
+                # mtm = round(urmtom + pnl,2)
+
+                # Use .loc to filter rows and update the 'urmtom' column
+                raw_df.loc[raw_df['prd'] == 'I', 'urmtom'] = raw_df.loc[raw_df['prd'] == 'I', 'urmtom'].apply(lambda x: locale.atof(x))
+
+                # Use .loc to filter rows and update the 'rpnl' column
+                raw_df.loc[raw_df['prd'] == 'I', 'rpnl'] = raw_df.loc[raw_df['prd'] == 'I', 'rpnl'].apply(lambda x: locale.atof(x))
+
+                # Filter the DataFrame for 'prd' == 'I' again to calculate the sums
+                df = raw_df.loc[raw_df['prd'] == 'I']
+
+                urmtom = df['urmtom'].sum()
+                pnl = df['rpnl'].sum()
+                mtm = round(urmtom + pnl, 2)
+            return mtm
+
+    # TODO: By deriving the tiu module from fv, we can avoid the translations.
     def get_order_margin (self, buy_or_sell, 
                           product_type, exchange, tradingsymbol, 
                           quantity, price_type, 
@@ -977,7 +1023,10 @@ class Tiu (BaseIU):
         return self.fv.get_pending_gtt_order()
 
     def get_positions (self):
-        return self.fv.get_positions()
+        # To reduce the API rate during the placementof orders, getting the position 
+        # with lock
+        with self.ord_lock:
+            return self.fv.get_positions()
    
     def place_order(self,order):
         with self.ord_lock:
@@ -1014,3 +1063,7 @@ class Tiu (BaseIU):
 
     def get_pending_gtt_order(self):
         return self.fv.get_pending_gtt_order()
+
+
+
+

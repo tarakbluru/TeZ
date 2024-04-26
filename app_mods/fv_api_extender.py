@@ -734,6 +734,7 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
 
         return resDict
 
+
     def get_pending_gtt_order(self):
         url = f'{self.shoonya_api_host}/GetPendingGTTOrder'
 
@@ -751,6 +752,13 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
 
         resDict = json.loads(res.text)
         if isinstance(resDict, dict) and resDict['stat'] == 'Not_Ok':
+            # Following is the response from Finvasia when there are no pending gtt orders
+            # {
+            #     "stat": "Not_Ok",
+            #     "request_time": "17:20:23 19-04-2024",
+            #     "emsg": "Error Occurred : 5 \"no data\""
+            # }
+            # for this Fv extender returns None.
             logger.debug(f'{self.inst_id} {resDict["emsg"]}')
             return None
 
@@ -823,11 +831,14 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
                     logger.info (f'Web socket Error Call back: mesg:{json.dumps(mesg,indent=2)}')
                 except Exception as e:
                     logger.debug (f'Exception :{str(e)}')
-                return
+            return
+            
 
         def ws_v2_connect_and_monitor(self):
-            # import websocket
-            # websocket.enableTrace (False,level='DEBUG')
+            import websocket
+            websocket.enableTrace (False,level='DEBUG')
+            # websocket.setdefaulttimeout(2.0)
+
             logger.debug(f'{self.inst_id} In finvasia ws_v2_connect_and_monitor..')
             data_flow_evt = self.ws_v2_data_flow_evt
             exit_evt = self.ws_v2_exit_evt
@@ -911,10 +922,9 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
 
         cntr = 0
         while (not self.ws_connected):
-            now = datetime.now()
             to = ShoonyaApiPy.INITIAL_TIMEOUT if not cntr else 2
             if to ==  ShoonyaApiPy.INITIAL_TIMEOUT:
-                logger.info (f'time: c{now} : FV Websocket issue: Waiting for Websocket connection..{to} sec. You can CTRL+C and re-run OR wait')
+                logger.info (f'time: c{datetime.now()} : FV Websocket issue: Waiting for Websocket connection..{to} sec. You can CTRL+C and re-run OR wait')
                 try:
                     while to > 0:
                         try:

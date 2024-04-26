@@ -20,7 +20,7 @@ __email__ = "tarakesh.nc_at_google_mail_dot_com"
 __license__ = "MIT"
 __maintainer__ = "Tarak"
 __status__ = "Development"
-__version__ = "0.6.0_Rc19"
+__version__ = "0.7.0_Tc2"
 
 import sys
 import traceback
@@ -38,7 +38,7 @@ try:
     from datetime import datetime
     from multiprocessing import active_children
     from sre_constants import FAILURE, SUCCESS
-
+    from PIL import Image, ImageTk
     import app_mods
     import pandas as pd
     from app_be import (SquareOff_Info, SquareOff_InstType, SquareOff_Mode,
@@ -54,6 +54,7 @@ g_app_be: TeZ_App_BE | None = None
 global g_price_entry
 global g_SYSTEM_FEATURE_CONFIG
 global g_window_state_flag
+g_pnl_window = None
 
 g_window_state_flag=None
 g_SYSTEM_FEATURE_CONFIG = None
@@ -109,6 +110,9 @@ subwin_config_bn_bees = app_mods.SubWindow_Cc(
     kw_args_exposure_pe=None
 )
 
+def auto_trailer (a:app_mods.AutoTrailerData|None):
+    return (g_app_be.auto_trailer(a))
+
 def create_trade_manager_window():
     global g_trade_manager_window
     if g_trade_manager_window is None or not g_trade_manager_window.winfo_exists():
@@ -140,12 +144,14 @@ def create_trade_manager_window():
 
         g_trade_manager_window = tk.Toplevel(g_root)
         g_trade_manager_window.title("Trade Manager")
+        g_trade_manager_window.iconphoto(False, g_photo)
+
         if config1 and config2:
-            g_trade_manager_window.geometry("500x700+{}+{}".format(g_root.winfo_x() + 80, g_root.winfo_y() + 50))
+            g_trade_manager_window.geometry("1000x700+{}+{}".format(g_root.winfo_x() + 80, g_root.winfo_y() + 50))
         elif config1 or config2:
-            g_trade_manager_window.geometry("500x350+{}+{}".format(g_root.winfo_x() + 80, g_root.winfo_y() + 50))
+            g_trade_manager_window.geometry("1000x350+{}+{}".format(g_root.winfo_x() + 80, g_root.winfo_y() + 50))
         else:
-            g_trade_manager_window.geometry("500x75+{}+{}".format(g_root.winfo_x() + 80, g_root.winfo_y() + 50))
+            g_trade_manager_window.geometry("1000x200+{}+{}".format(g_root.winfo_x() + 80, g_root.winfo_y() + 50))
         g_trade_manager_window.transient(g_root)  # Set the TradeManager window as transient to the root window
 
        # Add "Row #" label, entry box, and "Cancel" button above frame1
@@ -165,23 +171,42 @@ def create_trade_manager_window():
             cancel_button = tk.Button(row_frame, text="Cancel", command=lambda: on_cancel_clicked(entry_box.get()))
             cancel_button.pack(side=tk.LEFT)
 
+        sub_frame1 = tk.Frame(g_trade_manager_window, bd=2, relief=tk.GROOVE)
+        sub_frame2 = tk.Frame(g_trade_manager_window, bd=2, relief=tk.GROOVE)
+
         if config1:
-            subwin_n = app_mods.SubWindow(master=g_trade_manager_window, 
+            subwin_n = app_mods.SubWindow(master=sub_frame1, 
                                         config=config1)
 
             subwin_n.pack(side=tk.TOP, padx=10, pady=10, anchor="w")  # Align subwindow to the left
 
         if config2:
             # Create the second subwindow
-            subwin_p = app_mods.SubWindow(master=g_trade_manager_window, config=config2)
+            subwin_p = app_mods.SubWindow(master=sub_frame1, config=config2)
             subwin_p.pack(side=tk.TOP, padx=10, pady=10, anchor="w")  # Align subwindow to the left
 
-        g_trade_manager_window.protocol("WM_DELETE_WINDOW", on_closing_trade_manager)
+        # Grid sub_frame1 and sub_frame2 side by side
+        sub_frame1.pack(side=tk.LEFT, padx=10, pady=15, anchor='n')
+
+        pnl_window = app_mods.PNL_Window(master=sub_frame2)
+        sub_frame2.pack(side=tk.LEFT, padx=20, pady=50, anchor='n')
+
+        pnl_window.cb = auto_trailer
+
+        global g_pnl_window
+        g_pnl_window = pnl_window
 
         global g_window_state_flag
         g_window_state_flag = tk.BooleanVar()
         g_window_state_flag.set(True)  # True means window is currently visible
 
+        # toggle_window_state(window, state_flag):
+
+        hide_button = tk.Button(g_trade_manager_window, text="Hide TM", command=hide_subwindow)
+        
+        hide_button.pack(side=tk.LEFT, padx=20, pady=50, anchor='n')
+
+        g_trade_manager_window.protocol("WM_DELETE_WINDOW", on_closing_trade_manager)
         return 1
     else:
         g_trade_manager_window.lift()  # Bring the existing window to the front
@@ -255,19 +280,21 @@ def short_market():
     else:
         logger.info('Unlock to take position')
 
+def toggle_window_state(window, state_flag):
+    if window:
+        if state_flag.get():
+            window.withdraw()  # Hide the window
+            state_flag.set(False)  # Update the flag to indicate window is hidden
+        else:
+            window.deiconify()  # Show the window
+            state_flag.set(True)  # Update the flag to indicate window is visible
+            g_app_be.show_records()
+
+def hide_subwindow():
+    toggle_window_state (g_trade_manager_window, g_window_state_flag)
+
 def tm_action():
-    def toggle_window_state(window, state_flag):
-        if window:
-            if state_flag.get():
-                window.withdraw()  # Hide the window
-                state_flag.set(False)  # Update the flag to indicate window is hidden
-            else:
-                window.deiconify()  # Show the window
-                state_flag.set(True)  # Update the flag to indicate window is visible
-                g_app_be.show_records()
-
     logger.info(f'{datetime.now()}: TM Click')
-
     if create_trade_manager_window () != 1:
         toggle_window_state (g_trade_manager_window, g_window_state_flag)
     else :
@@ -302,8 +329,27 @@ def play_notify():
 def gui_tk_layout():
     from tkinter import font
 
+    global g_photo
+
     root = tk.Tk()
-    root.title(app_mods.get_system_info("GUI_CONFIG", "APP_TITLE"))
+
+    exch = app_mods.get_system_info("TRADE_DETAILS", "EXCHANGE")
+    if exch == 'NSE':
+        # Load the image
+        image = Image.open(r'./images/bees1.jpg')
+        g_photo = ImageTk.PhotoImage(image)
+        # Set the image as the icon of the window
+        root.iconphoto(False, g_photo)
+    elif exch == 'NFO':
+        # Load the image
+        image = Image.open(r'./images/opt1.jpg')
+        g_photo = ImageTk.PhotoImage(image)
+        # Set the image as the icon of the window
+        root.iconphoto(False, g_photo)
+    else :
+        ...
+
+    root.title(app_mods.get_system_info("GUI_CONFIG", "APP_TITLE")+f'-{exch}')
 
     # Set the window size approximately to 2 inches by 2 inches
     root.geometry(app_mods.get_system_info("GUI_CONFIG", "APP_GEOMETRY"))
@@ -324,8 +370,8 @@ def gui_tk_layout():
     # Long and Short buttons in one line with space between them
     l_button_text = app_mods.get_system_info("GUI_CONFIG", "LONG_BUTTON")
 
-    symbol = app_mods.get_system_info("TRADE_DETAILS", "EXCHANGE")
-    if symbol == 'NSE':
+    exch = app_mods.get_system_info("TRADE_DETAILS", "EXCHANGE")
+    if exch == 'NSE':
         font = font.Font(weight="normal")
     else:
         font = font.Font(weight="bold")
@@ -458,10 +504,15 @@ def gui_tk_layout():
     bt = app_mods.get_system_info("GUI_CONFIG", "RADIOBUTTON_2_TEXT")
     bv = app_mods.get_system_info("GUI_CONFIG", "RADIOBUTTON_2_VALUE")
     rb2 = tk.Radiobutton(root, text=bt, variable=selection, value=bv, command=show_ul_selection)
-    # banknifty_radio.pack(side="left", padx=10, pady=10)
     rb2.pack(anchor="w", padx=8)
 
     return root
+
+def system_sqoff_cb ():
+    global g_pnl_window
+    if g_pnl_window:
+        g_pnl_window.ui_update_sys_sq_off()
+
 
 def is_exp_date_lapsed(date_string):
     try:
@@ -616,7 +667,7 @@ def main():
         logger.info (f'NIFTYBEES: {json.dumps(app_mods.get_system_info("INSTRUMENT_INFO", "INST_1"),indent=2)}')
         logger.info (f'BANKBEES: {json.dumps(app_mods.get_system_info("INSTRUMENT_INFO", "INST_2"),indent=2)}')
 
-    app_be_cc_cfg = TeZ_App_BE_CreateConfig(g_SYSTEM_FEATURE_CONFIG ['limit_order_cfg'])
+    app_be_cc_cfg = TeZ_App_BE_CreateConfig(g_SYSTEM_FEATURE_CONFIG ['limit_order_cfg'], system_sqoff_cb=system_sqoff_cb)
     try:
         g_app_be = TeZ_App_BE(app_be_cc_cfg)
     except app_mods.tiu.LoginFailureException:

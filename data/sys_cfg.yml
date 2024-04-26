@@ -149,6 +149,9 @@ TRADE_DETAILS:
 
 SYSTEM:
   LOG_FILE: './log/app.log'
+
+  TR: 'NO'                      # 'YES' 'NO'
+  TR_FOLDER: './log'
   DL_FOLDER: './log'
   MARKET_TIMING: 
     OPEN: "09:15"   #Zero padded

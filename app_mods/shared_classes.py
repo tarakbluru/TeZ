@@ -28,6 +28,7 @@ from app_utils import app_logger
 logger = app_logger.get_logger(__name__)
 
 try:
+    import datetime
     import json
     import re
     from dataclasses import dataclass, field
@@ -61,6 +62,11 @@ class TickData (object):
 class Ctrl(Enum):
     OFF = 0
     ON = 1
+
+
+class UI_State(Enum):
+    DISABLE = 0
+    ENABLE = 1
 
 
 @dataclass
@@ -574,3 +580,27 @@ InstrumentInfo = NamedTuple('InstrumentInfo', [('symbol', str),
                                                ('quantity', int),
                                                ("n_legs", int),
                                                ])
+
+@dataclass
+class AutoTrailerData():
+    sl: float
+    target: float
+    mvto_cost: float
+    trail_after: float
+    trail_by: float
+    ui_reset:bool = False
+    ts: datetime.datetime = field(default_factory=datetime.datetime.now)
+
+
+@dataclass
+class AutoTrailerEvent():
+    pnl: float
+    sl_hit: bool = False
+    target_hit: bool = False
+    mvto_cost_hit: bool = False
+    mvto_cost_ui: UI_State = UI_State.ENABLE
+    trail_sl_ui:UI_State = UI_State.ENABLE
+    trail_after_hit: bool = False
+    trail_by_hit: bool = False
+    sq_off_done:bool = False
+    ts: datetime.datetime = field(default_factory=datetime.datetime.now)

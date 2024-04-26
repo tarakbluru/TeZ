@@ -33,7 +33,7 @@ try:
     from datetime import datetime
     from enum import Enum
     from threading import Event, Timer
-    from typing import NamedTuple
+    from typing import NamedTuple, Callable
 
     import app_mods
     import numpy as np
@@ -47,6 +47,7 @@ except Exception as e:
 
 class TeZ_App_BE_CreateConfig(NamedTuple):
     limit_order_cfg:bool
+    system_sqoff_cb:Callable
 
 
 class SquareOff_Mode(Enum):
@@ -163,7 +164,9 @@ class TeZ_App_BE:
                 diu_save_token_file = None
                 virtual_env = False
 
-            
+            tr_folder = app_mods.get_system_info("SYSTEM", "TR_FOLDER")
+            tr = True if app_mods.get_system_info("SYSTEM", "TR").upper() == 'YES' else False
+
             dcc = app_mods.Diu_CreateConfig(inst_prefix='diu', cred_file=diu_cred_file,  
                                             susertoken=None,
                                             token_file=diu_token_file, 
@@ -174,7 +177,10 @@ class TeZ_App_BE:
                                             save_tokenfile_cfg=diu_save_token_file_cfg,
                                             save_token_file=diu_save_token_file, 
                                             out_port=live_data_output_port, 
+                                            tr_folder=tr_folder,
+                                            tr_flag=tr,
                                             test_env=virtual_env)
+
             logger.debug(f'dcc:{str(dcc)}')
             try:
                 diu = app_mods.Diu(dcc=dcc)
@@ -196,7 +202,8 @@ class TeZ_App_BE:
             pfmu_cc = app_mods.PFMU_CreateConfig(tiu=tiu, diu=diu, rec_file=pfmu_ord_file, 
                                                  mo=mo, pf_file=pf_file, 
                                                  reset=False, port=port, 
-                                                 limit_order_cfg=self.cc_cfg.limit_order_cfg)
+                                                 limit_order_cfg=self.cc_cfg.limit_order_cfg,
+                                                 system_sqoff_cb=self.cc_cfg.system_sqoff_cb)
             pfmu = app_mods.PFMU(pfmu_cc)
             return pfmu
 
@@ -348,3 +355,7 @@ class TeZ_App_BE:
 
     def get_latest_tick(self):
         return self.diu.get_latest_tick()
+
+    def auto_trailer(self, auto_trailer_data: app_mods.AutoTrailerData|None=None):
+        return (self.pfmu.auto_trailer (auto_trailer_data))
+

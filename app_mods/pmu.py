@@ -30,6 +30,7 @@ logger = app_logger.get_logger(__name__)
 try:
     import time
     from collections import defaultdict
+    from dataclasses import dataclass    
     from datetime import datetime
     from enum import Enum
     from threading import Event, Lock, Thread, current_thread
@@ -53,6 +54,17 @@ class PMU_State(Enum):
     STOPPED=4
     ERROR=5
 
+@dataclass
+class WaitConditionData:
+    cb_id: str
+    condition_fn: callable
+    callback_function: callable
+    wait_price_lvl: int
+    prev_tick_lvl: int=None
+    prec_factor:int=100
+
+    def __str__(self):
+        return f"cb_id: {self.cb_id}, wait_price_lvl: {self.wait_price_lvl}, prev_tick_lvl: {self.prev_tick_lvl}"
 
 class PriceMonitoringUnit:
     name = "PMU"
@@ -89,14 +101,24 @@ class PriceMonitoringUnit:
     def __str__(self):
         return f"Inst: {PriceMonitoringUnit.name} {PriceMonitoringUnit.__count} {PriceMonitoringUnit.__componentType}"
 
-    def simulate(self, trade_price):
-        tick = TickData(tk=26000, o=21000,h=21100, l=20900, c=trade_price-1, v=100, oi=0, ft='1')
-        self.inport.data_q.put(tick)
-        self.inport.evt.set()
-        time.sleep(1)
-        tick = TickData(tk=26000, o=21000,h=21100, l=20900, c=trade_price, v=100, oi=0, ft='1')
-        self.inport.data_q.put(tick)
-        self.inport.evt.set()
+    def simulate(self, ultoken, trade_price, cross='up'):
+        logger.info (f'simulation:')
+        if cross == 'up':
+            tick = TickData(tk=ultoken, o=21000,h=21100, l=20900, c=trade_price-1, v=100, oi=0, ft='1')
+            self.inport.data_q.put(tick)
+            self.inport.evt.set()
+            time.sleep(1)
+            tick = TickData(tk=ultoken, o=21000,h=21100, l=20900, c=trade_price, v=100, oi=0, ft='2')
+            self.inport.data_q.put(tick)
+            self.inport.evt.set()
+        else:
+            tick = TickData(tk=ultoken, o=21000,h=21100, l=20900, c=trade_price+1, v=100, oi=0, ft='1')
+            self.inport.data_q.put(tick)
+            self.inport.evt.set()
+            time.sleep(1)
+            tick = TickData(tk=ultoken, o=21000,h=21100, l=20900, c=trade_price, v=100, oi=0, ft='2')
+            self.inport.data_q.put(tick)
+            self.inport.evt.set()
 
     def send_hb (self, new_flag:bool) :
         self._send_hb = new_flag
@@ -116,18 +138,15 @@ class PriceMonitoringUnit:
                 if self._state_change_callback is not None:
                     self._state_change_callback ()
 
-    def register_callback(self, token:str, cond_ds):
+    def register_callback(self, token:str, cond_obj):
         with self.lock:
-            if isinstance(cond_ds, list):
-                self.conditions[token].extend(cond_ds)
-            else:
-                self.conditions[token].append(cond_ds)
-                logger.debug(f'Token: {token} Registered: {cond_ds["cb_id"]}')
+            self.conditions[token].append(cond_obj)
+            logger.debug(f'Token: {token} Registered: {cond_obj.cb_id}')
 
     def unregister_callback(self, token:str, callback_id):
         with self.lock:
             if token:
-                self.conditions[token] = [cond_ds for cond_ds in self.conditions[token] if cond_ds['cb_id'] != callback_id]
+                self.conditions[token] = [cond_ds for cond_ds in self.conditions[token] if cond_ds.cb_id != callback_id]
                 logger.debug(f'Token: {token} Un Registered: {callback_id}')
 
     def hard_exit (self):
@@ -218,13 +237,30 @@ class PriceMonitoringUnit:
                                     except Exception:
                                         logger.debug (f'Exception occured:')
                                     else :
+                                        rem_list = []
                                         # Going through a copy of list
-                                        for cond_ds in conditions[:]:
-                                            if cond_ds['condition_fn'](ohlc.c,cond_ds['cb_id']):
-                                                # callback(cond_ds['callback_function'], cond_ds['cb_id'])
-                                                cond_ds['callback_function'](cond_ds['cb_id'])
-                                                conditions.remove(cond_ds)  # Remove the condition after callback
-                                                logger.debug (f'{token} Removed condition: {cond_ds["cb_id"]}')
+                                        for cond_elem in conditions:
+                                            cond_obj:WaitConditionData = cond_elem
+                                            ltp_level = round(ohlc.c * cond_obj.prec_factor)
+                                            fn = None  
+                                            if cond_obj.prev_tick_lvl:
+                                                if cond_obj.prev_tick_lvl < cond_obj.wait_price_lvl and ltp_level >= cond_obj.wait_price_lvl:
+                                                    fn = cond_obj.callback_function
+                                                    logger.debug (f'order_info.prev_tick_lvl: {cond_obj.prev_tick_lvl} wait_price_lvl: {cond_obj.wait_price_lvl} ltp_level: {ltp_level} Triggered ft: {ohlc.ft}')
+                                                if fn is None and cond_obj.prev_tick_lvl > cond_obj.wait_price_lvl and ltp_level <= cond_obj.wait_price_lvl:
+                                                    fn = cond_obj.callback_function
+                                                    logger.debug (f'order_info.prev_tick_lvl: {cond_obj.prev_tick_lvl} wait_price_lvl: {cond_obj.wait_price_lvl} ltp_level: {ltp_level} Triggered ft: {ohlc.ft}')
+                                            cond_obj.prev_tick_lvl = ltp_level
+
+                                            if fn:
+                                                fn(cond_obj.cb_id, ohlc.ft)
+                                                rem_list.append(cond_obj)
+
+                                        if len(rem_list):
+                                            self.conditions[token] = [cond_obj for cond_obj in conditions if cond_obj not in rem_list]
+                                            logger.info (f'Updated the list : {len(self.conditions[token])}')
+                                            for condition in self.conditions[token]:
+                                                logger.debug(condition)
                             finally :
                                 nelem -= 1
                 else :
