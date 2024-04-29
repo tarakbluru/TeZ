@@ -265,6 +265,10 @@ class OCPU(object):
 
                 logger.debug(f"res_qty1: {res_qty1} min_legs: {min_legs} max_legs:{max_legs}")
 
+                if (min_legs == 0) and (max_legs == 0): #Special case
+                    logger.info (f'Insufficient Balance : tsym:{tsym} ltp: {ltp}')
+                    return
+
                 # Below compact code is same as :
                 # if given_nlegs < min_legs:
                 #     nlegs = min_legs
@@ -272,10 +276,6 @@ class OCPU(object):
                 #     nlegs = max_legs
                 # else:
                 #     nlegs = given_nlegs
-
-                if not (min_legs) and not (max_legs):
-                    logger.info (f'Insufficient Balance : tsym:{tsym} ltp: {ltp}')
-                    return
 
                 nlegs = int(max(min(given_nlegs, max_legs), min_legs))
                 per_leg_qty = ((nearest_lcm_qty / nlegs) // ls) * ls
