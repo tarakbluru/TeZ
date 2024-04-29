@@ -1061,9 +1061,3 @@ class Tiu (BaseIU):
     def get_enabled_gtts(self):
         return self.fv.get_enabled_gtts()
 
-    def get_pending_gtt_order(self):
-        return self.fv.get_pending_gtt_order()
-
-
-
-

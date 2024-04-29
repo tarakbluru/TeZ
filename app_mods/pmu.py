@@ -141,7 +141,7 @@ class PriceMonitoringUnit:
     def register_callback(self, token:str, cond_obj):
         with self.lock:
             self.conditions[token].append(cond_obj)
-            logger.debug(f'Token: {token} Registered: {cond_obj.cb_id}')
+            logger.debug(f'Token: {token} Registered: {cond_obj.cb_id} {cond_obj}')
 
     def unregister_callback(self, token:str, callback_id):
         with self.lock:
@@ -243,7 +243,7 @@ class PriceMonitoringUnit:
                                             cond_obj:WaitConditionData = cond_elem
                                             ltp_level = round(ohlc.c * cond_obj.prec_factor)
                                             fn = None  
-                                            if cond_obj.prev_tick_lvl:
+                                            if cond_obj.prev_tick_lvl is not None:
                                                 if cond_obj.prev_tick_lvl < cond_obj.wait_price_lvl and ltp_level >= cond_obj.wait_price_lvl:
                                                     fn = cond_obj.callback_function
                                                     logger.debug (f'order_info.prev_tick_lvl: {cond_obj.prev_tick_lvl} wait_price_lvl: {cond_obj.wait_price_lvl} ltp_level: {ltp_level} Triggered ft: {ohlc.ft}')

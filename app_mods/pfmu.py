@@ -550,7 +550,7 @@ class PFMU:
 
                 # if g_count == 5:
                 #     # self.pmu.simulate(ultoken=ul_token, trade_price=trade_price, cross='down')
-                logger.debug(f'Registered Call back with PMU {key_name}')
+                logger.debug(f'Registered Call back with PMU {key_name} {cond_obj}')
 
             return total_qty
 
