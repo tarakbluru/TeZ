@@ -96,7 +96,6 @@ TRADE_DETAILS:
       PROFIT_POINTS: null                 # Fixed: Do not change     
       STOPLOSS_POINTS: null               # Fixed: Do not change      
       ORDER_PROD_TYPE: 'I'                # I - M'I'S, B - 'B'racket   O - GTT_'O'CO
-      QUANTITY: 1            
       N_LEGS: 1
 
     INST_2:
@@ -112,7 +111,6 @@ TRADE_DETAILS:
       PROFIT_POINTS: null                 # Fixed: Do not change
       STOPLOSS_POINTS: null               # Fixed: Do not change     
       ORDER_PROD_TYPE: 'I'                # I - M'I'S, B - 'B'racket   O - GTT_'O'CO
-      QUANTITY: 1          
       N_LEGS: 1
 
     INST_3:
@@ -128,7 +126,6 @@ TRADE_DETAILS:
       PROFIT_POINTS: 30                   # Points in Option Price 
       STOPLOSS_POINTS: 10                 # Points in Option Price
       ORDER_PROD_TYPE: 'I'                # I - M'I'S  O - GTT_'O'CO
-      QUANTITY: 1                         #  In lots
       N_LEGS: 1
 
     INST_4:
@@ -144,7 +141,6 @@ TRADE_DETAILS:
       PROFIT_POINTS: 60                   # Points in Option Price 
       STOPLOSS_POINTS: 20                 # Points in Option Price
       ORDER_PROD_TYPE: 'I'                # I - M'I'S  O - GTT_'O'CO
-      QUANTITY: 1                         #  In lots
       N_LEGS: 1
 
 SYSTEM:

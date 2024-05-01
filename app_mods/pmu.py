@@ -34,10 +34,10 @@ try:
     from datetime import datetime
     from enum import Enum
     from threading import Event, Lock, Thread, current_thread
-    from typing import NamedTuple
+    from typing import NamedTuple, Union
 
     from .shared_classes import (Component_Type, LiveFeedStatus,
-                                 SimpleDataPort, TickData)
+                                 SimpleDataPort, TickData, Market_Timing)
 except Exception as e:
     logger.debug(traceback.format_exc())
     logger.error(("Import Error " + str(e)))
@@ -45,6 +45,7 @@ except Exception as e:
 
 class PMU_CreateConfig(NamedTuple):
     inp_dataPort: SimpleDataPort
+    market_hours: Union[Market_Timing, None] = None
 
 class PMU_State(Enum):
     NOT_DEFINED=0
@@ -81,9 +82,27 @@ class PriceMonitoringUnit:
         self.sys_monitor = None
         self.notifier = None
         self._send_hb:bool = False
-
+        self.prec_factor:int = int(100)
         self.df_status:LiveFeedStatus=LiveFeedStatus.OFF
 
+        self.chk_delay = False
+
+        if pmu_cc.market_hours is None:
+            self.mh = Market_Timing()
+        else:
+            self.mh = pmu_cc.market_hours
+
+        hr = datetime.strptime(self.mh.mo, "%H:%M").hour
+        min = datetime.strptime(self.mh.mo, "%H:%M").minute
+        m_open = datetime.now().replace(hour=hr, minute=min, second=0, microsecond=0)
+
+        hr = datetime.strptime(self.mh.mc, "%H:%M").hour
+        min = datetime.strptime(self.mh.mc, "%H:%M").minute
+        m_close = datetime.now().replace(hour=hr, minute=min, second=0, microsecond=0)
+        logger.debug(f'{self.inst_id}: market open: {m_open} market close: {m_close}')
+
+        if m_open <= datetime.now() < m_close:
+            self.chk_delay = True
         self._data_feed_status_callback = None
         self._state_change_callback = None
 
@@ -171,7 +190,7 @@ class PriceMonitoringUnit:
     def start_monitoring(self):
         self.data_rx_price_monitor_thread.start ()
         self.state = PMU_State.READY
-
+            
     def monitor_prices(self):
 
         def update_df_status (state:LiveFeedStatus):
@@ -206,6 +225,8 @@ class PriceMonitoringUnit:
         assert evt is not None, 'Event is None'        
         assert q is not None, 'Queue is None'
 
+        chk_delay = self.chk_delay 
+
         while do_process:
             try :
                 evt_flag = evt.wait(timeout=tout)
@@ -231,30 +252,44 @@ class PriceMonitoringUnit:
                                 logger.error("Exception during queue read"+str(e))
                             else :
                                 token = str(ohlc.tk)
+                                unix_epoch_time = int(time.time())
+                                diff_ft = abs(int(ohlc.ft) - unix_epoch_time)
+                                if chk_delay and diff_ft > 3:
+                                    logger.debug (f'Check the feed, it seems to be lagging {ohlc.ft} {unix_epoch_time} {diff_ft}')
+                                    logger.info (f'Unexpected delay:  diff_ft : {diff_ft}')
+                                    drop_tick = True
+                                else :
+                                    drop_tick = False
                                 with self.lock:
                                     try:
                                         conditions = self.conditions[token]
-                                    except Exception:
-                                        logger.debug (f'Exception occured:')
+                                    except Exception as e:
+                                        logger.debug (f'Exception occured: {str(e)}')
                                     else :
                                         rem_list = []
+                                        ltp_level = round(ohlc.c * self.prec_factor)
                                         # Going through a copy of list
                                         for cond_elem in conditions:
                                             cond_obj:WaitConditionData = cond_elem
-                                            ltp_level = round(ohlc.c * cond_obj.prec_factor)
-                                            fn = None  
-                                            if cond_obj.prev_tick_lvl is not None:
-                                                if cond_obj.prev_tick_lvl < cond_obj.wait_price_lvl and ltp_level >= cond_obj.wait_price_lvl:
-                                                    fn = cond_obj.callback_function
-                                                    logger.debug (f'order_info.prev_tick_lvl: {cond_obj.prev_tick_lvl} wait_price_lvl: {cond_obj.wait_price_lvl} ltp_level: {ltp_level} Triggered ft: {ohlc.ft}')
-                                                if fn is None and cond_obj.prev_tick_lvl > cond_obj.wait_price_lvl and ltp_level <= cond_obj.wait_price_lvl:
-                                                    fn = cond_obj.callback_function
-                                                    logger.debug (f'order_info.prev_tick_lvl: {cond_obj.prev_tick_lvl} wait_price_lvl: {cond_obj.wait_price_lvl} ltp_level: {ltp_level} Triggered ft: {ohlc.ft}')
-                                            cond_obj.prev_tick_lvl = ltp_level
+                                            if drop_tick:
+                                                cond_obj.prev_tick_lvl = ltp_level
+                                                continue
 
+                                            prev_tick_lvl = cond_obj.prev_tick_lvl
+                                            fn = None  
+                                            if prev_tick_lvl is not None:
+                                                if prev_tick_lvl < cond_obj.wait_price_lvl and ltp_level >= cond_obj.wait_price_lvl:
+                                                    fn = cond_obj.callback_function
+                                                    logger.debug (f'prev_tick_lvl: {prev_tick_lvl} wait_price_lvl: {cond_obj.wait_price_lvl} ltp_level: {ltp_level} Triggered ft: {ohlc.ft}')
+                                                if fn is None and prev_tick_lvl > cond_obj.wait_price_lvl and ltp_level <= cond_obj.wait_price_lvl:
+                                                    fn = cond_obj.callback_function
+                                                    logger.debug (f'prev_tick_lvl: {cond_obj.prev_tick_lvl} wait_price_lvl: {cond_obj.wait_price_lvl} ltp_level: {ltp_level} Triggered ft: {ohlc.ft}')
+                                            
                                             if fn:
                                                 fn(cond_obj.cb_id, ohlc.ft)
                                                 rem_list.append(cond_obj)
+                                            else:
+                                                cond_obj.prev_tick_lvl = ltp_level
 
                                         if len(rem_list):
                                             self.conditions[token] = [cond_obj for cond_obj in conditions if cond_obj not in rem_list]

@@ -512,10 +512,11 @@ class Tiu (BaseIU):
     def get_security_info(self, exchange, symbol=None, token=None):
 
         if token is None:
-            if not symbol:
-                token, tsym = self.__search_sym_token_tsym__(exchange=exchange, symbol=symbol)
-            else :
+            if symbol is None:
                 return None
+            else :
+                token, tsym = self.__search_sym_token_tsym__(exchange=exchange, symbol=symbol)
+
         if token:
             return self.fv.get_security_info(exchange=exchange, token=str(token))
         else:

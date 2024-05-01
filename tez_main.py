@@ -20,7 +20,7 @@ __email__ = "tarakesh.nc_at_google_mail_dot_com"
 __license__ = "MIT"
 __maintainer__ = "Tarak"
 __status__ = "Development"
-__version__ = "0.7.0_TC4"
+__version__ = "0.7.0_TC5"
 
 import sys
 import traceback
@@ -227,56 +227,68 @@ def on_closing_trade_manager():
         g_trade_manager_window = None
 
 
+def qty_price_from_ui ():
+    exch = app_mods.get_system_info("TRADE_DETAILS", "EXCHANGE")
+    if g_SYSTEM_FEATURE_CONFIG ['limit_order_cfg']:
+        price = g_price_entry.get()
+        if price:
+            logger.info(f"Button clicked with price: {price}")
+            tp = utils.round_stock_prec(float(price))
+        else:
+            logger.info("Button clicked with no price entered")
+            tp = None
+    
+    qty_str = g_qty_entry.get()
+    if qty_str:
+        if exch == 'NSE':
+            logger.info(f"Button clicked with qty: {qty_str}")
+        elif exch == 'NFO':
+            logger.info(f"Button clicked with lots: {qty_str}")
+        ui_qty = int (qty_str)
+    else:
+        logger.info("Button clicked with no qty/lots entered")
+        ui_qty = None
+
+    return ui_qty, tp
+
 def long_market():
-    global g_price_entry
     logger.info(f'{datetime.now()}: Buy Click')
     if g_slider_value.lower() == 'unlocked':
         tp = None
         qty_taken = 0
-        if g_SYSTEM_FEATURE_CONFIG ['limit_order_cfg']:
-            price = g_price_entry.get()
-            if price:
-                logger.info(f"Buy button clicked with price: {price}")
-                tp = utils.round_stock_prec(float(price))
-            else:
-                logger.info("Buy button clicked with no price entered")
-                tp = None
+        ui_qty, tp = qty_price_from_ui ()
+
+        if ui_qty is None:
+            logger.info (f'ui_qty : blank , no Trade')
+            return
         try:
-            qty_taken = g_app_be.market_action(action='Buy',trade_price=tp)
+            qty_taken = g_app_be.market_action(action='Buy',trade_price=tp, ui_qty=ui_qty)
         except Exception:
             logger.error(traceback.format_exc())
             logger.error (f'Major Exception Occured.. Check Manually..')
         else:
             play_notify()
-            # if qty_taken or tp is not None:
-            #     create_trade_manager_window ()
     else:
         logger.info('Unlock to take position')
 
 
 def short_market():
-    global g_price_entry
     logger.info(f'{datetime.now()}: Short Click')
     if g_slider_value.lower() == 'unlocked':
         tp = None
         qty_taken = 0
-        if g_SYSTEM_FEATURE_CONFIG ['limit_order_cfg']:
-            price = g_price_entry.get()
-            if price:
-                logger.info(f"Short button clicked with price:{price}")
-                tp = utils.round_stock_prec(float(price))
-            else:
-                logger.info("Short button clicked with no price entered")
-                tp = None
+        ui_qty, tp = qty_price_from_ui ()
+
+        if ui_qty is None:
+            logger.info (f'ui_qty : blank , no Trade')
+            return
         try:
-            qty_taken = g_app_be.market_action(action='Short',trade_price=tp)
+            qty_taken = g_app_be.market_action(action='Short',trade_price=tp, ui_qty=ui_qty)
         except Exception :
             logger.error(traceback.format_exc())
             logger.error (f'Major Exception Occured.. Check Manually..')
         else:
             play_notify()
-            # if qty_taken or tp is not None:
-            #     create_trade_manager_window ()        
     else:
         logger.info('Unlock to take position')
 
@@ -415,12 +427,98 @@ def gui_tk_layout():
     validate_float = root.register(validate_price)
 
     if g_SYSTEM_FEATURE_CONFIG ['limit_order_cfg']:
+
+        def on_validate_input(event):
+            if event.char.isdigit() or event.char == ".":
+                current_text = g_price_entry.get()
+                cursor_index = g_price_entry.index(tk.INSERT)
+                if event.char == "." and current_text.count(".") >= 2:
+                    return "break"
+                if current_text.find(".") != -1 and len(current_text[current_text.find("."):]) >= 3 and cursor_index > current_text.find("."):
+                    return "break"
+                return
+            elif event.keysym == "BackSpace":
+                if g_price_entry.selection_present():
+                    start, end = g_price_entry.index(tk.SEL_FIRST), g_price_entry.index(tk.SEL_LAST)
+                    g_price_entry.delete(start, end)
+                elif g_price_entry.index(tk.INSERT) > 0:
+                    g_price_entry.delete(g_price_entry.index(tk.INSERT) - 1)
+                return "break"  # Prevent default behavior of Backspace key
+            elif event.keysym == "Delete":  
+                if g_price_entry.selection_present():
+                    start, end = g_price_entry.index(tk.SEL_FIRST), g_price_entry.index(tk.SEL_LAST)
+                    g_price_entry.delete(start, end)
+                elif g_price_entry.index(tk.INSERT) < len(g_price_entry.get()):
+                    g_price_entry.delete(g_price_entry.index(tk.INSERT))
+                return "break"  # Prevent default behavior of Delete key
+            elif event.keysym in ["Left", "Right"]:  
+                return
+            else:
+                return "break"
+
         label_entry_price = tk.Label(frame_mid, text="Entry Price:")
         label_entry_price.pack(side=tk.LEFT, padx=(5, 10)) 
 
         global g_price_entry
-        g_price_entry = tk.Entry(frame_mid, validate="key", validatecommand=(validate_float, '%P'))
+        g_price_entry = tk.Entry(frame_mid, width=8, validate="key", validatecommand=(validate_float, '%P'))
         g_price_entry.pack(side=tk.LEFT, padx=(0, 5))
+        g_price_entry.bind("<Key>", on_validate_input)
+
+    def validate_qty(new_value):
+        if new_value == "":
+            return True
+        try:
+            int_value = int(new_value)
+            if int_value >= 0:
+                return True
+            else:
+                return False
+        except ValueError:
+            return False
+
+
+    def on_validate_qty_input(event):
+        if event.char.isdigit():
+            current_text = g_qty_entry.get()
+            if len(current_text) >= 4:
+                return "break"
+            return
+        elif event.keysym == "BackSpace":
+            if g_qty_entry.selection_present():
+                start, end = g_qty_entry.index(tk.SEL_FIRST), g_qty_entry.index(tk.SEL_LAST)
+                g_qty_entry.delete(start, end)
+            elif g_qty_entry.index(tk.INSERT) > 0:
+                g_qty_entry.delete(g_qty_entry.index(tk.INSERT) - 1)
+            return "break"  # Prevent default behavior of Backspace key
+        elif event.keysym == "Delete":  
+            if g_qty_entry.selection_present():
+                start, end = g_qty_entry.index(tk.SEL_FIRST), g_qty_entry.index(tk.SEL_LAST)
+                g_qty_entry.delete(start, end)
+            elif g_qty_entry.index(tk.INSERT) < len(g_qty_entry.get()):
+                g_qty_entry.delete(g_qty_entry.index(tk.INSERT))
+            return "break"  # Prevent default behavior of Delete key
+        elif event.keysym in ["Left", "Right"]:  
+            return
+        else:
+            return "break"
+        
+
+    validate_int = root.register(validate_qty)
+
+    exch = app_mods.get_system_info("TRADE_DETAILS", "EXCHANGE")
+    if exch == 'NSE':
+        qty_str = 'Qty:'
+    elif exch == 'NFO':
+        qty_str = 'Lots:'
+
+    label_qty = tk.Label(frame_mid, text=qty_str)
+    label_qty.pack(side=tk.LEFT, padx=(5, 10)) 
+
+    global g_qty_entry
+    g_qty_entry = tk.Entry(frame_mid, width=5, validate="key", validatecommand=(validate_int, '%P'))
+    g_qty_entry.insert(0, "1")  # Insert the default value "1"
+    g_qty_entry.pack(side=tk.LEFT, padx=(0, 5))
+    g_qty_entry.bind("<Key>", on_validate_qty_input)
 
     # Update the NIFTY index data periodically (every second)
     def update_tick_label():

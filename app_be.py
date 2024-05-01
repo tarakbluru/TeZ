@@ -307,7 +307,7 @@ class TeZ_App_BE:
     def show_records (self) -> None:
         self.pfmu.show()
 
-    def market_action(self, action:str, trade_price=None):
+    def market_action(self, action:str, trade_price:float=None, ui_qty:int=None):
 
         ul_index = self.diu.ul_symbol
         exch = app_mods.get_system_info("TRADE_DETAILS", "EXCHANGE")
@@ -315,6 +315,8 @@ class TeZ_App_BE:
         inst_info_dict = TeZ_App_BE.get_instrument_info(exch, ul_index)
         inst_info = {key.lower(): value for key, value in inst_info_dict.items()}
         inst_info['use_gtt_oco'] = True if inst_info['order_prod_type'].lower() == 'o' else False
+        if ui_qty:
+            inst_info['quantity'] = ui_qty
         inst_info = app_mods.shared_classes.InstrumentInfo(**inst_info)
 
         try:
