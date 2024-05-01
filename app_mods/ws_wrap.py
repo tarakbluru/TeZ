@@ -303,12 +303,17 @@ class WS_WrapU(object):
                     
                     if 'ft' in tick_data:
                         ohlc_obj.ft = tick_data['ft']
+                        if not ohlc_obj.ft:
+                            logger.info (f'not sending data as ft: {ohlc_obj.ft}')
+                            fv_send_data = False
+                        else:
+                            fv_send_data = self._fv_send_data
 
-                    if self._send_data and self._fv_send_data:
-                        new_obj = copy.copy(ohlc_obj)
-                        # Avoiding a call to a function : self.port.send_data(new_obj)  
-                        self.port.data_q.put (new_obj)
-                        self.port.evt.set()
+                        if self._send_data and fv_send_data:
+                            new_obj = copy.copy(ohlc_obj)
+                            # Avoiding a call to a function : self.port.send_data(new_obj)  
+                            self.port.data_q.put (new_obj)
+                            self.port.evt.set()
 
             if self.tr is not None:
                 self.tr.put_data(msg)

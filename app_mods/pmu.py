@@ -253,49 +253,53 @@ class PriceMonitoringUnit:
                             else :
                                 token = str(ohlc.tk)
                                 unix_epoch_time = int(time.time())
-                                diff_ft = abs(int(ohlc.ft) - unix_epoch_time)
-                                if chk_delay and diff_ft > 3:
-                                    logger.debug (f'Check the feed, it seems to be lagging {ohlc.ft} {unix_epoch_time} {diff_ft}')
-                                    logger.info (f'Unexpected delay:  diff_ft : {diff_ft}')
-                                    drop_tick = True
-                                else :
-                                    drop_tick = False
-                                with self.lock:
-                                    try:
-                                        conditions = self.conditions[token]
-                                    except Exception as e:
-                                        logger.debug (f'Exception occured: {str(e)}')
+                                try:
+                                    diff_ft = abs(int(ohlc.ft) - unix_epoch_time)
+                                except ValueError:
+                                    logger.info (f'{ohlc}')
+                                else:
+                                    if chk_delay and diff_ft > 3:
+                                        logger.debug (f'Check the feed, it seems to be lagging {ohlc.ft} {unix_epoch_time} {diff_ft}')
+                                        logger.info (f'Unexpected delay:  diff_ft : {diff_ft}')
+                                        drop_tick = True
                                     else :
-                                        rem_list = []
-                                        ltp_level = round(ohlc.c * self.prec_factor)
-                                        # Going through a copy of list
-                                        for cond_elem in conditions:
-                                            cond_obj:WaitConditionData = cond_elem
-                                            if drop_tick:
-                                                cond_obj.prev_tick_lvl = ltp_level
-                                                continue
+                                        drop_tick = False
+                                    with self.lock:
+                                        try:
+                                            conditions = self.conditions[token]
+                                        except Exception as e:
+                                            logger.debug (f'Exception occured: {str(e)}')
+                                        else :
+                                            rem_list = []
+                                            ltp_level = round(ohlc.c * self.prec_factor)
+                                            # Going through a copy of list
+                                            for cond_elem in conditions:
+                                                cond_obj:WaitConditionData = cond_elem
+                                                if drop_tick:
+                                                    cond_obj.prev_tick_lvl = ltp_level
+                                                    continue
 
-                                            prev_tick_lvl = cond_obj.prev_tick_lvl
-                                            fn = None  
-                                            if prev_tick_lvl is not None:
-                                                if prev_tick_lvl < cond_obj.wait_price_lvl and ltp_level >= cond_obj.wait_price_lvl:
-                                                    fn = cond_obj.callback_function
-                                                    logger.debug (f'prev_tick_lvl: {prev_tick_lvl} wait_price_lvl: {cond_obj.wait_price_lvl} ltp_level: {ltp_level} Triggered ft: {ohlc.ft}')
-                                                if fn is None and prev_tick_lvl > cond_obj.wait_price_lvl and ltp_level <= cond_obj.wait_price_lvl:
-                                                    fn = cond_obj.callback_function
-                                                    logger.debug (f'prev_tick_lvl: {cond_obj.prev_tick_lvl} wait_price_lvl: {cond_obj.wait_price_lvl} ltp_level: {ltp_level} Triggered ft: {ohlc.ft}')
-                                            
-                                            if fn:
-                                                fn(cond_obj.cb_id, ohlc.ft)
-                                                rem_list.append(cond_obj)
-                                            else:
-                                                cond_obj.prev_tick_lvl = ltp_level
+                                                prev_tick_lvl = cond_obj.prev_tick_lvl
+                                                fn = None  
+                                                if prev_tick_lvl is not None:
+                                                    if prev_tick_lvl < cond_obj.wait_price_lvl and ltp_level >= cond_obj.wait_price_lvl:
+                                                        fn = cond_obj.callback_function
+                                                        logger.debug (f'prev_tick_lvl: {prev_tick_lvl} wait_price_lvl: {cond_obj.wait_price_lvl} ltp_level: {ltp_level} Triggered ft: {ohlc.ft}')
+                                                    if fn is None and prev_tick_lvl > cond_obj.wait_price_lvl and ltp_level <= cond_obj.wait_price_lvl:
+                                                        fn = cond_obj.callback_function
+                                                        logger.debug (f'prev_tick_lvl: {cond_obj.prev_tick_lvl} wait_price_lvl: {cond_obj.wait_price_lvl} ltp_level: {ltp_level} Triggered ft: {ohlc.ft}')
+                                                
+                                                if fn:
+                                                    fn(cond_obj.cb_id, ohlc.ft)
+                                                    rem_list.append(cond_obj)
+                                                else:
+                                                    cond_obj.prev_tick_lvl = ltp_level
 
-                                        if len(rem_list):
-                                            self.conditions[token] = [cond_obj for cond_obj in conditions if cond_obj not in rem_list]
-                                            logger.info (f'Updated the list : {len(self.conditions[token])}')
-                                            for condition in self.conditions[token]:
-                                                logger.debug(condition)
+                                            if len(rem_list):
+                                                self.conditions[token] = [cond_obj for cond_obj in conditions if cond_obj not in rem_list]
+                                                logger.info (f'Updated the list : {len(self.conditions[token])}')
+                                                for condition in self.conditions[token]:
+                                                    logger.debug(condition)
                             finally :
                                 nelem -= 1
                 else :
