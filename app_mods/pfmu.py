@@ -107,10 +107,10 @@ class Portfolio:
             self.stock_data = pd.DataFrame(columns=["tsym_token", "ul_index", "available_qty", "max_qty"])
             logger.debug("File is absent or modification time is more than cutoff time. Empty DataFrame created.")
             self.stock_data.to_csv(self.store_file, index=False)
-
-        # Read the CSV file into a DataFrame
-        self.stock_data = pd.read_csv(file_path)
-        logger.debug("File was modified after 9:15 am today. DataFrame created successfully.")
+        else:
+            # Read the CSV file into a DataFrame
+            self.stock_data = pd.read_csv(file_path)
+            logger.debug("File was modified after 9:15 am today. DataFrame created successfully.")
 
         self.stock_data.set_index("tsym_token", inplace=True)
 
@@ -214,13 +214,16 @@ class Portfolio:
         table = Table(title='Portfolio-Records')
         table.add_column("#", justify="center")
 
+        # Add index column
+        table.add_column("tsym_token", justify="center")
+
         # Add header row
         for column in df.columns:
             table.add_column(column, justify="center")
 
         # Add data rows
-        for i, (_, row) in enumerate(df.iterrows(), start=1):
-            table.add_row(str(i), *[str(value) for value in row.tolist()])
+        for i, (index, row) in enumerate(df.iterrows(), start=1):
+            table.add_row(str(i), index, *[str(value) for value in row.tolist()])
 
         console.print(table)
 
@@ -525,7 +528,7 @@ class PFMU:
                 if total_qty:
                     with self.pf_lock:
                         # if (inst_info.symbol == 'NIFTYBEES' or inst_info.symbol == 'BANKBEES') and action == 'Sell':
-                        logger.info(f'Position Taken {inst_info} total_qty: {total_qty}')
+                        logger.debug(f'Position Taken {inst_info} total_qty: {total_qty}')
                         self.portfolio.update_position_taken(tsym_token=r.tsym_token, ul_index=inst_info.ul_index, qty=total_qty)
                 self.show()
             else:
