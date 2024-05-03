@@ -22,8 +22,6 @@ Before learning scalping options, it would help to learn in a non-derivative ins
 
 The app is expected to be very helpful for traders that are trying to learn scalping.
 
-In future versions, buying CE/PE options are also planned.
-
 ## Features
 Following are the features
 
