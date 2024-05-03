@@ -170,7 +170,8 @@ Important Note: Partial square off is available only for the ordertype MIS. It i
 Bracket/OCO order This Helps in scaling out the position.
 
 Trade Manager Window - Toggle functionality - when TM window is open, you can hide it by 
-clicking the 'TM' Button again.
+clicking the 'TM' Button again. While in Trademanager window, it can be hidden by clicking on 
+'Hide TM' button
 
 Difference between Sqoff in main window and 0% exposure in partial square off
 1. When sqoff in main window is clicked, waiting orders are cancelled.
@@ -271,10 +272,10 @@ powershell -executionpolicy bypass .\ps_scripts\tez_setup.ps1
 # To run the TeZ app while in TeZ folder
 powershell -executionpolicy bypass .\ps_scripts\tez.ps1
 ````
-### App Image for NIFTYBEES (observe normal font, icon - bees, title - Tez-NSE)
+### App Image for NIFTYBEES (observe normal font, icon - bees, title - TeZ-NSE)
 ![Refer](/images/TeZ_App.png)
 
-### App Image for NIFTY Option (observe normal font, icon - pay_off, title - Tez-NFO)
+### App Image for NIFTY Option (observe normal font, icon - pay_off, title - TeZ-NFO)
 ![Refer](/images/Tez_NFO.png)
 
 ### Console Image 
