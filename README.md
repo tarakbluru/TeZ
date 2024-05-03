@@ -160,7 +160,7 @@ By having a specific price, system will wait for price to touch or cross over th
 
 Order which is waiting for index to cross or touch can be cancelled by specifying in the 
 TM(TradeManager) window. This window appears on clicking TM button. 
-If there are multiple rows, they can be specified as (say 5-9, in increasing order).
+If there are multiple rows, they can be specified as (say 5-9).
 
 Partial square off can be achieved by setting slider and clicking on the Partial SqOff Button in TM window.
 Important Note: Partial square off is available only for the ordertype MIS. It is not available for 
@@ -186,6 +186,20 @@ Behaviour of Auto in strike and expiry date selection in config file
 	
 However, User can overridde by making config Manual and also specifying the offset in the 
 INSTRUMENT details.
+
+Daywise (and Not Tradewise) PNL Tracker:
+1. Stoloss - Day wise stoploss
+2. Target - Day wise Profit
+3. Move to Cost - Once a trade is in profits, if the profits go below this, position is squared off.
+4. Trail After - Once pnl hits this level, trailing starts.
+5. Trailby - After hitting Trail After level, pnl is trailed by this value.
+
+After setting these values, mode mode should be switched from Manual to Auto. Until the levels are touched, 
+minor updates can be done using + / - buttons near the Entry box.
+
+If there are major changes are to be done, mode should be brought back to the Manual mode before 
+setting new values. Radio button selection from manual to Auto will be treated as new beginning 
+and previous levels even though touched are dropped from scanning. 
 
 Note: This app is NOT designed to replace the broker terminal. It only helps in reducing pain point 
 (choosing the strikes and quick entry and exit).  The design goal was to build very simple looking tool and 
