@@ -208,7 +208,7 @@ For example, if first trade results in profit of 1k, then if to secure atleast p
 trade should be 1k. 
 
 Reasoning behind the design: At EOD, it is day wise PNL that matters. As a trick to understand Day wise PNL, 
-imagine there is a stock by the name PNL. This can have movement from SL to Target.
+imagine there is a stock by the name DayWisePNL. This can have movement from SL to Target.
 
 Note: This app is NOT designed to replace the broker terminal. It only helps in reducing pain point 
 (choosing the strikes and quick entry and exit).  The design goal was to build very simple looking tool and 
