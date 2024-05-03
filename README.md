@@ -38,8 +38,9 @@ Following are the features
   Options, quantity is taken interms of lots. Say, 10 lots in 5 legs is required. Then there will be 2 lot per leg, 5 orders are placed. 
 - At square off time, orders are fired at maximum quantity possible. That is it does not follow the ice berg order methodology.
 - Supports app lock/unlock mechanism to avoid accidental clicks.
-- Scale out Mechanism - Provides mechanism of scale out. 
+- Scale out Mechanism 
 - Day wise pnl tracking 
+- Tick Recorder (<span style="font-family: Monaco;">TR</span> in the configuration file)
 
 ## Getting Started
 
