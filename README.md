@@ -272,10 +272,10 @@ powershell -executionpolicy bypass .\ps_scripts\tez_setup.ps1
 powershell -executionpolicy bypass .\ps_scripts\tez.ps1
 ````
 ### App Image for NIFTYBEES
-![Refer](/images/TeZ_App.png)  
+![Refer](/images/)
 
 ### App Image for NIFTY Option (observe bold font)
-![Refer](/images/Tez_NFO.png)
+![Refer](/images/)
 
 ### Console Image 
 ![Refer](/images/records.png)
