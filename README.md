@@ -20,7 +20,7 @@ For a scalper, quick entry and exit is a most useful feature in a trading app. S
 
 Before learning scalping options, it would help to learn in a non-derivative instruments such as NIFTYBEES. This app provides such a mechanism. It provides very simple gui and most of the settings are configured before starting the app. Further, the app provides trading NIFTYBEES while the underlying instrument is still NIFTY index.
 
-The app is expected to be very helpful for traders that are trying to learn scalping.
+The app is helpful for traders that are trying to learn scalping as well as those who use discretionary techniques.
 
 ## Features
 Following are the features
