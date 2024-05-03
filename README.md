@@ -273,7 +273,7 @@ powershell -executionpolicy bypass .\ps_scripts\tez.ps1
 ### App Image for NIFTYBEES (observe normal font, icon - bees, title - TeZ-NSE)
 ![Refer](/images/TeZ_App.png)
 
-### App Image for NIFTY Option (observe normal font, icon - pay_off, title - TeZ-NFO)
+### App Image for NIFTY Option (observe bold font, icon - pay_off, title - TeZ-NFO)
 ![Refer](/images/Tez_NFO.png)
 
 ### Console Image 
