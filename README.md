@@ -143,6 +143,9 @@ SYSTEM:
   ...
 ```
 ## Usage
+Trader requires 2 main UIs Viz., Entry and Trade management. Since these are 2 different operations,
+the UI has been designed to reduce the app space on desktop. Also, the app sits on top of all 
+other running apps. This is useful while entering numbers based on the chart.
 
 On clicking 'Buy' market, in the NSE Exchange (in config file), NIFTYBEES/BANKBEES are bought. 
 On clicking 'Short' market, in the NSE Exchange, NIFTYBEES/BANKBEES are Shorted. 
