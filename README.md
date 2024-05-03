@@ -159,6 +159,8 @@ In case of any failure, user should take manual control.
 
 By having a specific price, system will wait for price to touch or cross over that price for taking position.
 
+Before clicking on Buy or Sell, ensure to have required quantity. For NFO, it is lots.
+
 Order which is waiting for index to cross or touch can be cancelled by specifying in the 
 TM(TradeManager) window. This window appears on clicking TM button. 
 If there are multiple rows, they can be specified as (say 5-9).
