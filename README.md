@@ -40,6 +40,7 @@ Following are the features
   Options, quantity is taken interms of lots. Say, 10 lots in 5 legs is required. Then there will be 2 lot per leg, 5 orders are placed. 
 - At square off time, orders are fired at maximum quantity possible. That is it does not follow the ice berg order methodology.
 - Supports app lock/unlock mechanism to avoid accidental clicks.
+- Scale out Mechanism - Provides mechanism of scale out. 
 
 ## Getting Started
 
@@ -126,7 +127,6 @@ TRADE_DETAILS:
       PROFIT_POINTS: 30                   # Points in Option Price 
       STOPLOSS_POINTS: 10                 # Points in Option Price
       ORDER_PROD_TYPE: 'I'                # I - M'I'S  O - GTT_'O'CO
-      QUANTITY: 1                         #  In lots
       N_LEGS: 1
 
     INST_4:
@@ -164,7 +164,7 @@ If there are multiple rows, they can be specified as (say 5-9, in increasing ord
 
 Partial square off can be achieved by setting slider and clicking on the Partial SqOff Button in TM window.
 Important Note: Partial square off is available only for the ordertype MIS. It is not available for 
-Bracket/OCO order
+Bracket/OCO order This Helps in scaling out the position.
 
 Trade Manager Window - Toggle functionality - when TM window is open, you can hide it by 
 clicking the 'TM' Button again.
