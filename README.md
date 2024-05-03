@@ -210,7 +210,7 @@ Ex 1: if stoploss is -1000 (Observe minus sign):  Whenever mtm touches/goes belo
 
 Ex 2: if target is +2000, pnl touches/goes above +2000, position is squared off.
 
-Ex 3: if move 2 cost is 500, then system waits for mtm to cross 500. Once the price crosses this and then 
+Ex 3: if move to cost is 500, then system waits for mtm to cross 500. Once the price crosses this and then 
 retraces back to 0, then position is squared off.
 
 Ex 4: if Trail after is 1000 and trail by is 200. Once the Trail after level is crossed,  and profits retraces to 800, 
