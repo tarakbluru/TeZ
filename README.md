@@ -271,10 +271,10 @@ powershell -executionpolicy bypass .\ps_scripts\tez_setup.ps1
 # To run the TeZ app while in TeZ folder
 powershell -executionpolicy bypass .\ps_scripts\tez.ps1
 ````
-### App Image for NIFTYBEES
+### App Image for NIFTYBEES (observe normal font, icon - bees, title - Tez-NSE)
 ![Refer](/images/TeZ_App.png)
 
-### App Image for NIFTY Option (observe bold font)
+### App Image for NIFTY Option (observe normal font, icon - bees, title - Tez-NFO)
 ![Refer](/images/Tez_NFO.png)
 
 ### Console Image 
