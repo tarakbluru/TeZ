@@ -41,6 +41,7 @@ Following are the features
 - At square off time, orders are fired at maximum quantity possible. That is it does not follow the ice berg order methodology.
 - Supports app lock/unlock mechanism to avoid accidental clicks.
 - Scale out Mechanism - Provides mechanism of scale out. 
+- Day wise pnl tracking 
 
 ## Getting Started
 
@@ -200,6 +201,14 @@ minor updates can be done using + / - buttons near the Entry box.
 If there are major changes are to be done, mode should be brought back to the Manual mode before 
 setting new values. Radio button selection from manual to Auto will be treated as new beginning 
 and previous levels even though touched are dropped from scanning. 
+
+If the multiple trades are to be taken in a day, the cumulative thresholds should be used. 
+
+For example, if first trade results in profit of 1k, then if to secure atleast profit for the day, SL for next 
+trade should be 1k. 
+
+Reasoning behind the design: At EOD, it is day wise PNL that matters. As a trick to understand Day wise PNL, 
+imagine there is a stock by the name PNL. This can have movement from SL to Target.
 
 Note: This app is NOT designed to replace the broker terminal. It only helps in reducing pain point 
 (choosing the strikes and quick entry and exit).  The design goal was to build very simple looking tool and 
