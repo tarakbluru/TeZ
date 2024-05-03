@@ -190,8 +190,8 @@ Behaviour of Auto in strike and expiry date selection in config file
 2. When strike offset configuration is Auto,  Except on 1DTE, strikes are at ATM. 
 	On 1DTE, ITM by one strike is selelected. Objective for this is to avoid theta decay.
 	
-However, User can overridde by making config Manual and also specifying the offset in the 
-INSTRUMENT details.
+However, User can override by making config Manual and also specifying the offset in the 
+INSTRUMENT details (eg., [Here](data/sys_cfg.yml#L117)).
 
 Daywise (and Not Tradewise) PNL Tracker:
 1. Stoloss - Day wise stoploss
