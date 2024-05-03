@@ -149,7 +149,7 @@ class OCPU(object):
                     return None
                 else:
                     logger.debug (f"qty: {initial_qty} {json.dumps(r, indent=2)}")
-                    if r and r['stat'] == 'Ok' and r['remarks'] == "Order Success":
+                    if r and r['stat'] == 'Ok' and ((r['remarks'] == "Order Success") or (r['remarks'] == 'Squareoff Order')):
                         return initial_qty
 
                 # Start with initial_qty and reduce it by half iteratively
@@ -164,9 +164,12 @@ class OCPU(object):
                         return None
                     else:
                         logger.debug (f"qty: {qty} {json.dumps(r, indent=2)}")
-                        if r and r['stat'] == 'Ok' and r['remarks'] == "Order Success":
+                        if r and r['stat'] == 'Ok' and ((r['remarks'] == "Order Success") or (r['remarks'] == 'Squareoff Order')):
                             break
                     qty //= 2
+
+                if not qty:
+                    return qty
 
                 # Perform binary search within the range [qty, initial_qty] to find the optimum qty
                 low = qty
@@ -184,7 +187,7 @@ class OCPU(object):
                     else:
                         logger.debug (f"qty: {mid} {json.dumps(r, indent=2)}")
                         if r and r['stat'] == 'Ok' :
-                            if r['remarks'] == "Order Success":
+                            if ((r['remarks'] == "Order Success") or (r['remarks'] == 'Squareoff Order')):
                                 low = mid + 1
                             else:
                                 high = mid - 1

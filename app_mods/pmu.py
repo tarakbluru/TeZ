@@ -160,11 +160,11 @@ class PriceMonitoringUnit:
     def register_callback(self, token:str, cond_obj):
         with self.lock:
             self.conditions[token].append(cond_obj)
-            logger.debug(f'Token: {token} Registered: {cond_obj.cb_id} {cond_obj}')
+            logger.debug(f'Token: {token} Registered: {cond_obj.cb_id} {cond_obj} no.of conditions: {len(self.conditions[token])}')
 
     def unregister_callback(self, token:str, callback_id):
-        with self.lock:
-            if token:
+        if token:
+            with self.lock:
                 self.conditions[token] = [cond_ds for cond_ds in self.conditions[token] if cond_ds.cb_id != callback_id]
                 logger.debug(f'Token: {token} Un Registered: {callback_id}')
 
@@ -251,6 +251,7 @@ class PriceMonitoringUnit:
                             except Exception as e :
                                 logger.error("Exception during queue read"+str(e))
                             else :
+                                logger.debug (f'processing : {ohlc.tk}:  {ohlc.ft}')
                                 token = str(ohlc.tk)
                                 unix_epoch_time = int(time.time())
                                 try:
@@ -284,12 +285,11 @@ class PriceMonitoringUnit:
                                                 if prev_tick_lvl is not None:
                                                     if prev_tick_lvl < cond_obj.wait_price_lvl and ltp_level >= cond_obj.wait_price_lvl:
                                                         fn = cond_obj.callback_function
-                                                        logger.debug (f'prev_tick_lvl: {prev_tick_lvl} wait_price_lvl: {cond_obj.wait_price_lvl} ltp_level: {ltp_level} Triggered ft: {ohlc.ft}')
+                                                        logger.debug (f'{cond_obj.cb_id}: prev_tick_lvl: {prev_tick_lvl} wait_price_lvl: {cond_obj.wait_price_lvl} ltp_level: {ltp_level} Triggered ft: {ohlc.ft}')
                                                     if fn is None and prev_tick_lvl > cond_obj.wait_price_lvl and ltp_level <= cond_obj.wait_price_lvl:
                                                         fn = cond_obj.callback_function
-                                                        logger.debug (f'prev_tick_lvl: {cond_obj.prev_tick_lvl} wait_price_lvl: {cond_obj.wait_price_lvl} ltp_level: {ltp_level} Triggered ft: {ohlc.ft}')
-                                                
-                                                if fn:
+                                                        logger.debug (f'{cond_obj.cb_id}: prev_tick_lvl: {cond_obj.prev_tick_lvl} wait_price_lvl: {cond_obj.wait_price_lvl} ltp_level: {ltp_level} Triggered ft: {ohlc.ft}')
+                                                if fn is not None:
                                                     fn(cond_obj.cb_id, ohlc.ft)
                                                     rem_list.append(cond_obj)
                                                 else:
@@ -297,7 +297,7 @@ class PriceMonitoringUnit:
 
                                             if len(rem_list):
                                                 self.conditions[token] = [cond_obj for cond_obj in conditions if cond_obj not in rem_list]
-                                                logger.info (f'Updated the list : {len(self.conditions[token])}')
+                                                logger.info (f'Updated list : {len(self.conditions[token])}')
                                                 for condition in self.conditions[token]:
                                                     logger.debug(condition)
                             finally :
@@ -315,4 +315,4 @@ class PriceMonitoringUnit:
 
         logger.info (f'Exiting Thread: {t_name}')
         return
-
+    
