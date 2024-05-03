@@ -193,15 +193,33 @@ Behaviour of Auto in strike and expiry date selection in config file
 However, User can override by making config Manual and also specifying the offset in the 
 INSTRUMENT details (eg., [Here](data/sys_cfg.yml#L117)).
 
-Daywise (and Not Tradewise) PNL Tracker:
+Daywise (and Not Tradewise) PNL Tracker: This tracks the mtm position for Intraday traded instruments
+taken through this app.
+
 1. Stoloss - Day wise stoploss
 2. Target - Day wise Profit
-3. Move to Cost - Once a trade is in profits, if the profits go below this, position is squared off.
+3. Move to Cost - Once a trade is in profits, if the profits goes above this and then goes back to 0, position is squared off.
 4. Trail After - Once pnl hits this level, trailing starts.
 5. Trailby - After hitting Trail After level, pnl is trailed by this value.
 
 After setting these values, mode mode should be switched from Manual to Auto. Until the levels are touched, 
 minor updates can be done using + / - buttons near the Entry box.
+
+Examples:
+Ex 1: if stoploss is -1000 (Observe minus sign):  Whenever mtm touches/goes below -1000, position is squared off.
+
+Ex 2: if target is +2000, pnl touches/goes above +2000, position is squared off.
+
+Ex 3: if move 2 cost is 500, then system waits for mtm to cross 500. Once the price crosses this and then 
+retraces back to 0, then position is squared off.
+
+Ex 4: if Trail after is 1000 and trail by is 200. Once the Trail after level is crossed,  and profits retraces to 800, 
+then position is squared off. Instead of retracing if it goes above 1000, then (1000-trail_by) level is monitored. 
+Whenever it goes below this, position is squared off. 
+
+Scanning frequency : once every sec.  Current version of the system uses get position every sec. In future release, I might  
+use the websocket feed for calculating the pnl while using get position at lower frequency. If the design is totally dependent on 
+websocket and websocket feed fails, it will be a major issue.
 
 If there are major changes are to be done, mode should be brought back to the Manual mode before 
 setting new values. Radio button selection from manual to Auto will be treated as new beginning 
