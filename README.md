@@ -31,7 +31,7 @@ Following are the features
 - Feed can be obtained from one Finvasia a/c and trading can be done in another a/c. This will be helpful, if you have already 
   running algos using websocket.
 - Also has feature to get the session ID from a google sheet. This helps in using the session that is running on a cloud machine.
-- System square off happens at pre-defined Time (<span style="font-family: console;">SQ_OFF_TIMING</span> in the configuration file).
+- System square off happens at pre-defined Time (```SQ_OFF_TIMING``` in the configuration file).
 - Default order type is Bracket order for NIFTY and BANKBEES. OCO order type can be chosen by setting configuration.
 - Supports Option buying. When you buy Market, CE are bought and when you sell Market, PE are bought. These trades happen at Market prices.
 - Supports Order slicing. Say quantity of 1000 niftybees is to be sliced into 10 orders, then 100 qty, 10 orders are placed. In case of 
@@ -40,7 +40,7 @@ Following are the features
 - Supports app lock/unlock mechanism to avoid accidental clicks.
 - Scale out Mechanism 
 - Day wise pnl tracking 
-- Tick Recorder (<span style="font-family: console;">TR</span> in the configuration file)
+- Tick Recorder (```TR``` in the configuration file)
 
 ## Getting Started
 
