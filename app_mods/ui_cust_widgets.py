@@ -279,7 +279,7 @@ class PNL_Window (tk.Frame):
         self.label = tk.Label(master=master, text='All Values in INR', width=15, font=("Arial", 10), justify="left")
         self.label.grid(row=1, column=2, padx=5, pady=5, sticky='w')
 
-        self.mvto_cost = EntryWithButtons(master=master, label="Mv2Cst@:", init_value=300, min_value=0)
+        self.mvto_cost = EntryWithButtons(master=master, label="Mv2Cost:", init_value=300, min_value=0)
         self.mvto_cost.grid(row=2, column=0, padx=5, pady=5, sticky='w')
 
         self.trail_after = EntryWithButtons(master=master, label="Trail_After:", init_value=400, min_value=0)
