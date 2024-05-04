@@ -32,7 +32,7 @@ Following are the features
   running algos using websocket.
 - Also has feature to get the session ID from a google sheet. This helps in using the session that is running on a cloud machine.
 - System square off happens at pre-defined Time (```SQ_OFF_TIMING``` in the configuration file [Here](data/sys_cfg.yml#L155)).
-- Default order type is Bracket order for NIFTY and BANKBEES. OCO order type can be chosen by setting configuration.
+- Default order type is MIS. OCO order type can be chosen by setting configuration.
 - Supports Option buying. When you buy Market, CE are bought and when you sell Market, PE are bought. These trades happen at Market prices.
 - Supports Order slicing. Say quantity of 1000 niftybees is to be sliced into 10 orders, then 100 qty, 10 orders are placed. In case of 
   Options, quantity is taken interms of lots. Say, 10 lots in 5 legs is required. Then there will be 2 lot per leg, 5 orders are placed. 
