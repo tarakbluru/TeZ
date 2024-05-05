@@ -18,9 +18,9 @@ This project provides all necessary scripts to run the app. As the code is modul
 
 For a scalper, quick entry and exit is a most useful feature in a trading app. Scalpers generally tend to trade in 1 or 2 instruments. So, if the app can be pre-configured for trades in those instruments, that will also be helpful.
 
-Before learning scalping options, it would help to learn in a non-derivative instruments such as NIFTYBEES. This app provides such a mechanism. It provides very simple gui and most of the settings are configured before starting the app. Further, the app provides trading NIFTYBEES while the underlying instrument is still NIFTY index.
+Before learning scalping options, it would help to learn in a non-derivative index instruments such as NIFTY/BANKBEES. This app provides such a mechanism. It provides very simple gui and most of the settings are configured before starting the app. Further, the app provides trading NIFTY/BANKBEES while the underlying instrument is still NIFTY index.
 
-The app is helpful for traders that are trying to learn scalping as well as those who use discretionary techniques.
+The app is helpful for traders that are trying to learn scalping as well as those who use discretionary techniques for trading options.
 
 ## Features
 Following are the features
