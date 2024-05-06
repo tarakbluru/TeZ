@@ -589,8 +589,25 @@ class PFMU:
                         order = I_S_MKT_Order(tradingsymbol=tsym, quantity=per_leg_exit_qty, exchange=exchange)
                     if b_or_s == 'B':
                         order = I_B_MKT_Order(tradingsymbol=tsym, quantity=per_leg_exit_qty, exchange=exchange)
-
                 logger.info (f'order:{str(order)}')
+
+                try:
+                    r = self.tiu.get_order_margin(buy_or_sell=b_or_s, exchange=exchange,
+                                                product_type='I', tradingsymbol=tsym, 
+                                                quantity=per_leg_exit_qty, price_type='MKT', price=0.0)
+                except Exception as e:
+                    logger.error (f'Exception occured {repr(e)}')
+                    return None
+                else:
+                    logger.debug (f"qty: {per_leg_exit_qty} {json.dumps(r, indent=2)}")
+                    if r and r['stat'] == 'Ok':
+                        if (r['remarks'] == 'Squareoff Order'):
+                            logger.debug (f'square_off_qty: {per_leg_exit_qty}')
+                        else :
+                            logger.error (f'Qty to square off > in Position: Take Manual Control: {per_leg_exit_qty} {r["remarks"]} ')
+                            break
+                    else :
+                        logger.info (f'Trying to Square off without checking Order Margin')
 
                 r = self.tiu.place_order(order)
                 if r is None:
@@ -1006,7 +1023,8 @@ class PFMU:
         if df is None or df.empty:
             return mtm
         try:
-            df_filtered = df[(df['Qty'] != 0) & (df['Status'] == 'SUCCESS')].copy()
+            # Some times partial orders are filled. In such cases also, it should be tracked. 
+            df_filtered = df[(df['Qty'] != 0) & ((df['Status'] == 'SUCCESS')| (df['Status'] == 'SOFT_FAILURE_QTY'))].copy()
             df_filtered['token'] = df_filtered['TradingSymbol_Token'].str.split('_').str[-1]
             unique_tokens_df = df_filtered[['token']].drop_duplicates()
         except Exception:
