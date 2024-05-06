@@ -166,7 +166,10 @@ class OCPU(object):
                         logger.debug (f"qty: {qty} {json.dumps(r, indent=2)}")
                         if r and r['stat'] == 'Ok' and ((r['remarks'] == "Order Success") or (r['remarks'] == 'Squareoff Order')):
                             break
+
                     qty //= 2
+                    if not qty:
+                        break
 
                 if not qty:
                     return qty

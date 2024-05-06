@@ -568,7 +568,7 @@ class PFMU:
         else:
             logger.info(f'Not able to fetch the positions. Check manually')
 
-    def square_off_position(self, mode, ul_index: str = None, per: float = 100, inst_type: str = None, partial_exit: bool = False):
+    def square_off_position(self, mode, ul_index: str = None, per: float = 100, inst_type: str = None, partial_exit: bool = False, exit_flag=True):
 
         def place_sq_off_order(tsym: str, b_or_s: str, exit_qty: int, ls: int, frz_qty: int, exchange='NSE'):
             nonlocal self
@@ -986,7 +986,7 @@ class PFMU:
             # System Square off - At square off time
             try:
                 if self.limit_order_cfg:
-                    self.cancel_all_waiting_orders(exit_flag=True, show_table=False)
+                    self.cancel_all_waiting_orders(exit_flag=exit_flag, show_table=False)
                 __square_off_position__(df=df)
                 with self.pf_lock:
                     self.portfolio.verify_reset()
@@ -1121,7 +1121,7 @@ class PFMU:
                         ...
 
             if sq_off:
-                self.square_off_position (mode='ALL', ul_index=None, per=100, inst_type='ALL', partial_exit=False)
+                self.square_off_position (mode='ALL', ul_index=None, per=100, inst_type='ALL', partial_exit=False, exit_flag=False)
                 self.show()
                 ate.sq_off_done = True
         return ate
