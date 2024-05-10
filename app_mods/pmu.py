@@ -72,7 +72,7 @@ class PriceMonitoringUnit:
     __count = 0
     __componentType = Component_Type.ACTIVE 
     DATAFEED_TIMEOUT:float = 20.0
-    SYS_MONITOR_MAX_COUNT:int = 15    
+    SYS_MONITOR_MAX_COUNT:int = 30    
 
     def __init__(self, pmu_cc: PMU_CreateConfig):
         logger.debug ("PMU initialization ...")
@@ -234,12 +234,17 @@ class PriceMonitoringUnit:
                 logger.error("Event Exception "+str(e))
             else :
                 sys_monitor_cnt -= 1
-                if sys_monitor_cnt == 0 and self._send_hb:
-                    if sys_monitor is not None:
-                        sys_monitor.i_am_live(f'{id}')
-                    logger.debug(f'{id} - Alive')
+
+                if not sys_monitor_cnt:
+                    log_proc = True
+                    if self._send_hb:
+                        if sys_monitor is not None:
+                            sys_monitor.i_am_live(f'{id}')
+                        logger.debug(f'{id} - Alive')
                     sys_monitor_cnt = PriceMonitoringUnit.SYS_MONITOR_MAX_COUNT
-                
+                else:
+                    log_proc = False
+
                 if evt_flag:
                     evt.clear()
                     if ((nelem:= q.qsize()) > 0) :
@@ -251,7 +256,9 @@ class PriceMonitoringUnit:
                             except Exception as e :
                                 logger.error("Exception during queue read"+str(e))
                             else :
-                                logger.debug (f'processing : {ohlc.tk}:  {ohlc.ft}')
+                                if log_proc:
+                                    logger.debug (f'processing : {ohlc.tk}:  {ohlc.ft}')
+                                    log_proc = False
                                 token = str(ohlc.tk)
                                 unix_epoch_time = int(time.time())
                                 try:

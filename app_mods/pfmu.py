@@ -244,12 +244,15 @@ class PFMU_CreateConfig:
 class PFMU:
     __count = 0
     __componentType = Component_Type.ACTIVE
+    AUTO_TRAILER_PROC_MAX_COUNT = 15
 
     def __init__(self, pfmu_cc: PFMU_CreateConfig):
         logger.info(f'{PFMU.__count}: Creating PFMU Object..')
         self.inst_id = f'{self.__class__.__name__}:{PFMU.__count}'
         PFMU.__count += 1
         
+        self.auto_trailer_proc_cnt = PFMU.AUTO_TRAILER_PROC_MAX_COUNT
+
         self.pf_lock = Lock()
 
         self.tiu = pfmu_cc.tiu
@@ -1056,6 +1059,11 @@ class PFMU:
         return mtm
     
     def auto_trailer(self, atd: AutoTrailerData|None=None):
+
+        self.auto_trailer_proc_cnt -= 1
+        if not self.auto_trailer_proc_cnt:
+            logger.debug (f'Auto Trailer - Live ')
+            self.auto_trailer_proc_cnt = PFMU.AUTO_TRAILER_PROC_MAX_COUNT
 
         if atd and atd.ui_reset:
             self.mov_to_cost_state = MOVE_TO_COST_STATE.WAITING_UP_CROSS

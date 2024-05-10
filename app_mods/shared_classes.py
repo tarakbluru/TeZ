@@ -32,7 +32,7 @@ try:
     import json
     import re
     from dataclasses import dataclass, field
-    from enum import Enum
+    from enum import Enum, auto
     from threading import Event
     from typing import NamedTuple, Optional, Union
 
@@ -43,6 +43,9 @@ except Exception as e:
     logger.error(("Import Error " + str(e)))
     sys.exit(1)
 
+class Status(Enum):
+    FAILURE = 0
+    SUCCESS = auto()
 
 @dataclass(slots=True)
 class TickData (object):

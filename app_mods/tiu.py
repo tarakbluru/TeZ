@@ -740,90 +740,103 @@ class Tiu (BaseIU):
                     reason2 = "margin"
                     reason3 = 'RMS: Auto Square Off Block'.lower()  # TO BE TESTED
                     for check_cnt in range(0, Tiu.CONFIRM_COUNT):
-                        r_os_list = self.fv.single_order_history(order_id)
+                        try:
+                            r_os_list = self.fv.single_order_history(order_id)
+                        except json.decoder.JSONDecodeError:
+                            logger.error (f'{str(e)}')
+                        except Exception as e:
+                            logger.error (f'{str(e)}')
+                        else:
+                            # Shoonya gives a list for all status of order, we are interested in first one
+                            r_os_dict = r_os_list[0]
 
-                        # Shoonya gives a list for all status of order, we are interested in first one
-                        r_os_dict = r_os_list[0]
+                            # Different stages of the order
+                            # PENDING
+                            # CANCELED
+                            # OPEN
+                            # REJECTED
+                            # COMPLETE
+                            # TRIGGER_PENDING
+                            # INVALID_STATUS_TYPE
 
-                        # Different stages of the order
-                        # PENDING
-                        # CANCELED
-                        # OPEN
-                        # REJECTED
-                        # COMPLETE
-                        # TRIGGER_PENDING
-                        # INVALID_STATUS_TYPE
+                            # logger.debug(f'{tag}: order status: {r_os_dict["status"]} {json.dumps(r_os_dict,indent=2)}')
+                            logger.debug(f'{tag}: order_id: {order_id} order status: {r_os_dict["status"]}')
 
-                        # logger.debug(f'{tag}: order status: {r_os_dict["status"]} {json.dumps(r_os_dict,indent=2)}')
-                        logger.debug(f'{tag}: order_id: {order_id} order status: {r_os_dict["status"]}')
-
-                        if r_os_dict['status'].lower() == 'rejected':
-                            rej_reason = r_os_dict['rejreason'].lower()
-                            if rej_reason.find(reason1) != -1:
-                                status = Tiu_OrderStatus.SOFT_FAILURE_REJRMS
-                                break
-                            elif rej_reason.find(reason2) != -1:
-                                status = Tiu_OrderStatus.SOFT_FAILURE_REJRMS
-                                break
-                            elif rej_reason.find(reason3) != -1:
-                                status = Tiu_OrderStatus.SOFT_FAILURE_REJRMS
-                                break
-                            else:
-                                break
-                        filled_qty = 0
-                        if 'fillshares' in r_os_dict:
-                            filled_qty = int(r_os_dict['fillshares'])
-                            unfilled_qty = qty - filled_qty
-                            if r_os_dict["status"].lower() == "complete":
-                                avg_price = float(r_os_dict['avgprc'])
-                                order_id = r_os_dict['norenordno']
-                                fill_timestamp = r_os_dict['exch_tm']
-                                if filled_qty == qty:
-                                    ord_status.avg_price = avg_price
-                                    ord_status.trantype = order.buy_or_sell
-                                    if order.buy_or_sell == 'B':
-                                        ord_status.fillshares = filled_qty
-                                    else:
-                                        ord_status.fillshares = -(filled_qty)
-                                    ord_status.fill_timestamp = fill_timestamp
-                                    # ord_resp = OrderResp(avg_price=avg_price, order_id=order_id, quantity=qty, ft=fill_timestamp)
-                                    status = Tiu_OrderStatus.SUCCESS
+                            if r_os_dict['status'].lower() == 'rejected':
+                                rej_reason = r_os_dict['rejreason'].lower()
+                                if rej_reason.find(reason1) != -1:
+                                    status = Tiu_OrderStatus.SOFT_FAILURE_REJRMS
+                                    break
+                                elif rej_reason.find(reason2) != -1:
+                                    status = Tiu_OrderStatus.SOFT_FAILURE_REJRMS
+                                    break
+                                elif rej_reason.find(reason3) != -1:
+                                    status = Tiu_OrderStatus.SOFT_FAILURE_REJRMS
                                     break
                                 else:
+                                    break
+                            filled_qty = 0
+                            if 'fillshares' in r_os_dict:
+                                filled_qty = int(r_os_dict['fillshares'])
+                                unfilled_qty = qty - filled_qty
+                                if r_os_dict["status"].lower() == "complete":
+                                    avg_price = float(r_os_dict['avgprc'])
+                                    order_id = r_os_dict['norenordno']
+                                    fill_timestamp = r_os_dict['exch_tm']
+                                    if filled_qty == qty:
+                                        ord_status.avg_price = avg_price
+                                        ord_status.trantype = order.buy_or_sell
+                                        if order.buy_or_sell == 'B':
+                                            ord_status.fillshares = filled_qty
+                                        else:
+                                            ord_status.fillshares = -(filled_qty)
+                                        ord_status.fill_timestamp = fill_timestamp
+                                        # ord_resp = OrderResp(avg_price=avg_price, order_id=order_id, quantity=qty, ft=fill_timestamp)
+                                        status = Tiu_OrderStatus.SUCCESS
+                                        break
+                                    else:
+                                        ...
+                                elif unfilled_qty:
                                     ...
-                            elif unfilled_qty:
-                                ...
-                            else:
-                                ...
-                            logger.debug(f'{tag}: {check_cnt}: {unfilled_qty} Sleeping for {Tiu.CONFIRM_SLEEP_PERIOD} secs')
+                                else:
+                                    ...
+                                logger.debug(f'{tag}: {check_cnt}: {unfilled_qty} Sleeping for {Tiu.CONFIRM_SLEEP_PERIOD} secs')
                         time.sleep(Tiu.CONFIRM_SLEEP_PERIOD)
                     else:  # This else is included with the FOR statement above
                         # Not filled even after few secs.
                         cancel_r_dict = self.fv.cancel_order(order_id)
                         if cancel_r_dict and cancel_r_dict["stat"] == "Ok":
-                            r_os_list = self.fv.single_order_history(order_id)
-                            # Shoonya gives a list for all status of order, we are interested in first one
-                            r_os_dict = r_os_list[0]
-                            filled_qty = 0
-                            if 'fillshares' in r_os_dict:
-                                filled_qty = int(r_os_dict['fillshares'])
-
-                            if filled_qty:
-                                fill_timestamp = r_os_dict['exch_tm']
-                                avg_price = 0
-                                if 'avgprc' in r_os_dict:
-                                    avg_price = float(r_os_dict['avgprc'])
-
-                                ord_status.avg_price = avg_price
-                                if order.buy_or_sell == 'B':
-                                    ord_status.fillshares = filled_qty
-                                else:
-                                    ord_status.fillshares = -(filled_qty)
-                                ord_status.fill_timestamp = fill_timestamp
-                                # ord_resp = OrderResp(avg_price=avg_price, order_id=order_id, quantity=filled_qty, ft=fill_timestamp)
-                                status = Tiu_OrderStatus.SUCCESS if filled_qty == qty else Tiu_OrderStatus.SOFT_FAILURE_QTY
-                            else:
+                            try:
+                                r_os_list = self.fv.single_order_history(order_id)
+                            except json.decoder.JSONDecodeError:
+                                logger.error (f'{str(e)}')
                                 status = Tiu_OrderStatus.HARD_FAILURE
+                            except Exception as e:
+                                logger.error (f'{str(e)}')
+                                status = Tiu_OrderStatus.HARD_FAILURE
+                            else:                            
+                                # Shoonya gives a list for all status of order, we are interested in first one
+                                r_os_dict = r_os_list[0]
+                                filled_qty = 0
+                                if 'fillshares' in r_os_dict:
+                                    filled_qty = int(r_os_dict['fillshares'])
+
+                                if filled_qty:
+                                    fill_timestamp = r_os_dict['exch_tm']
+                                    avg_price = 0
+                                    if 'avgprc' in r_os_dict:
+                                        avg_price = float(r_os_dict['avgprc'])
+
+                                    ord_status.avg_price = avg_price
+                                    if order.buy_or_sell == 'B':
+                                        ord_status.fillshares = filled_qty
+                                    else:
+                                        ord_status.fillshares = -(filled_qty)
+                                    ord_status.fill_timestamp = fill_timestamp
+                                    # ord_resp = OrderResp(avg_price=avg_price, order_id=order_id, quantity=filled_qty, ft=fill_timestamp)
+                                    status = Tiu_OrderStatus.SUCCESS if filled_qty == qty else Tiu_OrderStatus.SOFT_FAILURE_QTY
+                                else:
+                                    status = Tiu_OrderStatus.HARD_FAILURE
                         else:
                             status = Tiu_OrderStatus.HARD_FAILURE
 

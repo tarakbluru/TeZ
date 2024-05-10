@@ -20,7 +20,7 @@ __email__ = "tarakesh.nc_at_google_mail_dot_com"
 __license__ = "MIT"
 __maintainer__ = "Tarak"
 __status__ = "Development"
-__version__ = "0.7.0_TC11"
+__version__ = "0.7.0_TC12"
 
 import sys
 import traceback
@@ -58,6 +58,12 @@ g_pnl_window = None
 
 g_window_state_flag=None
 g_SYSTEM_FEATURE_CONFIG = None
+
+def show_exception(exc_type, exc_value, exc_traceback):
+    # Format the exception into a string
+    error_message = ''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+    # Display the error message in a messagebox
+    tk.messagebox.showerror("Error", f"An error occurred:\n{error_message}")
 
 def subwindow_exposure_cb (current_value, **kwargs):
     logger.info(json.dumps(kwargs, indent=4) + f" {current_value}")
@@ -791,6 +797,9 @@ def main():
         ...
     g_root = gui_tk_layout()
     g_trade_manager_window = None
+
+    # Set the custom exception hook to the show_exception function
+    sys.excepthook = show_exception
 
     try:
         g_root.mainloop()
