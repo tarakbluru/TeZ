@@ -266,6 +266,7 @@ class PNL_Window (tk.Frame):
         self._cb:None|Callable = None
         self._cb_running = False
         self._cb_running_lock = threading.Lock()
+        self.cb_ts = None
 
         title = tk.Label(master=master, text='DayWise PNL Tracker', font=('Arial', 12, "bold"))
         title.grid(row=0, column=1, padx=5, pady=5, sticky='w')
@@ -319,10 +320,10 @@ class PNL_Window (tk.Frame):
         # Schedule scanning and printing function
         self.scan_and_print_values()
 
-    def set_value(self, new_value):
+    def set_cb_value(self, new_value:Callable):
         self._cb = new_value
     
-    cb = property(None, set_value)
+    cb = property(None, set_cb_value)
 
     def __on_radio_button_selected__(self):
         with self.lock:
@@ -340,7 +341,7 @@ class PNL_Window (tk.Frame):
                 self.mvto_cost.enable_entry()
                 self.trail_after.enable_entry()
                 self.trail_by.enable_entry()
-            logger.debug(f"Selected option: {self.radio_var.get()}")    
+            logger.debug(f"Selected option: {self.radio_var.get()} callback last timestamp: {self.cb_ts}")
 
     def ui_update_sys_sq_off (self):
         self.radio_var_local = 'Manual'
@@ -357,12 +358,14 @@ class PNL_Window (tk.Frame):
 
         with self._cb_running_lock:
             if self._cb_running: 
+                logger.debug (f'cb_running: ..callback last timestamp: {self.cb_ts}')
                 return
             self._cb_running = True
 
         # Function to retrieve values and print them
         try:
-            if self._cb:
+            self.cb_ts = datetime.datetime.now()
+            if self._cb is not None:
                 if self.radio_var.get() == 'Auto':            
                     # print(f"now: {datetime.datetime.now()}: SL: {sl_value}, Target: {target_value}, Mv2Cst: {mvto_cost_value}, Trail_After: {trail_after_value}, Trail_by: {trail_by_value}")
                     
@@ -416,8 +419,14 @@ class PNL_Window (tk.Frame):
                     self.radio_var_local = 'Manual'
                     ate = self._cb (None)
                     self.pnl_value_label.config(text=f'{ate.pnl:.2f}')
+        
+        except Exception as e:
+            logger.error (f'Exception occured : {str(e)}')
+            logger.debug(traceback.format_exc())
+
         finally:
-            self._cb_running = False
+            with self._cb_running_lock: 
+                self._cb_running = False
 
         # Schedule to run again after 1000 ms (1 second)
         self.after(1000, self.scan_and_print_values)
