@@ -23,7 +23,7 @@ try:
     import tkinter as tk
     from dataclasses import dataclass
     import threading 
-    from tkinter import ttk
+    from tkinter import ttk, messagebox
     from typing import Callable, List
 
     from .shared_classes import AutoTrailerData, AutoTrailerEvent, UI_State
@@ -190,9 +190,24 @@ class EntryWithButtons(tk.Frame):
 
         self.min_value = min_value
 
+        def validate_entry(event):
+            nonlocal self
+            entry_text = self.entry.get()
+            if entry_text.count('-') > 1:
+                # If more than one negative sign is present, remove the last one entered
+                entry_text = entry_text[:-1]
+                self.entry.delete(0, tk.END)
+                self.entry.insert(0, entry_text)
+            if '+' in entry_text:
+                # If a positive sign is found, remove it
+                entry_text = entry_text.replace('+', '')
+                self.entry.delete(0, tk.END)
+                self.entry.insert(0, entry_text)            
+
         # Create entry box
         self.entry = ttk.Entry(self,width=9)
         self.entry.grid(row=0, column=2, padx=1)
+        self.entry.bind("<KeyRelease>", validate_entry)
 
         # Create plus button
         self.plus_button = ttk.Button(self, text="+", width=1)
@@ -267,6 +282,7 @@ class PNL_Window (tk.Frame):
         self._cb_running = False
         self._cb_running_lock = threading.Lock()
         self.cb_ts = None
+        self.error_shown = False
 
         title = tk.Label(master=master, text='DayWise PNL Tracker', font=('Arial', 12, "bold"))
         title.grid(row=0, column=1, padx=5, pady=5, sticky='w')
@@ -419,7 +435,12 @@ class PNL_Window (tk.Frame):
                     self.radio_var_local = 'Manual'
                     ate = self._cb (None)
                     self.pnl_value_label.config(text=f'{ate.pnl:.2f}')
-        
+            self.error_shown = False
+        except tk.TclError as e:
+            if not self.error_shown:
+                messagebox.showerror("Error", f"A TclError occurred: {e}")
+                self.error_shown = True
+
         except Exception as e:
             logger.error (f'Exception occured : {str(e)}')
             logger.debug(traceback.format_exc())
