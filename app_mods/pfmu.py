@@ -1120,11 +1120,11 @@ class PFMU:
                     case TRAIL_SL_STATE.TRAIL_STARTED:
                         if pnl > self.max_pnl:
                             self.max_pnl = pnl
-                        price_low_th = self.max_pnl - atd.trail_by
-                        if pnl <= price_low_th:
+                        pnl_th = self.max_pnl - atd.trail_by
+                        if pnl_th > 0 and pnl <= pnl_th:
                             self.trail_sl_state = TRAIL_SL_STATE.TRAIL_SL_HIT
                             sq_off = True
-                            logger.info (f'trail_sl_state - {price_low_th:.2f} hit {TRAIL_SL_STATE.TRAIL_STARTED.name} -> {TRAIL_SL_STATE.TRAIL_SL_HIT.name}')
+                            logger.info (f'trail_sl_state - max_pnl: {self.max_pnl:.2f} trail_by: {atd.trail_by:.2f} {pnl_th:.2f} hit {TRAIL_SL_STATE.TRAIL_STARTED.name} -> {TRAIL_SL_STATE.TRAIL_SL_HIT.name}')
                     case _:
                         ...
 
