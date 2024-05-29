@@ -200,6 +200,7 @@ class OCPU(object):
             logger.debug (f'qty_within_margin: {qty_within_margin}')
             if qty_within_margin:
                 qty = qty_within_margin
+                qty = int(qty / ls) * ls  # Important as above value will not be a multiple of lot
             else :
                 margin = self.tiu.avlble_margin
                 if margin < (ltp * 1.1 * qty):
