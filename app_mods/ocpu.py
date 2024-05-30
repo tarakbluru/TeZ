@@ -138,8 +138,10 @@ class OCPU(object):
 
             prod_type = 'I' if inst_info.order_prod_type == 'O' else inst_info.order_prod_type
 
-            def find_optimum_qty(initial_qty):
+            def find_optimum_qty(initial_qty, ls):
                 # Check if initial_qty results in "Order Success"
+                initial_qty = (initial_qty // ls) * ls
+                
                 try:
                     r = tiu.get_order_margin(buy_or_sell=buy_or_sell, exchange=exch,
                                                 product_type=prod_type, tradingsymbol=tsym, 
@@ -152,9 +154,10 @@ class OCPU(object):
                     if r and r['stat'] == 'Ok' and ((r['remarks'] == "Order Success") or (r['remarks'] == 'Squareoff Order')):
                         return initial_qty
 
-                # Start with initial_qty and reduce it by half iteratively
                 qty = initial_qty
+                itrn_cnt = 0
                 while True:
+                    itrn_cnt += 1
                     try:
                         r = tiu.get_order_margin(buy_or_sell=buy_or_sell, exchange=exch,
                                                     product_type=prod_type, tradingsymbol=tsym, 
@@ -163,23 +166,23 @@ class OCPU(object):
                         logger.error (f'Exception occured {repr(e)}')
                         return None
                     else:
-                        logger.debug (f"qty: {qty} {json.dumps(r, indent=2)}")
+                        logger.debug (f"itrn_cnt: {itrn_cnt} qty: {qty} {json.dumps(r, indent=2)}")
                         if r and r['stat'] == 'Ok' and ((r['remarks'] == "Order Success") or (r['remarks'] == 'Squareoff Order')):
                             break
-
                     qty //= 2
                     if not qty:
                         break
-
+                
                 if not qty:
                     return qty
 
-                # Perform binary search within the range [qty, initial_qty] to find the optimum qty
                 low = qty
-                high = (qty * 2) + 1
-
+                high = ((qty * 2) // ls) * ls
+                logger.debug (f'qty:{qty} low:{low} high:{high}')
+                itrn_cnt = 0
                 while low <= high:
-                    mid = (low + high) // 2
+                    itrn_cnt += 1
+                    mid = ((low + high) // 2 // ls) * ls	
                     try:
                         r = tiu.get_order_margin(buy_or_sell=buy_or_sell, exchange=exch,
                                                     product_type=prod_type, tradingsymbol=tsym, 
@@ -188,19 +191,18 @@ class OCPU(object):
                         logger.error (f'Exception occured {repr(e)}')
                         return None
                     else:
-                        logger.debug (f"qty: {mid} {json.dumps(r, indent=2)}")
+                        logger.debug (f"itrn_cnt: {itrn_cnt} qty: {mid} {json.dumps(r, indent=2)}")
                         if r and r['stat'] == 'Ok' :
                             if ((r['remarks'] == "Order Success") or (r['remarks'] == 'Squareoff Order')):
-                                low = mid + 1
+                                low = mid + ls
                             else:
-                                high = mid - 1
-                return high
+                                high = mid - ls
+                return high            
 
-            qty_within_margin = find_optimum_qty (qty)
+            qty_within_margin = find_optimum_qty (qty, ls)
             logger.debug (f'qty_within_margin: {qty_within_margin}')
             if qty_within_margin:
-                qty = qty_within_margin
-                qty = int(qty / ls) * ls  # Important as above value will not be a multiple of lot
+                qty = int(qty_within_margin / ls) * ls  # Doubly Ensuring qty is a multiple of lot size
             else :
                 margin = self.tiu.avlble_margin
                 if margin < (ltp * 1.1 * qty):
@@ -291,8 +293,9 @@ class OCPU(object):
                 res_qty2 = nearest_lcm_qty - (per_leg_qty * nlegs)
                 logger.debug(f'Verification: qty: {qty} final_qty: {((per_leg_qty*nlegs) + res_qty1 + res_qty2)}: {qty == ((per_leg_qty*nlegs) + res_qty1 + res_qty2)}')
 
-                rem_qty = res_qty1 + res_qty2
-                logger.debug(f'per_leg_qty: {per_leg_qty}, res_qty1:{res_qty1} res_qty2:{res_qty2}')
+                res_qty = res_qty1 + res_qty2
+                rem_qty = (res_qty // ls) * ls
+                logger.debug(f'per_leg_qty: {per_leg_qty}, res_qty1:{res_qty1} res_qty2:{res_qty2} rem_qty:{rem_qty}')
             else:
                 logger.info(f'qty: {qty} given_nlegs: {given_nlegs} is not allowed')
                 return

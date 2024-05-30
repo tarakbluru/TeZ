@@ -20,7 +20,7 @@ __email__ = "tarakesh.nc_at_google_mail_dot_com"
 __license__ = "MIT"
 __maintainer__ = "Tarak"
 __status__ = "Development"
-__version__ = "0.7.0_TC15"
+__version__ = "0.7.0_TC17"
 
 import sys
 import traceback
@@ -661,7 +661,7 @@ def get_nth_nearest_expiry_date(symbol_prefix, n, url='EXPIRY_DATE_CALC_URL1'):
                         (symboldf.tick_size == 0.05) & 
                         (symboldf.instrument_type == 'OPTIDX')]
     else :
-        nfodf = symboldf[(symboldf['tradingsymbol'].str.startswith(symbol_prefix)) & 
+        nfodf = symboldf[((symboldf['symbol'] == symbol_prefix) & symboldf['tradingsymbol'].str.startswith(symbol_prefix)) & 
                          (symboldf.exchange == 'NFO') & 
                          (symboldf.ticksize == 0.05) & 
                          (symboldf.instrument == 'OPTIDX')]
