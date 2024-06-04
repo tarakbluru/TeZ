@@ -117,8 +117,10 @@ TRADE_DETAILS:
     INST_3:
       SYMBOL: 'NIFTY'                     # Fixed: Do not change    
       UL_INDEX: 'NIFTY'                   # Fixed: Do not change
-      EXCHANGE: 'NFO'                     # Fixed: Do not change    
+      EXCHANGE: 'NFO'                     # Fixed: Do not change   
       EXPIRY_DATE: '28-MAR-2024'          # Format: '01-FEB-2024'  
+      CE_STRIKE: null                     # if not null and offset_cfg is manual, this will be used instead of offset
+      PE_STRIKE: null                     # if not null and offset_cfg is manual, this will be used instead of offset
       CE_STRIKE_OFFSET: 0                 # 0 means ATM,   1 is OTM, -1 means ITM
       PE_STRIKE_OFFSET: 0                 # 0 means ATM,  -1 is OTM, 1 means ITM
       STRIKE_DIFF: 50                     # Fixed: Do not change
@@ -192,6 +194,10 @@ Behaviour of Auto in strike and expiry date selection in config file
 	
 However, User can override by making config Manual and also specifying the offset in the 
 INSTRUMENT details (eg., [Here](data/sys_cfg.yml#L117)).
+
+CE_STRIKE & PE_STRIKE - Specific values can also be given. If the CE_STRIKE_OFFSET_CFG and PE_STRIKE_OFFSET_CFG 
+is MANUAL and these values are not null, then these values get precedence over the CE_STRIKE_OFFSET and PE_STRIKE_OFFSET 
+values.
 
 Daywise (and Not Tradewise) PNL Tracker: This tracks the mtm position for Intraday traded instruments
 taken through this app.
