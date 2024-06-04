@@ -204,7 +204,8 @@ taken through this app.
 
 1. Stoloss - Day wise stoploss
 2. Target - Day wise Profit
-3. Move to Cost - Once a trade is in profits, if the profits goes above this and then goes back to 0, position is squared off.
+3. Move to Cost - Once a trade is in profits, if the profits goes above this and then goes back to value at the start 
+   of a new trade, position is squared off.
 4. Trail After - Once pnl hits this level, trailing starts.
 5. Trailby - After hitting Trail After level, pnl is trailed by this value.
 
