@@ -268,7 +268,7 @@ class PriceMonitoringUnit:
                                 else:
                                     if chk_delay and diff_ft > 3:
                                         logger.debug (f'Check the feed, it seems to be lagging {ohlc.ft} {unix_epoch_time} {diff_ft}')
-                                        logger.info (f'Unexpected delay:  diff_ft : {diff_ft}')
+                                        logger.info (f'Unexpected delay:  diff_ft : {diff_ft} secs')
                                         drop_tick = True
                                     else :
                                         drop_tick = False

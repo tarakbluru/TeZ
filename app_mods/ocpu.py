@@ -91,6 +91,12 @@ class OCPU(object):
                     strike_offset = pe_offset
 
                 strike += int(strike_offset * strike_diff)
+
+                if action == 'Buy' and inst_info.ce_strike is not None:
+                    strike = inst_info.ce_strike
+                if action == 'Short' and inst_info.pe_strike is not None:
+                    strike = inst_info.pe_strike
+                
                 # expiry_date = app_mods.get_system_info("TIU", "EXPIRY_DATE")
                 parsed_date = datetime.strptime(expiry_date, '%d-%b-%Y')
                 exp_date = parsed_date.strftime('%d%b%y')

@@ -20,7 +20,7 @@ __email__ = "tarakesh.nc_at_google_mail_dot_com"
 __license__ = "MIT"
 __maintainer__ = "Tarak"
 __status__ = "Development"
-__version__ = "0.7.0_TC17"
+__version__ = "0.7.0_TC18"
 
 import sys
 import traceback
@@ -575,6 +575,7 @@ def gui_tk_layout():
     status_label.pack(side=tk.BOTTOM, padx=5)
 
     slider = tk.Scale(slider_frame, from_=0, to=1, orient=tk.HORIZONTAL, command=slider_changed, showvalue=False)
+    slider.set(0)
     slider.pack(side=tk.BOTTOM, expand=True)
 
     # Initialize the label based on the initial value of the slider
@@ -704,18 +705,21 @@ def update_strike(symbol_prefix, ce_or_pe):
 
     if ce_or_pe == 'CE':
         ce_or_pe_offset = 'CE_STRIKE_OFFSET'
+        strike_key = 'CE_STRIKE'
         if opt_diff == 1:
             strike_offset = -1
         else:
             strike_offset = 0        
     else:
         ce_or_pe_offset = 'PE_STRIKE_OFFSET'
+        strike_key = 'PE_STRIKE'
         if opt_diff == 1:
             strike_offset = 1
         else:
             strike_offset = 0
+    
     app_mods.replace_system_config ('SYMBOL', symbol_prefix, 'EXCHANGE', 'NFO', ce_or_pe_offset, strike_offset)
-
+    app_mods.replace_system_config ('SYMBOL', symbol_prefix, 'EXCHANGE', 'NFO', strike_key, None)
 
 def update_system_config ():
     exch = app_mods.get_system_info("TRADE_DETAILS", "EXCHANGE")

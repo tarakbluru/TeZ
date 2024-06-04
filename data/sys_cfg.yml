@@ -88,6 +88,8 @@ TRADE_DETAILS:
       UL_INDEX: 'NIFTY'                   # Fixed: Do not change    
       EXCHANGE: 'NSE'                     # Fixed: Do not change     
       EXPIRY_DATE: null                   # Fixed: Do not change       
+      CE_STRIKE: null                     # Fixed: Do not change     
+      PE_STRIKE: null                     # Fixed: Do not change          
       STRIKE_DIFF: null                   # Fixed: Do not change       
       CE_STRIKE_OFFSET: null              # Fixed: Do not change      
       PE_STRIKE_OFFSET: null              # Fixed: Do not change          
@@ -103,6 +105,8 @@ TRADE_DETAILS:
       UL_INDEX: 'NIFTY BANK'              # Fixed: Do not change
       EXCHANGE: 'NSE'                     # Fixed: Do not change  
       EXPIRY_DATE: null                   # Fixed: Do not change
+      CE_STRIKE: null                     # Fixed: Do not change     
+      PE_STRIKE: null                     # Fixed: Do not change     
       CE_STRIKE_OFFSET: null              # Fixed: Do not change 
       PE_STRIKE_OFFSET: null              # Fixed: Do not change 
       STRIKE_DIFF: null                   # Fixed: Do not change
@@ -118,6 +122,8 @@ TRADE_DETAILS:
       UL_INDEX: 'NIFTY'                   # Fixed: Do not change
       EXCHANGE: 'NFO'                     # Fixed: Do not change    
       EXPIRY_DATE: '28-MAR-2024'          # Format: '01-FEB-2024'  
+      CE_STRIKE: null                     # if not null and offset is manual, this will be used instead of offset
+      PE_STRIKE: null                     # if not null and offset is manual, this will be used instead of offset
       CE_STRIKE_OFFSET: 0                 # 0 means ATM,   1 is OTM, -1 means ITM
       PE_STRIKE_OFFSET: 0                 # 0 means ATM,  -1 is OTM, 1 means ITM
       STRIKE_DIFF: 50                     # Fixed: Do not change
@@ -133,6 +139,8 @@ TRADE_DETAILS:
       UL_INDEX: 'NIFTY BANK'              # Fixed: Do not change  
       EXCHANGE: 'NFO'                     # Fixed: Do not change
       EXPIRY_DATE: '27-MAR-2024'          # Format: '01-FEB-2024'  
+      CE_STRIKE: null                     # if not null and offset is manual, this will be used instead of offset
+      PE_STRIKE: null                     # if not null and offset is manual, this will be used instead of offset 
       CE_STRIKE_OFFSET: 0                 # 0 means ATM,   1 is OTM, -1 means ITM
       PE_STRIKE_OFFSET: 0                 # 0 means ATM,  -1 is OTM, 1 means ITM
       STRIKE_DIFF: 100                    # Fixed: Do not change

@@ -539,7 +539,7 @@ class Tiu (BaseIU):
                 raise ValueError
         logger.debug(json.dumps(acct_limits, indent=2))
 
-        self._amount_in_ac = locale.atof(acct_limits["cash"]) + locale.atof(acct_limits["payin"]) + locale.atof(acct_limits["unclearedcash"])
+        self._amount_in_ac = locale.atof(acct_limits["cash"]) + locale.atof(acct_limits["payin"]) + locale.atof(acct_limits["unclearedcash"]) - locale.atof(acct_limits["payout"])
         try:
             self._used_margin = locale.atof(acct_limits['marginused'])
         except Exception:

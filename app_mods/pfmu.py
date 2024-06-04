@@ -105,12 +105,12 @@ class Portfolio:
         if not os.path.exists(file_path) or modification_datetime <= cutoff_datetime:
             # Create an empty DataFrame with specified columns
             self.stock_data = pd.DataFrame(columns=["tsym_token", "ul_index", "available_qty", "max_qty"])
-            logger.debug("File is absent or modification time is more than cutoff time. Empty DataFrame created.")
+            logger.debug(f"File :{self.store_file} is absent or modification time is more than cutoff time. Empty DataFrame created.")
             self.stock_data.to_csv(self.store_file, index=False)
         else:
             # Read the CSV file into a DataFrame
             self.stock_data = pd.read_csv(file_path)
-            logger.debug("File was modified after 9:15 am today. DataFrame created successfully.")
+            logger.debug(f"File: {file_path} was modified after 9:15 am today. DataFrame created successfully.")
 
         self.stock_data.set_index("tsym_token", inplace=True)
 
@@ -309,6 +309,9 @@ class PFMU:
         self._system_sqoff_cb = pfmu_cc.system_sqoff_cb
 
         self.max_pnl = None
+        self.mv_to_cost_pnl = self.intra_day_pnl()
+        
+        logger.debug (f'mv_to_cost_pnl: {self.mv_to_cost_pnl:.2f}')
         #
         # TODO: In case of a restart of app, portfolio should get updated based on the
         # platform quantity. If there is any difference ( due to manual exit and not manual entry...)
@@ -1101,7 +1104,7 @@ class PFMU:
                             logger.info (f'mvto_cost - Threshold hit {MOVE_TO_COST_STATE.WAITING_UP_CROSS.name} -> {MOVE_TO_COST_STATE.WAITING_DOWN_CROSS.name}')
 
                     case MOVE_TO_COST_STATE.WAITING_DOWN_CROSS:
-                        if pnl <= float(0.0):
+                        if pnl <= self.mv_to_cost_pnl:
                             self.mov_to_cost_state = MOVE_TO_COST_STATE.WAITING_UP_CROSS
                             logger.info (f'mvto_cost - Threshold hit {MOVE_TO_COST_STATE.WAITING_DOWN_CROSS.name} -> {MOVE_TO_COST_STATE.WAITING_UP_CROSS.name}')
                             sq_off = True
@@ -1132,5 +1135,6 @@ class PFMU:
                 self.square_off_position (mode='ALL', ul_index=None, per=100, inst_type='ALL', partial_exit=False, exit_flag=False)
                 self.show()
                 ate.sq_off_done = True
+                self.mv_to_cost_pnl = self.intra_day_pnl()
         return ate
     
