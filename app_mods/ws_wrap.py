@@ -35,7 +35,7 @@ try:
     from datetime import datetime, date
     from sre_constants import FAILURE, SUCCESS
     from threading import Lock
-    from time import mktime
+    from time import mktime, time
 
     import pyotp
     import yaml
@@ -310,14 +310,16 @@ class WS_WrapU(object):
                             fv_send_data = self._fv_send_data
 
                         if self._send_data and fv_send_data:
-                            new_obj = copy.copy(ohlc_obj)
+                            new_obj:TickData = copy.copy(ohlc_obj)
+                            new_obj.rx_ts = str(time())
                             # Avoiding a call to a function : self.port.send_data(new_obj)  
                             self.port.data_q.put (new_obj)
                             self.port.evt.set()
 
             if self.tr is not None:
-                self.tr.put_data(msg)
-
+                rx_ts = int(time())
+                updated_dict = {'rx_ts': rx_ts, **msg}
+                self.tr.put_data(updated_dict)
             return
 
         def app_event_handler_order_update(msg):

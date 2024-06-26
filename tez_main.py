@@ -20,7 +20,7 @@ __email__ = "tarakesh.nc_at_google_mail_dot_com"
 __license__ = "MIT"
 __maintainer__ = "Tarak"
 __status__ = "Development"
-__version__ = "0.7.0_TC18"
+__version__ = "0.7.0_TC19"
 
 import sys
 import traceback
@@ -269,8 +269,12 @@ def long_market():
             return
         try:
             qty_taken = g_app_be.market_action(action='Buy',trade_price=tp, ui_qty=ui_qty)
+        except ValueError as e:
+            logger.debug (traceback.format_exc())
+            logger.error (f'Exception {e}')
+            tk.messagebox.showerror("Error", str(e))
         except Exception:
-            logger.error(traceback.format_exc())
+            logger.debug (traceback.format_exc())
             logger.error (f'Major Exception Occured.. Check Manually..')
         else:
             play_notify()
@@ -290,6 +294,10 @@ def short_market():
             return
         try:
             qty_taken = g_app_be.market_action(action='Short',trade_price=tp, ui_qty=ui_qty)
+        except ValueError as e:
+            logger.debug (traceback.format_exc())
+            logger.error (f'Exception {e}')
+            tk.messagebox.showerror("Error", str(e))
         except Exception :
             logger.error(traceback.format_exc())
             logger.error (f'Major Exception Occured.. Check Manually..')

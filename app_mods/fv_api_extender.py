@@ -54,6 +54,7 @@ except Exception as e:
 
 class FeedBaseObj(object):
     DATAFEED_TIMEOUT = float(3)
+    FORCE_RECONNECT_COUNT_THRESHOLD = 10
 
     def __init__(self, ws_monitor_cfg: bool = True):
         self.lock = Lock ()
@@ -69,8 +70,20 @@ class FeedBaseObj(object):
         self.app_cb_on_error = None
         self.app_cb_subscribe = None
         self.app_cb_order_update = None
-
+        self._force_reconnect = False
+        self.force_reconnect_ts = None
+        self.force_reconnect_count = 0
         return
+
+    def get_force_reconnect (self):
+        return self._force_reconnect
+
+    def set_force_reconnect (self, reconnect:bool):
+        logger.debug (f"{self._force_reconnect} --> {reconnect}")
+        with self.lock:
+            self._force_reconnect = reconnect
+
+    force_reconnect = property (get_force_reconnect, set_force_reconnect)    
 
 @dataclass
 class ShoonyaApiPy_CreateConfig (object):
@@ -864,14 +877,29 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
                 while not re_connect:
                     evt_flag = data_flow_evt.wait(timeout=to)
                     if evt_flag:
-                        exit_evt_flag = exit_evt.wait(timeout=to)
-                        if exit_evt_flag:
+                        if exit_evt.is_set():
                             exit = True
                             exit_evt.clear()
                             break
                         else:
                             data_flow_evt.clear()
-                            continue
+                            if self.force_reconnect:
+                                if self.force_reconnect_ts is None:
+                                    self.force_reconnect = False
+                                    self.force_reconnect_ts = datetime.now ()
+                                    if self.m_open <= datetime.now() < self.m_close:
+                                        logger.debug(f"{self.inst_id} Market hours:: Needs to be Reconnected ..")
+                                        re_connect = True
+                                    break
+                                else:
+                                    self.force_reconnect = False
+                                    self.force_reconnect_count += 1
+                                    logger.debug (f'Getting multiple requests for reconnect...')
+                                    if self.force_reconnect_count  == FeedBaseObj.FORCE_RECONNECT_COUNT_THRESHOLD:
+                                        self.force_reconnect_count = 0
+                                        self.force_reconnect_ts = None
+                            else:
+                                continue
                     else:
                         if exit_evt.is_set():
                             exit = True

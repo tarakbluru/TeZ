@@ -57,9 +57,12 @@ class TickData (object):
     v: int = 0
     oi: int = 0
     ft: str = ""
+    rx_ts:str = ""
+    ap: float = 0.0
+    poi: int =0
 
     def __str__(self):
-        return (f"ft: {self.ft} c: {self.c:.2f}  h: {self.h:.2f}  l: {self.l:.2f} tk: {self.tk} o: {self.o:.2f} v: {self.v} oi: {self.oi}")
+        return (f"ft(str): {self.ft} rx_ts(str): {self.rx_ts} c: {self.c:.2f}  h: {self.h:.2f}  l: {self.l:.2f} tk(str): {self.tk} o: {self.o:.2f} v: {self.v} oi: {self.oi}")
 
 
 class Ctrl(Enum):

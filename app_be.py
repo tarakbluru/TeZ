@@ -308,9 +308,15 @@ class TeZ_App_BE:
         self.pfmu.show()
 
     def market_action(self, action:str, trade_price:float=None, ui_qty:int=None):
-
+        start_time = time.monotonic()
+        
         ul_index = self.diu.ul_symbol
         exch = app_mods.get_system_info("TRADE_DETAILS", "EXCHANGE")
+        if ul_index == 'NIFTY' and trade_price is not None and trade_price >= 30000.0:
+            raise ValueError (f"Index: {ul_index}:{trade_price} Value seems to be for Bank Nifty")
+        
+        if ul_index == 'NIFTY BANK' and trade_price is not None and  trade_price <= 30000.0:
+            raise ValueError (f"Index: {ul_index}:{trade_price} Value seems to be for Nifty")
 
         inst_info_dict = TeZ_App_BE.get_instrument_info(exch, ul_index)
         inst_info = {key.lower(): value for key, value in inst_info_dict.items()}
@@ -324,17 +330,23 @@ class TeZ_App_BE:
         except RuntimeError:
             raise
         else :
+            end_time = time.monotonic()
+
+            # Calculate the elapsed time
+            elapsed_time = end_time - start_time
+
+            logger.info (f'Time taken to place orders:{elapsed_time} secs')
             return qty_taken
 
     def square_off_position(self, sq_off_info:SquareOff_Info):
-        logger.info (repr(sq_off_info))
+        logger.debug (repr(sq_off_info))
         exch = sq_off_info.exch
         if sq_off_info.mode == SquareOff_Mode.SELECT:
             ul_index = sq_off_info.ul_index
             if sq_off_info.inst_type == SquareOff_InstType.ALL:
                 inst_info = TeZ_App_BE.get_instrument_info(exch, ul_index)
                 sq_off_ul_symbol = inst_info['SYMBOL']
-                logger.info(f'Sq_off_symbol:{sq_off_ul_symbol}')
+                logger.debug(f'Sq_off_symbol:{sq_off_ul_symbol}')
             else:
                 sq_off_ul_symbol = ul_index
             inst_type = sq_off_info.inst_type.name

@@ -292,6 +292,11 @@ class Diu (BaseIU):
     def connect_to_data_feed_servers(self):
         return (self.ws_wrap.connect_to_data_feed_servers())
 
+    def set_force_reconnect (self, reconnect_flag:bool):
+        self.fv.force_reconnect = reconnect_flag
+
+    force_reconnect = property (None, set_force_reconnect)  
+
     @property
     def live_df_ctrl(self):
         return self.ws_wrap.send_data

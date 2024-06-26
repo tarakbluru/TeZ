@@ -46,6 +46,7 @@ except Exception as e:
 class PMU_CreateConfig(NamedTuple):
     inp_dataPort: SimpleDataPort
     market_hours: Union[Market_Timing, None] = None
+    data_delay_callback_function: callable = None
 
 class PMU_State(Enum):
     NOT_DEFINED=0
@@ -86,6 +87,8 @@ class PriceMonitoringUnit:
         self.df_status:LiveFeedStatus=LiveFeedStatus.OFF
 
         self.chk_delay = False
+        self.delay_cb:callable = pmu_cc.data_delay_callback_function
+        self.delay_cb_done = False
 
         if pmu_cc.market_hours is None:
             self.mh = Market_Timing()
@@ -266,12 +269,17 @@ class PriceMonitoringUnit:
                                 except ValueError:
                                     logger.info (f'{ohlc}')
                                 else:
-                                    if chk_delay and diff_ft > 3:
-                                        logger.debug (f'Check the feed, it seems to be lagging {ohlc.ft} {unix_epoch_time} {diff_ft}')
-                                        logger.info (f'Unexpected delay:  diff_ft : {diff_ft} secs')
+                                    if chk_delay and diff_ft > 4:
+                                        logger.debug (f"""Check the feed, it seems to be lagging ft:{ohlc.ft} 
+                                                        rx_ts: {ohlc.rx_ts} unix_epoch_time: {unix_epoch_time} diff_ft: {diff_ft}""")
+                                        logger.info (f'Unexpected delay:  rx_ts: {ohlc.rx_ts} diff_ft :{ohlc.ft} {unix_epoch_time} {diff_ft} secs')
+                                        if self.delay_cb is not None and (not self.delay_cb_done):
+                                            self.delay_cb ()
+                                            self.delay_cb_done = True
                                         drop_tick = True
                                     else :
                                         drop_tick = False
+                                        self.delay_cb_done = False
                                     with self.lock:
                                         try:
                                             conditions = self.conditions[token]

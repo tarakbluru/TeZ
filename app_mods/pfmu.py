@@ -202,7 +202,7 @@ class Portfolio:
                 net_qty = max(posn_qty, rec_qty)
             pf_df.loc[tsym_token, 'available_qty'] = net_qty
         self.stock_data.to_csv(self.store_file, index=True)
-        logger.info(f'\n{pf_df}')
+        logger.debug(f'\n{pf_df}')
 
     def fetch_all_available_qty(self, ul_index):
         logger.info(f'ul_index: {ul_index}')
@@ -258,7 +258,14 @@ class PFMU:
         self.tiu = pfmu_cc.tiu
         self.diu = pfmu_cc.diu
 
-        pmu_cc = PMU_CreateConfig(pfmu_cc.port)
+
+        def force_reconnect ():
+            nonlocal self
+            logger.debug (f'Forcing the diu to reconnect ..')
+            self.diu.force_reconnect = True
+
+        pmu_cc = PMU_CreateConfig(pfmu_cc.port, data_delay_callback_function=force_reconnect)
+
         self.pmu = PriceMonitoringUnit(pmu_cc=pmu_cc)
         ocpu_cc = Ocpu_CreateConfig(tiu=self.tiu, diu=self.diu)
         self.ocpu = OCPU(ocpu_cc=ocpu_cc)
@@ -595,7 +602,7 @@ class PFMU:
                         order = I_S_MKT_Order(tradingsymbol=tsym, quantity=per_leg_exit_qty, exchange=exchange)
                     if b_or_s == 'B':
                         order = I_B_MKT_Order(tradingsymbol=tsym, quantity=per_leg_exit_qty, exchange=exchange)
-                logger.info (f'order:{str(order)}')
+                logger.debug (f'order:{str(order)}')
 
                 try:
                     r = self.tiu.get_order_margin(buy_or_sell=b_or_s, exchange=exchange,
@@ -613,34 +620,34 @@ class PFMU:
                             logger.error (f'Qty to square off > in Position: Take Manual Control: {per_leg_exit_qty} {r["remarks"]} ')
                             break
                     else :
-                        logger.info (f'Trying to Square off without checking Order Margin')
+                        logger.debug (f'Trying to Square off without checking Order Margin')
 
                 r = self.tiu.place_order(order)
                 if r is None:
-                    logger.info(f'Exit order Failed: Check Manually')
+                    logger.debug(f'Exit order Failed: Check Manually')
                     break
 
                 if r['stat'] == 'Not_Ok':
-                    logger.info(f'Exit order Failed:  {r["emsg"]}')
+                    logger.debug(f'Exit order Failed:  {r["emsg"]}')
                     failure_cnt += 1
                 else:
-                    logger.info(f'Exit Order Attempt success:: order id  : {r["norenordno"]}')
+                    logger.debug(f'Exit Order Attempt success:: order id  : {r["norenordno"]}')
                     order_id = r["norenordno"]
                     r_os_list = self.tiu.single_order_history(order_id)
                     # Shoonya gives a list for all status of order, we are interested in first one
                     r_os_dict = r_os_list[0]
                     if r_os_dict["status"].lower() == "complete":
                         closed_qty += order.quantity
-                        logger.info(f'Exit order Complete: order_id: {order_id}')
+                        logger.debug(f'Exit order Complete: order_id: {order_id}')
                     else:
-                        logger.info(f'Exit order InComplete: order_id: {order_id} Check Manually')
+                        logger.debug(f'Exit order InComplete: order_id: {order_id} Check Manually')
                     exit_qty -= per_leg_exit_qty
 
             if failure_cnt > 2 or exit_qty:
-                logger.info(f'Exit order InComplete: Check Manually')
+                logger.debug(f'Exit order InComplete: Check Manually')
                 raise OrderExecutionException
 
-            logger.info(f'tsym_token:{tsym} qty: {closed_qty} squared off..')
+            logger.debug(f'tsym_token:{tsym} qty: {closed_qty} squared off..')
 
             return closed_qty
 
@@ -649,7 +656,7 @@ class PFMU:
             with self.pf_lock:
                 self._update_portfolio_based_platform()
                 df = self.portfolio.fetch_all_available_qty(ul_index=ul_index)
-                logger.info(f'\n {df}')
+                logger.debug(f'\n {df}')
                 if df.empty:
                     logger.debug(f'all available qty is 0')
                     return
@@ -661,7 +668,7 @@ class PFMU:
                         logger.debug(f'inst_type : {inst_type}')
                         ul_rows = df[df.index.str.contains('NIFTYBEES|BANKBEES')]
 
-                    logger.info(f'\n{ul_rows}')
+                    logger.debug(f'\n{ul_rows}')
                 # if available quantity of ul_index, CE/PE is not there, then also it should return
                 if ul_rows.empty:
                     return
@@ -692,13 +699,13 @@ class PFMU:
                             ce_df['distance_from_ul_ltp'] = ce_df['strike_price'] - ul_ltp
                             # Sort CE DataFrame based on the distance from ul_ltp in ascending order
                             ce_df_sorted = ce_df.sort_values(by='distance_from_ul_ltp', ascending=True)
-                            logger.info(f'{ce_df_sorted}')
+                            logger.debug(f'{ce_df_sorted}')
 
                             if not ce_df_sorted.empty:
                                 max_qty = ce_df_sorted['max_qty'].sum()
                                 total_reduce_qty = int(max_qty * (reduce_per / 100))
                                 new_available_qty = max_qty - total_reduce_qty
-                                logger.info(f'CE: new_available_qty {new_available_qty} total_reduce_qty_ce: {total_reduce_qty}')
+                                logger.debug(f'CE: new_available_qty {new_available_qty} total_reduce_qty_ce: {total_reduce_qty}')
                             sq_df = ce_df_sorted
                         else:
                             pe_df = ul_rows[ul_rows['option_type'] == 'P'].copy()
@@ -706,24 +713,24 @@ class PFMU:
                             pe_df['distance_from_ul_ltp'] = pe_df['strike_price'] - ul_ltp
                             # Sort PE DataFrame based on the distance from ul_ltp in ascending order
                             pe_df_sorted = pe_df.sort_values(by='distance_from_ul_ltp', ascending=False)
-                            logger.info(f'{pe_df_sorted}')
+                            logger.debug(f'{pe_df_sorted}')
                             if not pe_df_sorted.empty:
                                 max_qty = pe_df_sorted['max_qty'].sum()
                                 total_reduce_qty = int(max_qty * (reduce_per / 100))
                                 new_available_qty = max_qty - total_reduce_qty
-                                logger.info(f'PE: new_available_qty {new_available_qty} total_reduce_qty_pe: {total_reduce_qty}')
+                                logger.debug(f'PE: new_available_qty {new_available_qty} total_reduce_qty_pe: {total_reduce_qty}')
                             sq_df = pe_df_sorted
                             total_available_qty = sq_df['available_qty'].sum()
                     else:
                         max_qty = ul_rows['max_qty'].sum()
                         total_reduce_qty = int(max_qty * (reduce_per / 100))
                         new_available_qty = max_qty - total_reduce_qty
-                        logger.info(f'BEES: new_available_qty {new_available_qty} total_reduce_qty: {total_reduce_qty}')
+                        logger.debug(f'BEES: new_available_qty {new_available_qty} total_reduce_qty: {total_reduce_qty}')
                         sq_df = ul_rows
 
                     total_available_qty = sq_df['available_qty'].sum() if len(sq_df) else 0
 
-                    logger.info(f'Total Available : {total_available_qty} New_Available: {new_available_qty} ')
+                    logger.debug(f'Total Available : {total_available_qty} New_Available: {new_available_qty} ')
 
                     if new_available_qty is not None and abs(new_available_qty) < abs(total_available_qty):
                         diff_qty = abs(total_available_qty) - abs(new_available_qty)
@@ -745,7 +752,7 @@ class PFMU:
                                 else:
                                     b_or_s = 'B'
 
-                                logger.info(f'Reducing tsym_token: {tsym_token} {tsym} {token} reduce_qty: {act_sq_off_qty} of {diff_qty}')
+                                logger.debug(f'Reducing tsym_token: {tsym_token} {tsym} {token} reduce_qty: {act_sq_off_qty} of {diff_qty}')
                                 exch = 'NSE' if '-EQ' in tsym else 'NFO'
                                 r = self.tiu.get_security_info(exchange=exch, token=token)
                                 logger.debug(f'{json.dumps(r, indent=2)}')
@@ -923,7 +930,7 @@ class PFMU:
                         # exit the position
                         # important, rec_qty and net_qty should be both +ve values.
                         exit_qty = min(abs(rec_qty), net_qty)
-                        logger.info(f'exit qty:{exit_qty}')
+                        logger.debug(f'exit qty:{exit_qty}')
                         exch = 'NSE' if '-EQ' in tsym else 'NFO'
                         # Very Important:  Following should use frz_qty for breaking order into slices
                         r = self.tiu.get_security_info(exchange=exch, token=token)
