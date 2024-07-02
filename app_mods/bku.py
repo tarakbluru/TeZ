@@ -5,7 +5,7 @@ Date: January 15, 2024
 Description: This script provides book keeper of the orders.
 """
 # Copyright (c) [2024] [Tarakeshwar N.C]
-# This file is part of the Tiny_TeZ project.
+# This file is part of the Tez project.
 # It is subject to the terms and conditions of the MIT License.
 # See the file LICENSE in the top-level directory of this distribution
 # for the full text of the license.
@@ -29,6 +29,7 @@ logger = app_utils.get_logger(__name__)
 try:
     import os
     import shutil
+    from dataclasses import dataclass
     from datetime import datetime
     from threading import Lock
 
@@ -41,35 +42,39 @@ except Exception as e:
     logger.error(("Import Error " + str(e)))
     sys.exit(1)
 
+@dataclass
+class BookKeeperUnitCreateConfig():
+    rec_file:str
+    reset:bool=False
 
 class BookKeeperUnit:
-    def __init__(self, bku_file, reset: bool = False):
+    def __init__(self, bku_cc:BookKeeperUnitCreateConfig):
         self.lock = Lock()
-        self.bku_file = bku_file
-        self.orders_df = self.load_orders(bku_file, reset=reset)
+        self.rec_file = bku_cc.rec_file
+        self.orders_df = self.load_orders(self.rec_file, reset=bku_cc.reset)
 
-    def __check_and_update_backup_file(self, bku_file, reset):
+    def __check_and_update_backup_file(self, rec_file, reset):
         # Check if the file was modified today
 
         try:
-            modified_date = datetime.fromtimestamp(os.path.getmtime(bku_file)).strftime('%Y-%m-%d')
+            modified_date = datetime.fromtimestamp(os.path.getmtime(rec_file)).strftime('%Y-%m-%d')
         except Exception:
             ...
         else:
             today_date = datetime.now().strftime('%Y-%m-%d')
             if modified_date != today_date or reset:
                 # If not, create the new file path in the same directory
-                backup_directory = os.path.dirname(bku_file)
+                backup_directory = os.path.dirname(rec_file)
                 # If not, rename the file with the modified date
                 new_file_path = os.path.join(backup_directory, f'orders_backup_{modified_date}.csv')
 
-                shutil.move(bku_file, new_file_path)
+                shutil.move(rec_file, new_file_path)
                 print(f'Renamed backup file to: {new_file_path}')
 
-    def save_order(self, order_id, symbol, qty, order_time, status, oco_order_id):
+    def save_order(self, order_id, tsym_token, qty, order_time, status, oco_order_id):
         new_order = pd.DataFrame({
             'Order_ID': [order_id],
-            'TradingSymbol_Token': [symbol],
+            'TradingSymbol_Token': [tsym_token],
             'Qty': [qty],
             'Order_Time': [order_time],
             'Status': [status],
@@ -87,13 +92,13 @@ class BookKeeperUnit:
                 self.orders_df = pd.concat([self.orders_df, new_order], ignore_index=True)
 
             # Save the dataframe to a CSV file
-            self.orders_df.to_csv(self.bku_file, index=False)
+            self.orders_df.to_csv(self.rec_file, index=False)
 
-    def load_orders(self, bku_file, reset):
-        self.__check_and_update_backup_file(bku_file=bku_file, reset=reset)
+    def load_orders(self, rec_file, reset):
+        self.__check_and_update_backup_file(rec_file=rec_file, reset=reset)
         try:
             # Try to load the CSV file
-            orders_df = pd.read_csv(bku_file, dtype={'Order_ID': object, 'OCO_Alert_ID': object})
+            orders_df = pd.read_csv(rec_file, dtype={'Order_ID': object, 'OCO_Alert_ID': object})
         except FileNotFoundError:
             # If the file is not found, create an empty dataframe
             orders_df = pd.DataFrame(columns=['Order_ID', 'TradingSymbol_Token', 'Qty', 'Order_Time', 'Status', 'OCO_Alert_ID'])
@@ -102,15 +107,16 @@ class BookKeeperUnit:
     def show(self):
         df = self.orders_df
         console = Console()
-        table = Table(title='Records')
+        table = Table(title='Position Order - Records')
+        table.add_column("#", justify="center")
 
         # Add header row
         for column in df.columns:
             table.add_column(column, justify="center")
 
         # Add data rows
-        for _, row in df.iterrows():
-            table.add_row(*[str(value) for value in row.tolist()])
+        for i, (_, row) in enumerate(df.iterrows(), start=1):
+            table.add_row(str(i), *[str(value) for value in row.tolist()])
 
         console.print(table)
 

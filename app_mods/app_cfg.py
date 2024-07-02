@@ -5,7 +5,7 @@ Date: January 15, 2024
 Description: This script provides functionality to extract system configuration.
 """
 # Copyright (c) [2024] [Tarakeshwar N.C]
-# This file is part of the Tiny_TeZ project.
+# This file is part of the Tez project.
 # It is subject to the terms and conditions of the MIT License.
 # See the file LICENSE in the top-level directory of this distribution
 # for the full text of the license.
@@ -19,22 +19,32 @@ __license__ = "MIT"
 __maintainer__ = "Tarak"
 __status__ = "Development"
 
-import datetime
-import json
-import os
-from sre_constants import FAILURE, SUCCESS
+
+import sys
+import traceback
 
 import app_utils
-import gspread
-import yaml
 
 logger = app_utils.get_logger(__name__)
+
+try:
+    import datetime
+    import json
+    import os
+    from sre_constants import FAILURE, SUCCESS
+
+    import app_utils
+    import gspread
+    import yaml
+except Exception as e:
+    logger.error(traceback.format_exc())
+    logger.error(("Import Error " + str(e)))
+    sys.exit(1)
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 SYSTEM_CFG_FILE = os.path.join(current_dir, '..', 'data', 'sys_cfg.yml')
 
 _G_SYSTEM_CFG = None
-
 
 def get_system_config():
     """Reads the system configuration fromt the yaml file
@@ -59,6 +69,36 @@ def get_system_config():
 
     return status
 
+def replace_system_config_recursive(dictionary, key1, value1, key2, value2, key3, new_value):
+    """
+    Recursively replace the value of key3 in nested dictionary
+    where the value of key1 matches value1 and the value of key2 matches value2.
+
+    Args:
+    dictionary (dict): The nested dictionary to traverse.
+    key1 (str): The key to match in the nested dictionary.
+    value1: The value to match against key1.
+    key2 (str): The key to match in the nested dictionary.
+    value2: The value to match against key2.
+    key3 (str): The key whose value needs to be replaced.
+    new_value: The new value to set for key3.
+
+    Returns:
+    dict: The updated nested dictionary.
+    """
+    for key, value in dictionary.items():
+        if isinstance(value, dict):
+            if key1 in value and value[key1] == value1 and key2 in value and value[key2] == value2:
+                value[key3] = new_value
+            else :
+                dictionary[key] = replace_system_config_recursive(value, key1, value1, key2, value2, key3, new_value)
+    return dictionary
+
+
+def replace_system_config (key1, value1, key2, value2, key3, new_value):
+    global _G_SYSTEM_CFG
+    _G_SYSTEM_CFG = replace_system_config_recursive(_G_SYSTEM_CFG, key1, value1, key2, value2, key3, new_value=new_value)
+    logger.debug(json.dumps(_G_SYSTEM_CFG, sort_keys=False, indent=4))
 
 def gen_dict_extract(key, var):
     """Extracts key and its information

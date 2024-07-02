@@ -5,7 +5,7 @@ Date: January 15, 2024
 Description: This script provides all shared classes in the system.
 """
 # Copyright (c) [2024] [Tarakeshwar N.C]
-# This file is part of the Tiny_TeZ project.
+# This file is part of the Tez project.
 # It is subject to the terms and conditions of the MIT License.
 # See the file LICENSE in the top-level directory of this distribution
 # for the full text of the license.
@@ -28,12 +28,13 @@ from app_utils import app_logger
 logger = app_logger.get_logger(__name__)
 
 try:
+    import datetime
     import json
     import re
     from dataclasses import dataclass, field
-    from enum import Enum
+    from enum import Enum, auto
     from threading import Event
-    from typing import NamedTuple, Optional
+    from typing import NamedTuple, Optional, Union
 
     from app_utils import ExtQueue, ExtSimpleQueue
 
@@ -42,6 +43,9 @@ except Exception as e:
     logger.error(("Import Error " + str(e)))
     sys.exit(1)
 
+class Status(Enum):
+    FAILURE = 0
+    SUCCESS = auto()
 
 @dataclass(slots=True)
 class TickData (object):
@@ -53,9 +57,22 @@ class TickData (object):
     v: int = 0
     oi: int = 0
     ft: str = ""
+    rx_ts:str = ""
+    ap: float = 0.0
+    poi: int =0
 
     def __str__(self):
-        return (f"ft: {self.ft} c: {self.c:.2f}  h: {self.h:.2f}  l: {self.l:.2f} tk: {self.tk} o: {self.o:.2f} v: {self.v} oi: {self.oi}")
+        return (f"ft(str): {self.ft} rx_ts(str): {self.rx_ts} c: {self.c:.2f}  h: {self.h:.2f}  l: {self.l:.2f} tk(str): {self.tk} o: {self.o:.2f} v: {self.v} oi: {self.oi}")
+
+
+class Ctrl(Enum):
+    OFF = 0
+    ON = 1
+
+
+class UI_State(Enum):
+    DISABLE = 0
+    ENABLE = 1
 
 
 @dataclass
@@ -82,7 +99,7 @@ class Order:
     # Setter for the 'remarks' property
     @property
     def remarks(self):
-        logger.info(self._remarks)
+        logger.debug(self._remarks)
         return self._remarks
 
     @remarks.setter
@@ -162,8 +179,8 @@ class I_B_MKT_Order(Order):
     # Initialize default values using default_factory to avoid sharing mutable defaults
     seq_num: int = field(default=1, init=False)
     buy_or_sell: str = field(default='B', init=False)
-    product_type: str = field(default='I',  init=False)
-    price_type: str = field(default='MKT',  init=False)
+    product_type: str = field(default='I', init=False)
+    price_type: str = field(default='MKT', init=False)
     price: float = field(default=0.0, init=False)
 
 
@@ -172,8 +189,8 @@ class I_S_MKT_Order(Order):
     # Initialize default values using default_factory to avoid sharing mutable defaults
     seq_num: int = field(default=1, init=False)
     buy_or_sell: str = field(default='S', init=False)
-    product_type: str = field(default='I',  init=False)
-    price_type: str = field(default='MKT',  init=False)
+    product_type: str = field(default='I', init=False)
+    price_type: str = field(default='MKT', init=False)
     price: float = field(default=0.0, init=False)
 
 
@@ -186,8 +203,8 @@ class BO_B_SL_LMT_Order(Order):
 
     # Initialize default values using default_factory to avoid sharing mutable defaults
     buy_or_sell: str = field(default='B', init=False)
-    product_type: str = field(default='B',  init=False)
-    price_type: str = field(default='SL-LMT',  init=False)
+    product_type: str = field(default='B', init=False)
+    price_type: str = field(default='SL-LMT', init=False)
 
     def __post_init__(self):
         # Calculate discloseqty as 12% of the quantity
@@ -205,8 +222,8 @@ class BO_B_LMT_Order(Order):
 
     # Initialize default values using default_factory to avoid sharing mutable defaults
     buy_or_sell: str = field(default='B', init=False)
-    product_type: str = field(default='B',  init=False)
-    price_type: str = field(default='LMT',  init=False)
+    product_type: str = field(default='B', init=False)
+    price_type: str = field(default='LMT', init=False)
 
     def __post_init__(self):
         # Calculate discloseqty as 12% of the quantity
@@ -223,8 +240,8 @@ class BO_B_MKT_Order(Order):
     # Initialize default values using default_factory to avoid sharing mutable defaults
     seq_num: int = field(default=1, init=False)
     buy_or_sell: str = field(default='B', init=False)
-    product_type: str = field(default='B',  init=False)
-    price_type: str = field(default='MKT',  init=False)
+    product_type: str = field(default='B', init=False)
+    price_type: str = field(default='MKT', init=False)
     price: float = field(default=0.0, init=False)
     bo_remarks: str = field(default='', init=True)
 
@@ -242,8 +259,8 @@ class BO_S_MKT_Order(Order):
     # Initialize default values using default_factory to avoid sharing mutable defaults
     seq_num: int = field(default=1, init=False)
     buy_or_sell: str = field(default='S', init=False)
-    product_type: str = field(default='B',  init=False)
-    price_type: str = field(default='MKT',  init=False)
+    product_type: str = field(default='B', init=False)
+    price_type: str = field(default='MKT', init=False)
     price: float = field(default=0.0, init=False)
     bo_remarks: str = field(default='', init=True)
 
@@ -262,8 +279,8 @@ class OCO_FOLLOW_UP_MKT_MIS_I_Order_V2(OCO_BaseOrder):
 
     oco_seq_num: int = field(default=2, init=False)
     buy_or_sell: str = field(default='S', init=False)
-    oco_product_type: str = field(default='I',  init=False)
-    oco_price_type: str = field(default='MKT',  init=False)
+    oco_product_type: str = field(default='I', init=False)
+    oco_price_type: str = field(default='MKT', init=False)
     price: float = field(default=0.0, init=False)
 
 
@@ -275,8 +292,8 @@ class OCO_FOLLOW_UP_MKT_I_Order(Order):
 
     # Initialize default values using default_factory to avoid sharing mutable defaults
     seq_num: int = field(default=2, init=False)
-    product_type: str = field(default='I',  init=False)
-    price_type: str = field(default='MKT',  init=False)
+    product_type: str = field(default='I', init=False)
+    price_type: str = field(default='MKT', init=False)
     price: float = field(default=0.0, init=False)
     book_loss_price = float(0.0)
     book_profit_price = float(0.0)
@@ -294,7 +311,7 @@ class Combi_Primary_B_MKT_And_OCO_S_MKT_I_Order_NSE:
             remarks = re.sub("[-,&]+", "_", remarks)
         self.primary_order = I_B_MKT_Order(tradingsymbol=tradingsymbol, quantity=quantity, _remarks=remarks)
         if bl_alert_p and bp_alert_p:
-            logger.info(f'bl_alert_p: {bl_alert_p} bp_alert_p: {bp_alert_p}')
+            logger.debug(f'bl_alert_p: {bl_alert_p} bp_alert_p: {bp_alert_p}')
             self.follow_up_order = OCO_FOLLOW_UP_MKT_I_Order(buy_or_sell='S',
                                                              tradingsymbol=tradingsymbol,
                                                              quantity=quantity,
@@ -312,7 +329,7 @@ class Combi_Primary_B_MKT_And_OCO_S_MKT_I_Order_NSE:
     def primary_order_quantity(self, value):
         if not isinstance(value, int):
             raise ValueError("Quantity should be integer")
-        logger.info(value)
+        logger.debug(value)
         self.primary_order.quantity = value
 
     # Setter for the 'prime_quantity' property
@@ -323,7 +340,7 @@ class Combi_Primary_B_MKT_And_OCO_S_MKT_I_Order_NSE:
     @order_id.setter
     def order_id(self, value):
         if not isinstance(value, str):
-            logger.info(traceback.print_exc())
+            logger.debug(traceback.print_exc())
             raise ValueError("value should be a string")
         self.primary_order.order_id = value
 
@@ -362,7 +379,7 @@ class Combi_Primary_S_MKT_And_OCO_B_MKT_I_Order_NSE:
             remarks = re.sub("[-,&]+", "_", remarks)
         self.primary_order = I_S_MKT_Order(tradingsymbol=tradingsymbol, quantity=quantity, _remarks=remarks)
         if bl_alert_p and bp_alert_p:
-            logger.info(f'bl_alert_p: {bl_alert_p} bp_alert_p: {bp_alert_p}')
+            logger.debug(f'bl_alert_p: {bl_alert_p} bp_alert_p: {bp_alert_p}')
             self.follow_up_order = OCO_FOLLOW_UP_MKT_I_Order(buy_or_sell='B',
                                                              tradingsymbol=tradingsymbol,
                                                              quantity=quantity,
@@ -380,7 +397,7 @@ class Combi_Primary_S_MKT_And_OCO_B_MKT_I_Order_NSE:
     def primary_order_quantity(self, value):
         if not isinstance(value, int):
             raise ValueError("Quantity should be integer")
-        logger.info(value)
+        logger.debug(value)
         self.primary_order.quantity = value
 
     # Setter for the 'prime_quantity' property
@@ -391,7 +408,7 @@ class Combi_Primary_S_MKT_And_OCO_B_MKT_I_Order_NSE:
     @order_id.setter
     def order_id(self, value):
         if not isinstance(value, str):
-            logger.info(traceback.print_exc())
+            logger.debug(traceback.print_exc())
             raise ValueError("value should be a string")
         self.primary_order.order_id = value
 
@@ -437,11 +454,14 @@ class Combi_Primary_B_MKT_And_OCO_S_MKT_I_Order_NFO (Combi_Primary_B_MKT_And_OCO
 
 
 @dataclass
-class SimpleDataPort(object):
+class SimpleDataPort:
     """Generic port """
     data_q: ExtSimpleQueue
     evt: Event
-    id: int = 0
+    id: int = field(init=False, default=0)
+
+    def __post_init__(self):
+        type(self).id += 1
 
     def send_data(self, data):
         self.data_q.put(data)
@@ -548,3 +568,47 @@ class OrderStatus():
     def __str__(self):
         return f'''Sym: {self.sym} fillshares: {self.fillshares} unfilledsize: {self.unfilledsize} trantype:{self.trantype}
                 avg_price: {self.avg_price} rejReason:{self.rejReason} remarks:{self.remarks} order_id: {self.order_id} al_id: {self.al_id}'''
+
+
+InstrumentInfo = NamedTuple('InstrumentInfo', [('symbol', str),
+                                               ('ul_index', str),
+                                               ('exchange', str),
+                                               ('expiry_date', str),
+                                               ('ce_strike', Union[int, None]),
+                                               ('pe_strike', Union[int, None]),
+                                               ('strike_diff', int),
+                                               ('ce_strike_offset', str),
+                                               ('pe_strike_offset', str),
+                                               ('profit_per', float),
+                                               ('stoploss_per', float),
+                                               ('profit_points', float),
+                                               ('stoploss_points', float),
+                                               ('order_prod_type', str),
+                                               ('use_gtt_oco', Union[str, bool]),
+                                               ('quantity', int),
+                                               ("n_legs", int),
+                                               ])
+
+@dataclass
+class AutoTrailerData():
+    sl: float
+    target: float
+    mvto_cost: float
+    trail_after: float
+    trail_by: float
+    ui_reset:bool = False
+    ts: datetime.datetime = field(default_factory=datetime.datetime.now)
+
+
+@dataclass
+class AutoTrailerEvent():
+    pnl: float
+    sl_hit: bool = False
+    target_hit: bool = False
+    mvto_cost_hit: bool = False
+    mvto_cost_ui: UI_State = UI_State.ENABLE
+    trail_sl_ui:UI_State = UI_State.ENABLE
+    trail_after_hit: bool = False
+    trail_by_hit: bool = False
+    sq_off_done:bool = False
+    ts: datetime.datetime = field(default_factory=datetime.datetime.now)

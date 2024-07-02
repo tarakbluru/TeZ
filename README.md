@@ -18,11 +18,9 @@ This project provides all necessary scripts to run the app. As the code is modul
 
 For a scalper, quick entry and exit is a most useful feature in a trading app. Scalpers generally tend to trade in 1 or 2 instruments. So, if the app can be pre-configured for trades in those instruments, that will also be helpful.
 
-Before learning scalping options, it would help to learn in a non-derivative instruments such as NIFTYBEES. This app provides such a mechanism. It provides very simple gui and most of the settings are configured before starting the app. Further, the app provides trading NIFTYBEES while the underlying instrument is still NIFTY index.
+Before learning scalping options, it would help to learn in a non-derivative index instruments such as NIFTY/BANKBEES. This app provides such a mechanism. It provides very simple gui and most of the settings are configured before starting the app. Further, the app provides trading NIFTY/BANKBEES while the underlying instrument is still NIFTY index.
 
-The app is expected to be very helpful for traders that are trying to learn scalping.
-
-In future versions, buying CE/PE options are also planned.
+The app is helpful for traders that are trying to learn scalping as well as those who use discretionary techniques for trading options.
 
 ## Features
 Following are the features
@@ -33,13 +31,16 @@ Following are the features
 - Feed can be obtained from one Finvasia a/c and trading can be done in another a/c. This will be helpful, if you have already 
   running algos using websocket.
 - Also has feature to get the session ID from a google sheet. This helps in using the session that is running on a cloud machine.
-- System square off happens at pre-defined Time (<span style="font-family: Monaco;">SQ_OFF_TIMING</span> in the configuration file).
-- Default order type is Bracket order for NIFTY and BANKBEES. OCO order type can be chosen by setting configuration.
+- System square off happens at pre-defined Time (```SQ_OFF_TIMING``` in the configuration file [Here](data/sys_cfg.yml#L155)).
+- Default order type is MIS. OCO order type can be chosen by setting configuration.
 - Supports Option buying. When you buy Market, CE are bought and when you sell Market, PE are bought. These trades happen at Market prices.
 - Supports Order slicing. Say quantity of 1000 niftybees is to be sliced into 10 orders, then 100 qty, 10 orders are placed. In case of 
   Options, quantity is taken interms of lots. Say, 10 lots in 5 legs is required. Then there will be 2 lot per leg, 5 orders are placed. 
 - At square off time, orders are fired at maximum quantity possible. That is it does not follow the ice berg order methodology.
 - Supports app lock/unlock mechanism to avoid accidental clicks.
+- Scale out Mechanism 
+- Day wise pnl tracking 
+- Tick Recorder (```TR``` in the configuration file, [Here](data/sys_cfg.yml#L149))
 
 ## Getting Started
 
@@ -62,44 +63,13 @@ you can refer: [Installation](#installation) This step is to be done only once.
 # Configuration File details
 GUI_CONFIG:
   APP_TITLE: 'TeZ'
-  APP_GEOMETRY: '250x250'
+  APP_GEOMETRY: '350x250'
   ...
 TIU:
   ...
   TOKEN_FILE: null     #if the session id is to be shared with other algos, the session id file is given here.
   CRED_FILE:  './data/cred/user_cred.yml' 
   ...
-  EXCHANGE: 'NSE'      # valid values : NSE NFO  ...
-  QUANTITY: 1          # In case of NSE, it is actual quantity. Incase of NFO, it is lots. 
-  USE_GTT_OCO: 'NO'    # 'YES' 'NO'
-  N_LEGS: 1            # ice berg orders, total qty is boken into N_legs
-
-  INSTRUMENT_INFO:
-    INST_1:
-      SYMBOL: 'NIFTYBEES'                 # Fixed: Do not change 
-      ...
-    INST_3:
-      SYMBOL: 'NIFTY'                     # Fixed: Do not change    
-      UL_INSTRUMENT: 'NIFTY'              # Fixed: Do not change
-      EXCHANGE: 'NFO'                     # Fixed: Do not change    
-      EXPIRY_DATE: '28-MAR-2024'          # Format: '01-FEB-2024'  
-      CE_STRIKE_OFFSET: 0                 # 0 means ATM,   1 is OTM, -1 means ITM
-      PE_STRIKE_OFFSET: 0                 # 0 means ATM,  -1 is OTM, 1 means ITM
-      STRIKE_DIFF: 50                     # Fixed: Do not change
-      PROFIT_PER: null                    # Fixed: Do not change
-      STOPLOSS_PER: null                  # Fixed: Do not change
-      PROFIT_POINTS: 30                   # Points in Option Price 
-      STOPLOSS_POINTS: 10                 # Points in Option Price
-
-    INST_4:
-      SYMBOL: 'BANKNIFTY'                 # Fixed: Do not change     
-      UL_INSTRUMENT: 'NIFTY BANK'         # Fixed: Do not change  
-      ...
-  ...
-  TRADES_RECORD_FILE: './log/orders.csv'
-  SAVE_TOKEN_FILE_CFG: 'YES'   #if the session id file has to be generated, make this as 'YES'
-  SAVE_TOKEN_FILE_NAME: './log/user_token.json'  #session-id along with other information is stored in this file.
-
 
 DIU:
   ...
@@ -107,16 +77,80 @@ DIU:
   CRED_FILE: './data/cred/user_cred.yml' 
   ...
 
+BKU:
+  TRADES_RECORD_FILE: './log/orders.csv'
+
+PFMU:  
+  PF_RECORD_FILE: './log/pf.csv'
+
+TRADE_DETAILS:
+  ############################################################################################
+  # Risk Disclosure on Derivatives.
+  ############################################################################################
+  # A. 9 out of 10 individual traders in equity Futures and Options Segment, incurred net 
+  #    losses.
+  # B. On an average, loss makers registered net trading loss close to ₹50,000.
+  #    Over and above the net trading losses incurred, loss makers expended an additional 
+  #    28% of net trading losses as transaction costs.
+  # C. Those making net trading profits, incurred between 15% to 50% of such profits 
+  #    as transaction cost.
+  #
+  # D. This program is made open source with  intent ONLY to show how to design a execution 
+  #    platform and that is only for educational purpose.
+  # 
+  #  In case, you use this software, Risk, Reward and Losses are all yours.
+
+  EXCHANGE: 'NSE'             # valid values : NSE NFO
+  ###########################################################################################
+
+  EXPIRY_DATE_CFG: 'AUTO'           # Options : 'AUTO' 'MANUAL' Auto - means, nearest next expiry is chosen till 0DTE, 
+                                    # on Exp day, Next Expiry date is chosen
+                                    # Other option is Manual
+  CE_STRIKE_OFFSET_CFG: 'AUTO'      # Options : 'AUTO' 'MANUAL' Till 1 DTE, ATM is chosen, On 1DTE, ITM are chosen, 
+                                    # On exp day ATM is chosen
+  PE_STRIKE_OFFSET_CFG: 'AUTO'      # Options : 'AUTO' 'MANUAL'
+
+  INSTRUMENT_INFO:
+    INST_1:
+      SYMBOL: 'NIFTYBEES'                 # Fixed: Do not change 
+      ...
+    INST_3:
+      SYMBOL: 'NIFTY'                     # Fixed: Do not change    
+      UL_INDEX: 'NIFTY'                   # Fixed: Do not change
+      EXCHANGE: 'NFO'                     # Fixed: Do not change   
+      EXPIRY_DATE: '28-MAR-2024'          # Format: '01-FEB-2024'  
+      CE_STRIKE: null                     # if not null and offset_cfg is manual, this will be used instead of offset
+      PE_STRIKE: null                     # if not null and offset_cfg is manual, this will be used instead of offset
+      CE_STRIKE_OFFSET: 0                 # 0 means ATM,   1 is OTM, -1 means ITM
+      PE_STRIKE_OFFSET: 0                 # 0 means ATM,  -1 is OTM, 1 means ITM
+      STRIKE_DIFF: 50                     # Fixed: Do not change
+      PROFIT_PER: null                    # Fixed: Do not change
+      STOPLOSS_PER: null                  # Fixed: Do not change
+      PROFIT_POINTS: 30                   # Points in Option Price 
+      STOPLOSS_POINTS: 10                 # Points in Option Price
+      ORDER_PROD_TYPE: 'I'                # I - M'I'S  O - GTT_'O'CO
+      N_LEGS: 1
+
+    INST_4:
+      SYMBOL: 'BANKNIFTY'                 # Fixed: Do not change     
+      UL_INSTRUMENT: 'NIFTY BANK'         # Fixed: Do not change  
+      ...
+  ...
+
 SYSTEM:
-  LOG_FILE: './log/app.log'  # log file is generated here.
-  DL_FOLDER: './log'         # intermediate files such as symbol files are downloaded here.
+  LOG_FILE: './log/app.log'               # log file is generated here.
+  DL_FOLDER: './log'                      # intermediate files such as symbol files are downloaded here.
+  LMT_ORDER_FEATURE : "ENABLED"           # Do not change
+  VIRTUAL_ENV: "NO"                       # Fixed, Do not change
   ...
 ```
-
 ## Usage
+Trader requires 2 main UIs Viz., Entry and Trade management. Since these are 2 different operations,
+the UI has been designed to reduce the app space on desktop. Also, the app sits on top of all 
+other running apps. This is useful while entering levels based on chart.
 
-On clicking 'Buy' market, in the NSE Exchange (in config file), NIFTYBEES/BANKBEES are bought. 
-On clicking 'Short' market, in the NSE Exchange, NIFTYBEES/BANKBEES are Shorted. 
+On clicking 'Buy' market, in the NSE Exchange (in config file), NIFTYBEES/BANKBEES are bought immediately
+at market. On clicking 'Short' market, in the NSE Exchange, NIFTYBEES/BANKBEES are Shorted. 
 
 On clicking 'Buy' market, in the NFO Exchange (in config file), NIFTY/BANKNIFTY CE options are bought. 
 The expiry date and strike rate configuration is to be set before starting the app.
@@ -127,7 +161,86 @@ The expiry date and strike rate configuration is to be set before starting the a
 By setting OCO feature, even options can have OCO orders placed on broker terminal. 
 In case of any failure, user should take manual control.
 
-Note: This app is not designed to replace the broker terminal. It only helps in reducing pain point 
+By having a specific price, system will wait for price to touch or cross over that price for taking position.
+
+Before clicking on Buy or Sell, ensure to have required quantity. For NFO, it is lots.
+
+Order which is waiting for index to cross or touch can be cancelled by specifying in the 
+TM(TradeManager) window. This window appears on clicking TM button. 
+If there are multiple rows, they can be specified as (say 5-9).
+
+Partial square off can be achieved by setting slider and clicking on the Partial SqOff Button in TM window.
+Important Note: Partial square off is available only for the ordertype MIS. It is not available for 
+Bracket/OCO order This Helps in scaling out the position.
+
+Trade Manager Window - Toggle functionality - when TM window is open, you can hide it by 
+clicking the 'TM' Button again. While in Trademanager window, it can be hidden by clicking on 
+'Hide TM' button
+
+Difference between Sqoff in main window and 0% exposure in partial square off
+1. When sqoff in main window is clicked, waiting orders are cancelled.
+	where as partial square off with 0% is clicked, waiting orders are not cancelled.
+
+2. When sqoff in main window is clicked, only N or BN (based on radio button selection)
+	is squared off but not Both.
+
+3. Auto square off at specified time would square off both N and BN.
+
+Behaviour of Auto in strike and expiry date selection in config file
+1. When Auto is selected, Nearest expiry date is chosen. On 0DTE,  next expiry is chosen.
+
+2. When strike offset configuration is Auto,  Except on 1DTE, strikes are at ATM. 
+	On 1DTE, ITM by one strike is selelected. Objective for this is to avoid theta decay.
+	
+However, User can override by making config Manual and also specifying the offset in the 
+INSTRUMENT details (eg., [Here](data/sys_cfg.yml#L117)).
+
+CE_STRIKE & PE_STRIKE - Specific values can also be given. If the CE_STRIKE_OFFSET_CFG and PE_STRIKE_OFFSET_CFG 
+is MANUAL and these values are not null, then these values get precedence over the CE_STRIKE_OFFSET and PE_STRIKE_OFFSET 
+values.
+
+Daywise (and Not Tradewise) PNL Tracker: This tracks the mtm position for Intraday traded instruments
+taken through this app.
+
+1. Stoloss - Day wise stoploss
+2. Target - Day wise Profit
+3. Move to Cost - Once a trade is in profits, if the profits goes above this and then goes back to value at the start 
+   of a new trade, position is squared off.
+4. Trail After - Once pnl hits this level, trailing starts.
+5. Trailby - After hitting Trail After level, pnl is trailed by this value.
+
+After setting these values, mode mode should be switched from Manual to Auto. Until the levels are touched, 
+minor updates can be done using + / - buttons near the Entry box.
+
+Examples:
+Ex 1: if stoploss is -1000 (Observe minus sign):  Whenever mtm touches/goes below -1000, position is squared off.
+
+Ex 2: if target is +2000, pnl touches/goes above +2000, position is squared off.
+
+Ex 3: if move to cost is 500, then system waits for mtm to cross 500. Once the price crosses this and then 
+retraces back to 0, then position is squared off.
+
+Ex 4: if Trail after is 1000 and trail by is 200. Once the Trail after level is crossed,  and profits retraces to 800, 
+then position is squared off. Instead of retracing if it goes above 1000, then (1000-trail_by) level is monitored. 
+Whenever it goes below this, position is squared off. 
+
+Scanning frequency : once every sec.  Current version of the system uses get position every sec. In future release, I might  
+use the websocket feed for calculating the pnl while using get position at lower frequency. If the design is totally dependent on 
+websocket and websocket feed fails, it will be a major issue.
+
+If there are major changes are to be done, mode should be brought back to the Manual mode before 
+setting new values. Radio button selection from manual to Auto will be treated as new beginning 
+and previous levels even though touched are dropped from scanning. 
+
+If the multiple trades are to be taken in a day, the cumulative thresholds should be used. 
+
+For example, if first trade results in profit of 1k, then if to secure atleast profit for the day, SL for next 
+trade should be 1k. 
+
+Reasoning behind the design: At EOD, it is day wise PNL that matters. As a trick to understand Day wise PNL, 
+imagine there is a stock by the name DayWisePNL. This can have movement from SL to Target.
+
+Note: This app is NOT designed to replace the broker terminal. It only helps in reducing pain point 
 (choosing the strikes and quick entry and exit).  The design goal was to build very simple looking tool and 
 avoid complexity in UI and have most parameters pre configured; while trading, too many parameters 
 actually hampers clarity in thinking (my empirical observation).
@@ -186,17 +299,17 @@ powershell -executionpolicy bypass .\ps_scripts\tez_setup.ps1
 # To run the TeZ app while in TeZ folder
 powershell -executionpolicy bypass .\ps_scripts\tez.ps1
 ````
+### App Image for NIFTYBEES (observe normal font, icon - bees, title - TeZ-NSE)
+![Refer](/images/TeZ_App.png)
 
-### App Image for NIFTYBEES
-![Refer](/images/TeZ_App.png)  
-
-
-
-### App Image for NIFTY Option (observe bold font)
+### App Image for NIFTY Option (observe bold font, icon - pay_off, title - TeZ-NFO)
 ![Refer](/images/Tez_NFO.png)
 
 ### Console Image 
 ![Refer](/images/records.png)
+
+### Trade Manager Image 
+![Refer](/images/Trademanager.png)
 
 ### Notficaion Channel
 https://t.me/github_com_tarakbluru_TeZ
