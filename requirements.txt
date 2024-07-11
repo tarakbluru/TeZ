@@ -22,6 +22,7 @@ MarkupSafe==2.1.3
 mccabe==0.7.0
 mdurl==0.1.2
 NorenRestApi @ https://github.com/tarakbluru/ShoonyaApi-py_With_My_Fixes/raw/master/dist/NorenRestApi-0.0.28-py2.py3-none-any.whl
+ntplib==0.4.0
 numpy==1.26.3
 oauthlib==3.2.2
 packaging==23.2

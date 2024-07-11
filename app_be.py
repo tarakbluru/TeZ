@@ -48,6 +48,7 @@ except Exception as e:
 class TeZ_App_BE_CreateConfig(NamedTuple):
     limit_order_cfg:bool
     system_sqoff_cb:Callable
+    disable_price_entry_cb:Callable
 
 
 class SquareOff_Mode(Enum):
@@ -72,7 +73,7 @@ class SquareOff_Info:
 class TeZ_App_BE:
     name = "APBE"
     __count = 0
-    __componentType = app_mods.shared_classes.Component_Type.ACTIVE 
+    __componentType = app_mods.shared_classes.Component_Type.ACTIVE
 
     def __init__(self, cc_cfg:TeZ_App_BE_CreateConfig):
         self.cc_cfg = cc_cfg
@@ -90,7 +91,7 @@ class TeZ_App_BE:
                 tiu_save_token_file = app_mods.get_system_info("TIU", "SAVE_TOKEN_FILE_NAME")
                 virtual_env = False
                 if app_mods.get_system_info("TIU", "USE_GSHEET_TOKEN") == 'YES':
-                    # Reading the Cred file to get the info. about the range where 
+                    # Reading the Cred file to get the info. about the range where
                     # session ID is available
                     with open(tiu_cred_file) as f:
                         cred = yaml.load(f, Loader=yaml.FullLoader)
@@ -122,9 +123,9 @@ class TeZ_App_BE:
                                             dl_filepath=dl_filepath,
                                             notifier=None,
                                             save_tokenfile_cfg=tiu_save_token_file_cfg,
-                                            save_token_file=tiu_save_token_file, 
+                                            save_token_file=tiu_save_token_file,
                                             test_env=virtual_env)
-            
+
             logger.debug(f'tcc:{str(tcc)}')
             tiu = app_mods.Tiu(tcc=tcc)
 
@@ -167,16 +168,16 @@ class TeZ_App_BE:
             tr_folder = app_mods.get_system_info("SYSTEM", "TR_FOLDER")
             tr = True if app_mods.get_system_info("SYSTEM", "TR").upper() == 'YES' else False
 
-            dcc = app_mods.Diu_CreateConfig(inst_prefix='diu', cred_file=diu_cred_file,  
+            dcc = app_mods.Diu_CreateConfig(inst_prefix='diu', cred_file=diu_cred_file,
                                             susertoken=None,
-                                            token_file=diu_token_file, 
-                                            use_pool=False, 
+                                            token_file=diu_token_file,
+                                            use_pool=False,
                                             master_file=master_file,
-                                            dl_filepath=None, 
-                                            notifier=None, 
+                                            dl_filepath=None,
+                                            notifier=None,
                                             save_tokenfile_cfg=diu_save_token_file_cfg,
-                                            save_token_file=diu_save_token_file, 
-                                            out_port=live_data_output_port, 
+                                            save_token_file=diu_save_token_file,
+                                            out_port=live_data_output_port,
                                             tr_folder=tr_folder,
                                             tr_flag=tr,
                                             test_env=virtual_env)
@@ -199,11 +200,12 @@ class TeZ_App_BE:
             pfmu_ord_file = app_mods.get_system_info("BKU", "TRADES_RECORD_FILE")
             pf_file = app_mods.get_system_info("PFMU", "PF_RECORD_FILE")
             mo = app_mods.get_system_info("MARKET_TIMING", "OPEN")
-            pfmu_cc = app_mods.PFMU_CreateConfig(tiu=tiu, diu=diu, rec_file=pfmu_ord_file, 
-                                                 mo=mo, pf_file=pf_file, 
-                                                 reset=False, port=port, 
+            pfmu_cc = app_mods.PFMU_CreateConfig(tiu=tiu, diu=diu, rec_file=pfmu_ord_file,
+                                                 mo=mo, pf_file=pf_file,
+                                                 reset=False, port=port,
                                                  limit_order_cfg=self.cc_cfg.limit_order_cfg,
-                                                 system_sqoff_cb=self.cc_cfg.system_sqoff_cb)
+                                                 system_sqoff_cb=self.cc_cfg.system_sqoff_cb,
+                                                 disable_price_entry_cb=self.cc_cfg.disable_price_entry_cb)
             pfmu = app_mods.PFMU(pfmu_cc)
             return pfmu
 
@@ -288,7 +290,7 @@ class TeZ_App_BE:
                     if start <= end:
                         row_id = range(start, end + 1)
                     else:
-                        row_id = range(end, start + 1)                    
+                        row_id = range(end, start + 1)
                 except ValueError:
                     print("Invalid range format")
                     return None
@@ -301,7 +303,7 @@ class TeZ_App_BE:
             logger.info (f'row_id {row_id}')
             for rn in row_id:
                 self.pfmu.cancel_waiting_order (id=rn-1)
-            
+
             self.pfmu.wo_table_show()
 
     def show_records (self) -> None:
@@ -309,12 +311,12 @@ class TeZ_App_BE:
 
     def market_action(self, action:str, trade_price:float=None, ui_qty:int=None):
         start_time = time.monotonic()
-        
+
         ul_index = self.diu.ul_symbol
         exch = app_mods.get_system_info("TRADE_DETAILS", "EXCHANGE")
         if ul_index == 'NIFTY' and trade_price is not None and trade_price >= 30000.0:
             raise ValueError (f"Index: {ul_index}:{trade_price} Value seems to be for Bank Nifty")
-        
+
         if ul_index == 'NIFTY BANK' and trade_price is not None and  trade_price <= 30000.0:
             raise ValueError (f"Index: {ul_index}:{trade_price} Value seems to be for Nifty")
 

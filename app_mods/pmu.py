@@ -30,7 +30,7 @@ logger = app_logger.get_logger(__name__)
 try:
     import time
     from collections import defaultdict
-    from dataclasses import dataclass    
+    from dataclasses import dataclass
     from datetime import datetime
     from enum import Enum
     from threading import Event, Lock, Thread, current_thread
@@ -71,9 +71,9 @@ class WaitConditionData:
 class PriceMonitoringUnit:
     name = "PMU"
     __count = 0
-    __componentType = Component_Type.ACTIVE 
+    __componentType = Component_Type.ACTIVE
     DATAFEED_TIMEOUT:float = 20.0
-    SYS_MONITOR_MAX_COUNT:int = 30    
+    SYS_MONITOR_MAX_COUNT:int = 30
 
     def __init__(self, pmu_cc: PMU_CreateConfig):
         logger.debug ("PMU initialization ...")
@@ -144,7 +144,7 @@ class PriceMonitoringUnit:
 
     def send_hb (self, new_flag:bool) :
         self._send_hb = new_flag
-        
+
     send_hbeat = property (None, send_hb)
 
     @property
@@ -193,7 +193,7 @@ class PriceMonitoringUnit:
     def start_monitoring(self):
         self.data_rx_price_monitor_thread.start ()
         self.state = PMU_State.READY
-            
+
     def monitor_prices(self):
 
         def update_df_status (state:LiveFeedStatus):
@@ -201,7 +201,7 @@ class PriceMonitoringUnit:
             # if current status is different from new state
             if (self.df_status != state ) :
                 logger.debug (f'Data feed status updated {self.df_status} --> {state}')
-                self.df_status = state 
+                self.df_status = state
                 now = datetime.now().strftime("%H:%M:%S")
                 mesg = f'T: {now}: Datafeed : {state.name}'
                 logger.debug (mesg)
@@ -210,7 +210,7 @@ class PriceMonitoringUnit:
                 if self._data_feed_status_callback is not None:
                     logger.debug ("Data feed status updated Call back ..")
                     self._data_feed_status_callback ()
-            return        
+            return
 
         t_name = current_thread().name
         logger.debug ("In PMU Data_Rx Price Monitor.."+ t_name)
@@ -225,10 +225,10 @@ class PriceMonitoringUnit:
         sys_monitor = self.sys_monitor
 
         id = self.inst_id
-        assert evt is not None, 'Event is None'        
+        assert evt is not None, 'Event is None'
         assert q is not None, 'Queue is None'
 
-        chk_delay = self.chk_delay 
+        chk_delay = self.chk_delay
 
         while do_process:
             try :
@@ -270,7 +270,7 @@ class PriceMonitoringUnit:
                                     logger.info (f'{ohlc}')
                                 else:
                                     if chk_delay and diff_ft > 4:
-                                        logger.debug (f"""Check the feed, it seems to be lagging ft:{ohlc.ft} 
+                                        logger.debug (f"""Check the feed, it seems to be lagging ft:{ohlc.ft}
                                                         rx_ts: {ohlc.rx_ts} unix_epoch_time: {unix_epoch_time} diff_ft: {diff_ft}""")
                                         logger.info (f'Unexpected delay:  rx_ts: {ohlc.rx_ts} diff_ft :{ohlc.ft} {unix_epoch_time} {diff_ft} secs')
                                         if self.delay_cb is not None and (not self.delay_cb_done):
@@ -279,7 +279,6 @@ class PriceMonitoringUnit:
                                         drop_tick = True
                                     else :
                                         drop_tick = False
-                                        self.delay_cb_done = False
                                     with self.lock:
                                         try:
                                             conditions = self.conditions[token]
@@ -296,7 +295,7 @@ class PriceMonitoringUnit:
                                                     continue
 
                                                 prev_tick_lvl = cond_obj.prev_tick_lvl
-                                                fn = None  
+                                                fn = None
                                                 if prev_tick_lvl is not None:
                                                     if prev_tick_lvl < cond_obj.wait_price_lvl and ltp_level >= cond_obj.wait_price_lvl:
                                                         fn = cond_obj.callback_function
@@ -322,7 +321,7 @@ class PriceMonitoringUnit:
                     logger.debug (f"{t_name} - No Data available for {tout} secs")
 
             finally:
-                if (exit_evt.is_set()): 
+                if (exit_evt.is_set()):
                     logger.debug ("Received Exit Command ..")
                     exit_evt.clear()
                     q.flush ()
@@ -330,4 +329,3 @@ class PriceMonitoringUnit:
 
         logger.info (f'Exiting Thread: {t_name}')
         return
-    

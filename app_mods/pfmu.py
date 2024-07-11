@@ -163,7 +163,7 @@ class Portfolio:
                 if not_zero_available_qty.any():
                     logger.info("available_qty is not already 0 and is being set to 0. Verify on Broker Terminal")
                     df.loc[(df['ul_index'] == ul_index), 'available_qty'] = 0
-                
+
                 # Check if max_qty is not already 0, and if so, set it to 0
                 not_zero_max_qty = df.loc[(df['ul_index'] == ul_index) & (df['max_qty'] != 0), 'max_qty']
                 if not_zero_max_qty.any():
@@ -239,7 +239,7 @@ class PFMU_CreateConfig:
     limit_order_cfg: bool = False
     reset: bool = False
     system_sqoff_cb:Callable = None
-
+    disable_price_entry_cb:Callable = None
 
 class PFMU:
     __count = 0
@@ -250,7 +250,7 @@ class PFMU:
         logger.info(f'{PFMU.__count}: Creating PFMU Object..')
         self.inst_id = f'{self.__class__.__name__}:{PFMU.__count}'
         PFMU.__count += 1
-        
+
         self.auto_trailer_proc_cnt = PFMU.AUTO_TRAILER_PROC_MAX_COUNT
 
         self.pf_lock = Lock()
@@ -258,11 +258,16 @@ class PFMU:
         self.tiu = pfmu_cc.tiu
         self.diu = pfmu_cc.diu
 
+        self.disable_price_entry_cb:Callable = pfmu_cc.disable_price_entry_cb
 
         def force_reconnect ():
             nonlocal self
             logger.debug (f'Forcing the diu to reconnect ..')
             self.diu.force_reconnect = True
+
+            logger.debug (f'Disabling Price entry ..')
+            if self.disable_price_entry_cb is not None:
+                self.disable_price_entry_cb ()
 
         pmu_cc = PMU_CreateConfig(pfmu_cc.port, data_delay_callback_function=force_reconnect)
 
@@ -289,7 +294,7 @@ class PFMU:
                     "prev_tick_lvl",
                     "n_orders",
                     "order_list",
-                    "status"], 
+                    "status"],
                 # dtype={
                 #     "click_price": float,
                 #     "tsym_token": str,
@@ -301,7 +306,7 @@ class PFMU:
                 #     "n_orders": int,
                 #     "order_list": object,
                 #     "status": str
-                # }                    
+                # }
             )
 
         bku_cc = BookKeeperUnitCreateConfig(pfmu_cc.rec_file, pfmu_cc.reset)
@@ -312,12 +317,12 @@ class PFMU:
 
         self.mov_to_cost_state = MOVE_TO_COST_STATE.WAITING_UP_CROSS
         self.trail_sl_state = TRAIL_SL_STATE.WAITING_UP_CROSS
-        
+
         self._system_sqoff_cb = pfmu_cc.system_sqoff_cb
 
         self.max_pnl = None
         self.mv_to_cost_pnl = self.intra_day_pnl()
-        
+
         logger.debug (f'mv_to_cost_pnl: {self.mv_to_cost_pnl:.2f}')
         #
         # TODO: In case of a restart of app, portfolio should get updated based on the
@@ -512,9 +517,9 @@ class PFMU:
             self.wo_table_show()
 
     def take_position(self, action: str, inst_info: InstrumentInfo, trade_price: float):
-        
+
         r: Ocpu_RetObject = self.ocpu.create_order(action=action, inst_info=inst_info, trade_price=trade_price)
-        
+
         total_qty = 0
         if r and r.orders_list and r.tsym_token:
             if trade_price is None:
@@ -549,14 +554,14 @@ class PFMU:
                 use_gtt_oco = True if inst_info.order_prod_type == 'O' else False
                 key_name = self._add_order(ul_token=ul_token, ul_index=inst_info.ul_index, tsym_token=r.tsym_token,
                                            use_gtt_oco=use_gtt_oco,
-                                           click_price=r.ul_ltp, 
+                                           click_price=r.ul_ltp,
                                            wait_price=trade_price, order_list=r.orders_list, action=action)
-               
+
                 order_info = self.wo_df.loc[key_name]
-                cond_obj = WaitConditionData(condition_fn=self._price_condition, 
+                cond_obj = WaitConditionData(condition_fn=self._price_condition,
                                              callback_function=self._order_placement_th,
                                              cb_id=key_name,
-                                             wait_price_lvl=order_info.wait_price_lvl, 
+                                             wait_price_lvl=order_info.wait_price_lvl,
                                              prec_factor=self.prec_factor)
 
                 self.pmu.register_callback(token=ul_token, cond_obj=cond_obj)
@@ -606,7 +611,7 @@ class PFMU:
 
                 try:
                     r = self.tiu.get_order_margin(buy_or_sell=b_or_s, exchange=exchange,
-                                                product_type='I', tradingsymbol=tsym, 
+                                                product_type='I', tradingsymbol=tsym,
                                                 quantity=per_leg_exit_qty, price_type='MKT', price=0.0)
                 except Exception as e:
                     logger.error (f'Exception occured {repr(e)}')
@@ -744,7 +749,7 @@ class PFMU:
 
                         for index, row in sq_df.iterrows():
                             tsym_token = str(index)
-                            tsym = tsym_token.split('_')[0] 
+                            tsym = tsym_token.split('_')[0]
                             token = tsym_token.split('_')[1]
                             if abs(row["available_qty"]) > 0:
                                 if max_qty > 0:
@@ -765,13 +770,13 @@ class PFMU:
                                     ls = int(r['ls'])  # lot size
                                 else:
                                     ls = 1
-                                
+
                                 if not abs(diff_qty) // ls:
                                     break
 
                                 try:
-                                    closed_qty = place_sq_off_order(tsym=tsym, b_or_s=b_or_s, 
-                                                                    exit_qty=abs(act_sq_off_qty), ls=ls, 
+                                    closed_qty = place_sq_off_order(tsym=tsym, b_or_s=b_or_s,
+                                                                    exit_qty=abs(act_sq_off_qty), ls=ls,
                                                                     frz_qty=frz_qty, exchange=exch)
                                 except Exception as e:
                                     logger.error(f'Orders not going through.. Check manually {str(e)}')
@@ -1003,7 +1008,7 @@ class PFMU:
                 __square_off_position__(df=df)
                 with self.pf_lock:
                     self.portfolio.verify_reset()
-                
+
                 if self._system_sqoff_cb:
                     self._system_sqoff_cb ()
 
@@ -1036,7 +1041,7 @@ class PFMU:
         if df is None or df.empty:
             return mtm
         try:
-            # Some times partial orders are filled. In such cases also, it should be tracked. 
+            # Some times partial orders are filled. In such cases also, it should be tracked.
             df_filtered = df[(df['Qty'] != 0) & ((df['Status'] == 'SUCCESS')| (df['Status'] == 'SOFT_FAILURE_QTY'))].copy()
             df_filtered['token'] = df_filtered['TradingSymbol_Token'].str.split('_').str[-1]
             unique_tokens_df = df_filtered[['token']].drop_duplicates()
@@ -1067,7 +1072,7 @@ class PFMU:
                 else :
                     ...
         return mtm
-    
+
     def auto_trailer(self, atd: AutoTrailerData|None=None):
 
         self.auto_trailer_proc_cnt -= 1
@@ -1144,4 +1149,3 @@ class PFMU:
                 ate.sq_off_done = True
                 self.mv_to_cost_pnl = self.intra_day_pnl()
         return ate
-    

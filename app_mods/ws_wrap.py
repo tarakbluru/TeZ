@@ -113,7 +113,7 @@ class WS_WrapU(object):
             cred_file: str = r'../../../Finvasia_login/cred/tarak_fv.yml'
             token_file: str = r'../../../Finvasia_login/temp/tarak_token.json'
             dl_filepath: str = r'../log'
-            
+
             s_cc = ShoonyaApiPy_CreateConfig(dl_filepath=dl_filepath, ws_monitor_cfg=True)
             fv = ShoonyaApiPy(cc=s_cc)
             with open(cred_file) as f:
@@ -219,12 +219,12 @@ class WS_WrapU(object):
             self.tr = app_utils.TickRecorder()
             if tr_folder is None:
                 tr_folder: str = r'../log'
-            
+
             self.tr.filename = os.path.join(tr_folder, f'{date.today().strftime("%Y_%m_%d")}.txt')
         else :
             self.tr = None
         self.notifier = notifier
-        
+
         self._fv_send_data = True
 
         return
@@ -300,19 +300,22 @@ class WS_WrapU(object):
 
                     if 'oi' in tick_data:
                         ohlc_obj.oi = int(tick_data["oi"])
-                    
+
                     if 'ft' in tick_data:
-                        ohlc_obj.ft = tick_data['ft']
-                        if not ohlc_obj.ft:
-                            logger.info (f'not sending data as ft: {ohlc_obj.ft}')
+                        ft = int (tick_data['ft'])
+                        if not ft or ft < int (ohlc_obj.ft):
+                            # Some times observed that feed time is less than previous
+                            # but that message still contains other valid data.
+                            # In such cases not sending the tick data.
                             fv_send_data = False
-                        else:
+                        else :
+                            ohlc_obj.ft = tick_data['ft']
                             fv_send_data = self._fv_send_data
 
                         if self._send_data and fv_send_data:
                             new_obj:TickData = copy.copy(ohlc_obj)
                             new_obj.rx_ts = str(time())
-                            # Avoiding a call to a function : self.port.send_data(new_obj)  
+                            # Avoiding a call to a function : self.port.send_data(new_obj)
                             self.port.data_q.put (new_obj)
                             self.port.evt.set()
 
@@ -343,7 +346,7 @@ class WS_WrapU(object):
 
     def fv_disconnect_wsfeed(self):
         return (self.fv.disconnect_from_datafeed_server())
-    
+
     def connect_to_data_feed_servers(self, primary: str = "FINVASIA", sec: str = ""):
         if self.tr is not None:
             logger.info (f'Starting Tick recorder Service...')

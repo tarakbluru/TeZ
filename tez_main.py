@@ -20,7 +20,7 @@ __email__ = "tarakesh.nc_at_google_mail_dot_com"
 __license__ = "MIT"
 __maintainer__ = "Tarak"
 __status__ = "Development"
-__version__ = "0.7.0"
+__version__ = "0.8.0_TC1"
 
 import sys
 import traceback
@@ -70,16 +70,16 @@ def subwindow_exposure_cb (current_value, **kwargs):
     exch = 'NSE' if kwargs.get('Ce_Pe_Bees') == 'BEES' else 'NFO'
     match kwargs.get('Ce_Pe_Bees'):
         case 'BEES':
-            inst_type = SquareOff_InstType.BEES 
+            inst_type = SquareOff_InstType.BEES
         case 'CE':
-            inst_type = SquareOff_InstType.CE 
+            inst_type = SquareOff_InstType.CE
         case 'PE':
-            inst_type = SquareOff_InstType.PE 
+            inst_type = SquareOff_InstType.PE
 
     ix = kwargs.get('ix')
     ix = 'NIFTY BANK' if ix == 'BANKNIFTY' else ix
-    
-    sqoff_info = SquareOff_Info(mode=SquareOff_Mode.SELECT, per=(100-current_value), 
+
+    sqoff_info = SquareOff_Info(mode=SquareOff_Mode.SELECT, per=(100-current_value),
                                 ul_index=ix, exch=exch, inst_type=inst_type, partial_exit=True)
     g_app_be.square_off_position(sqoff_info)
     play_notify()
@@ -181,7 +181,7 @@ def create_trade_manager_window():
         sub_frame2 = tk.Frame(g_trade_manager_window, bd=2, relief=tk.GROOVE)
 
         if config1:
-            subwin_n = app_mods.SubWindow(master=sub_frame1, 
+            subwin_n = app_mods.SubWindow(master=sub_frame1,
                                         config=config1)
 
             subwin_n.pack(side=tk.TOP, padx=10, pady=10, anchor="w")  # Align subwindow to the left
@@ -209,7 +209,7 @@ def create_trade_manager_window():
         # toggle_window_state(window, state_flag):
 
         hide_button = tk.Button(g_trade_manager_window, text="Hide TM", command=hide_subwindow)
-        
+
         hide_button.pack(side=tk.LEFT, padx=20, pady=50, anchor='n')
 
         g_trade_manager_window.protocol("WM_DELETE_WINDOW", on_closing_trade_manager)
@@ -243,7 +243,7 @@ def qty_price_from_ui ():
         else:
             logger.info("Button clicked with no price entered")
             tp = None
-    
+
     qty_str = g_qty_entry.get()
     if qty_str:
         if exch == 'NSE':
@@ -256,6 +256,15 @@ def qty_price_from_ui ():
         ui_qty = None
 
     return ui_qty, tp
+
+def disable_price_entry_cb():
+    entry = g_price_entry
+    # Check conditions here
+    # For demonstration, let's assume a condition where entry should be disabled
+        # Show a message box indicating the reason for disabling
+    tk.messagebox.showinfo("Warning", "Receiving Delaying Ticks, disabling Level based orders")
+    # Disable the entry widget
+    entry.config(state=tk.DISABLED)
 
 def long_market():
     logger.info(f'{datetime.now()}: Buy Click')
@@ -458,20 +467,20 @@ def gui_tk_layout():
                 elif g_price_entry.index(tk.INSERT) > 0:
                     g_price_entry.delete(g_price_entry.index(tk.INSERT) - 1)
                 return "break"  # Prevent default behavior of Backspace key
-            elif event.keysym == "Delete":  
+            elif event.keysym == "Delete":
                 if g_price_entry.selection_present():
                     start, end = g_price_entry.index(tk.SEL_FIRST), g_price_entry.index(tk.SEL_LAST)
                     g_price_entry.delete(start, end)
                 elif g_price_entry.index(tk.INSERT) < len(g_price_entry.get()):
                     g_price_entry.delete(g_price_entry.index(tk.INSERT))
                 return "break"  # Prevent default behavior of Delete key
-            elif event.keysym in ["Left", "Right"]:  
+            elif event.keysym in ["Left", "Right"]:
                 return
             else:
                 return "break"
 
         label_entry_price = tk.Label(frame_mid, text="Entry Price:")
-        label_entry_price.pack(side=tk.LEFT, padx=(5, 10)) 
+        label_entry_price.pack(side=tk.LEFT, padx=(5, 10))
 
         global g_price_entry
         g_price_entry = tk.Entry(frame_mid, width=8, validate="key", validatecommand=(validate_float, '%P'))
@@ -504,18 +513,18 @@ def gui_tk_layout():
             elif g_qty_entry.index(tk.INSERT) > 0:
                 g_qty_entry.delete(g_qty_entry.index(tk.INSERT) - 1)
             return "break"  # Prevent default behavior of Backspace key
-        elif event.keysym == "Delete":  
+        elif event.keysym == "Delete":
             if g_qty_entry.selection_present():
                 start, end = g_qty_entry.index(tk.SEL_FIRST), g_qty_entry.index(tk.SEL_LAST)
                 g_qty_entry.delete(start, end)
             elif g_qty_entry.index(tk.INSERT) < len(g_qty_entry.get()):
                 g_qty_entry.delete(g_qty_entry.index(tk.INSERT))
             return "break"  # Prevent default behavior of Delete key
-        elif event.keysym in ["Left", "Right"]:  
+        elif event.keysym in ["Left", "Right"]:
             return
         else:
             return "break"
-        
+
 
     validate_int = root.register(validate_qty)
 
@@ -526,7 +535,7 @@ def gui_tk_layout():
         qty_str = 'Lots:'
 
     label_qty = tk.Label(frame_mid, text=qty_str)
-    label_qty.pack(side=tk.LEFT, padx=(5, 10)) 
+    label_qty.pack(side=tk.LEFT, padx=(5, 10))
 
     global g_qty_entry
     g_qty_entry = tk.Entry(frame_mid, width=5, validate="key", validatecommand=(validate_int, '%P'))
@@ -561,7 +570,7 @@ def gui_tk_layout():
             exit_button.config(state='normal')
             tm_button.config(state='normal')
         else:
-            buy_button.config(state="disabled")        
+            buy_button.config(state="disabled")
             sell_button.config(state="disabled")
             square_off_button.config(state="disabled")
             exit_button.config(state='disabled')
@@ -640,9 +649,9 @@ def is_exp_date_lapsed(date_string):
             return False  # Date is in the future
     except ValueError:
         return False  # Invalid date string format
-    
+
 def check_expiry_dates(data):
-    
+
     for key, value in data.items():
         if isinstance(value, dict):
             # If the value is a dictionary, recursively check for expiry dates
@@ -664,17 +673,17 @@ def get_nth_nearest_expiry_date(symbol_prefix, n, url='EXPIRY_DATE_CALC_URL1'):
     symboldf['days_until_expiry'] = (symboldf['expiry'] - pd.Timestamp(today)).dt.days
 
     if url == 'EXPIRY_DATE_CALC_URL2':
-        nfodf = symboldf[(symboldf.last_price.notnull()) & 
-                        symboldf['tradingsymbol'].str.startswith(symbol_prefix) & 
-                        (symboldf.exchange == 'NSE_FO') & 
-                        (symboldf.tick_size == 0.05) & 
+        nfodf = symboldf[(symboldf.last_price.notnull()) &
+                        symboldf['tradingsymbol'].str.startswith(symbol_prefix) &
+                        (symboldf.exchange == 'NSE_FO') &
+                        (symboldf.tick_size == 0.05) &
                         (symboldf.instrument_type == 'OPTIDX')]
     else :
-        nfodf = symboldf[((symboldf['symbol'] == symbol_prefix) & symboldf['tradingsymbol'].str.startswith(symbol_prefix)) & 
-                         (symboldf.exchange == 'NFO') & 
-                         (symboldf.ticksize == 0.05) & 
+        nfodf = symboldf[((symboldf['symbol'] == symbol_prefix) & symboldf['tradingsymbol'].str.startswith(symbol_prefix)) &
+                         (symboldf.exchange == 'NFO') &
+                         (symboldf.ticksize == 0.05) &
                          (symboldf.instrument == 'OPTIDX')]
-    
+
     # Get unique expiry dates and sort them
     unique_expiry_dates = sorted(nfodf['expiry'].unique())
 
@@ -684,7 +693,7 @@ def get_nth_nearest_expiry_date(symbol_prefix, n, url='EXPIRY_DATE_CALC_URL1'):
 
     # Get the nth unique expiry date
     nth_expiry_date = unique_expiry_dates[n - 1]
-    
+
     return pd.Timestamp(nth_expiry_date).strftime('%d-%b-%Y').upper()
 
 def update_expiry_date(symbol_prefix):
@@ -717,7 +726,7 @@ def update_strike(symbol_prefix, ce_or_pe):
         if opt_diff == 1:
             strike_offset = -1
         else:
-            strike_offset = 0        
+            strike_offset = 0
     else:
         ce_or_pe_offset = 'PE_STRIKE_OFFSET'
         strike_key = 'PE_STRIKE'
@@ -725,7 +734,7 @@ def update_strike(symbol_prefix, ce_or_pe):
             strike_offset = 1
         else:
             strike_offset = 0
-    
+
     app_mods.replace_system_config ('SYMBOL', symbol_prefix, 'EXCHANGE', 'NFO', ce_or_pe_offset, strike_offset)
     app_mods.replace_system_config ('SYMBOL', symbol_prefix, 'EXCHANGE', 'NFO', strike_key, None)
 
@@ -754,6 +763,11 @@ def main():
     global g_trade_manager_window
     global g_SYSTEM_FEATURE_CONFIG
 
+    # Verify System time with the External servers.
+    ct = utils.CustomTime ()
+    result = ct.compare_system_and_ntp_time ()
+    logger.info(f"System clock Verfication: System time and NTP server time match: {result}")
+
     r = app_mods.get_system_config()
     logger.info(f'System Config Read: {r}')
 
@@ -762,7 +776,7 @@ def main():
 
     g_SYSTEM_FEATURE_CONFIG = dict()
     g_SYSTEM_FEATURE_CONFIG ['limit_order_cfg'] = True if app_mods.get_system_info("SYSTEM", "LMT_ORDER_FEATURE")=='ENABLED' else False
-    
+
     exch = app_mods.get_system_info("TRADE_DETAILS", "EXCHANGE")
 
     g_SYSTEM_FEATURE_CONFIG ['tm'] = 'CE_PE' if exch == 'NFO' else None
@@ -770,8 +784,8 @@ def main():
         g_SYSTEM_FEATURE_CONFIG ['tm'] = 'BEES' if exch == 'NSE' else None
     logger.info (f'{json.dumps(g_SYSTEM_FEATURE_CONFIG, indent=2)}')
 
-    # Verification Step: 
-    # If the exchange is NFO and the expiry dates are already lapsed, 
+    # Verification Step:
+    # If the exchange is NFO and the expiry dates are already lapsed,
     # it should be flagged.
     if exch == 'NFO':
         inst_info = app_mods.get_system_info("TRADE_DETAILS", "INSTRUMENT_INFO")
