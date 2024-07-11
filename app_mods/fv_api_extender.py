@@ -37,7 +37,7 @@ try:
     from dataclasses import dataclass
     from datetime import datetime
     from difflib import SequenceMatcher
-    from sre_constants import FAILURE, SUCCESS
+    from app_utils import FAILURE, SUCCESS
     from threading import Event, Thread, Lock
 
     import pandas as pd
@@ -83,7 +83,7 @@ class FeedBaseObj(object):
         with self.lock:
             self._force_reconnect = reconnect
 
-    force_reconnect = property (get_force_reconnect, set_force_reconnect)    
+    force_reconnect = property (get_force_reconnect, set_force_reconnect)
 
 @dataclass
 class ShoonyaApiPy_CreateConfig (object):
@@ -94,7 +94,7 @@ class ShoonyaApiPy_CreateConfig (object):
     dl_filepath: str = None
     market_hours: Market_Timing = None
     ws_monitor_cfg: bool = True
-    test_env:bool = False    
+    test_env:bool = False
 
 
 class ShoonyaApiPy(NorenApi, FeedBaseObj):
@@ -212,7 +212,7 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
             if os.path.exists(self.nfo_scripmaster_file):
                 os.remove(self.nfo_scripmaster_file)
             download_unzip_symbols_file(url=nfo_url, folder=self.scripmaster_folder, srcfile=nfo_srcfilename, dstfile=nfo_dstfilename)
-        
+
         ShoonyaApiPy.__count += 1
         logger.info(f'{self.inst_id} Creating Shoonya Object..Done')
 
@@ -419,9 +419,9 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
 
         return resDict
 
-    def get_order_margin (self, buy_or_sell, 
-                          product_type, exchange, tradingsymbol, 
-                          quantity, price_type, 
+    def get_order_margin (self, buy_or_sell,
+                          product_type, exchange, tradingsymbol,
+                          quantity, price_type,
                           price=0.0, trigger_price=None):
 
         url = f'{self.shoonya_api_host}/GetOrderMargin'
@@ -821,7 +821,7 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
             if self.app_cb_subscribe is not None:
                 self.app_cb_subscribe(mesg)
             return
-        
+
         def order_update_callback(mesg):
             nonlocal self
             self.ws_v2_data_flow_evt.set()
@@ -839,13 +839,15 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
         def error_callback(mesg):
             if isinstance(mesg, Exception):
                 logger.info(f"WS Exception: {str(mesg)}")
-            else:            
+                logger.error(traceback.format_exc())
+            else:
                 try:
                     logger.info (f'Web socket Error Call back: mesg:{json.dumps(mesg,indent=2)}')
                 except Exception as e:
+                    logger.error(traceback.format_exc())
                     logger.debug (f'Exception :{str(e)}')
             return
-            
+
 
         def ws_v2_connect_and_monitor(self):
             import websocket
@@ -864,7 +866,7 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
                     logger.info(f'{self.inst_id} Creating Websocket re_connect_count :: {re_connect_count} :')
                     self.start_websocket(order_update_callback=order_update_callback,
                                         subscribe_callback=subscribe_callback,
-                                        socket_open_callback=open_callback, 
+                                        socket_open_callback=open_callback,
                                         socket_close_callback=close_callback,
                                         socket_error_callback=error_callback)
 
@@ -915,7 +917,7 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
                     logger.info(f"{self.inst_id} Unsubscribe..Done")
                     self.close_websocket()
                     logger.info(f"{self.inst_id} close socket..Done")
-                    
+
                     wait_count = 5
                     while self.ws_connected and wait_count:
                         time.sleep (2.0)
@@ -1003,5 +1005,5 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
             self.ws_v2_th.join(2.0)
             if self.ws_v2_th.is_alive():
                 logger.error(f"{self.inst_id} {self.ws_v2_th.name} is still alive")
-        
+
         return (ret_val)

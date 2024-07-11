@@ -31,7 +31,7 @@ try:
     import datetime
     import json
     import os
-    from sre_constants import FAILURE, SUCCESS
+    from app_utils import FAILURE, SUCCESS
 
     import app_utils
     import gspread

@@ -33,7 +33,7 @@ try:
     import copy
     import json
     from datetime import datetime, date
-    from sre_constants import FAILURE, SUCCESS
+    from app_utils import FAILURE, SUCCESS
     from threading import Lock
     from time import mktime, time
 
@@ -303,14 +303,18 @@ class WS_WrapU(object):
 
                     if 'ft' in tick_data:
                         ft = int (tick_data['ft'])
-                        if not ft or ft < int (ohlc_obj.ft):
-                            # Some times observed that feed time is less than previous
-                            # but that message still contains other valid data.
-                            # In such cases not sending the tick data.
-                            fv_send_data = False
-                        else :
-                            ohlc_obj.ft = tick_data['ft']
-                            fv_send_data = self._fv_send_data
+                        fv_send_data = False
+                        try:
+                            if not ft or (ohlc_obj.ft and ft < int(ohlc_obj.ft)):
+                                # Some times observed that feed time is less than previous
+                                # but that message still contains other valid data.
+                                # In such cases not sending the tick data.
+                                fv_send_data = False
+                            else :
+                                ohlc_obj.ft = tick_data['ft']
+                                fv_send_data = self._fv_send_data
+                        except Exception as e :
+                            logger.error (f'{ft} {type(ft)} {ohlc_obj.ft}')
 
                         if self._send_data and fv_send_data:
                             new_obj:TickData = copy.copy(ohlc_obj)

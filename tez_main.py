@@ -20,7 +20,7 @@ __email__ = "tarakesh.nc_at_google_mail_dot_com"
 __license__ = "MIT"
 __maintainer__ = "Tarak"
 __status__ = "Development"
-__version__ = "0.8.0_TC1"
+__version__ = "0.8.0_TC2"
 
 import sys
 import traceback
@@ -37,7 +37,7 @@ try:
     import winsound
     from datetime import datetime
     from multiprocessing import active_children
-    from sre_constants import FAILURE, SUCCESS
+    from app_utils import FAILURE, SUCCESS
     from PIL import Image, ImageTk
     import app_mods
     import pandas as pd
@@ -797,7 +797,9 @@ def main():
         logger.info (f'NIFTYBEES: {json.dumps(app_mods.get_system_info("INSTRUMENT_INFO", "INST_1"),indent=2)}')
         logger.info (f'BANKBEES: {json.dumps(app_mods.get_system_info("INSTRUMENT_INFO", "INST_2"),indent=2)}')
 
-    app_be_cc_cfg = TeZ_App_BE_CreateConfig(g_SYSTEM_FEATURE_CONFIG ['limit_order_cfg'], system_sqoff_cb=system_sqoff_cb)
+    app_be_cc_cfg = TeZ_App_BE_CreateConfig(g_SYSTEM_FEATURE_CONFIG ['limit_order_cfg'],
+                                            system_sqoff_cb=system_sqoff_cb,
+                                            disable_price_entry_cb=disable_price_entry_cb)
     try:
         g_app_be = TeZ_App_BE(app_be_cc_cfg)
     except app_mods.tiu.LoginFailureException:
