@@ -22,7 +22,7 @@ try:
     import datetime
     import tkinter as tk
     from dataclasses import dataclass
-    import threading 
+    import threading
     from tkinter import ttk, messagebox
     from typing import Callable, List
 
@@ -178,10 +178,10 @@ class SubWindow(tk.Frame):
 class EntryWithButtons(tk.Frame):
     def __init__(self, master=None, label:str|None = None,init_value=None, min_value=None, **kw):
         super().__init__(master, **kw)
-        
+
         self.label = tk.Label(self, text=label, width=7, font=("Arial", 10), justify="left")
         self.label.grid(row=0, column=0, padx=2, pady=5, sticky='w')
-        
+
         # Create minus button
         self.minus_button = ttk.Button(self, text="-", width=1)
         self.minus_button.grid(row=0, column=1)
@@ -202,7 +202,7 @@ class EntryWithButtons(tk.Frame):
                 # If a positive sign is found, remove it
                 entry_text = entry_text.replace('+', '')
                 self.entry.delete(0, tk.END)
-                self.entry.insert(0, entry_text)            
+                self.entry.insert(0, entry_text)
 
         # Create entry box
         self.entry = ttk.Entry(self,width=9)
@@ -246,7 +246,7 @@ class EntryWithButtons(tk.Frame):
     def start_increment(self, event=None):
         self.increment()
         self.increment_job = self.after(100, self.start_increment)  # Repeat every 500 ms
-        
+
     def stop_increment(self, event=None):
         if self.increment_job:
             self.after_cancel(self.increment_job)
@@ -309,11 +309,11 @@ class PNL_Window (tk.Frame):
 
         self.radio_var = tk.StringVar()  # set default value to "Manual"
 
-        rb2 = tk.Radiobutton(master=master, text="Manual", variable=self.radio_var, 
+        rb2 = tk.Radiobutton(master=master, text="Manual", variable=self.radio_var,
                              value="Manual", command=self.__on_radio_button_selected__)
         rb2.grid(row=3, column=0, padx=5, pady=5, sticky='w')
 
-        rb1 = tk.Radiobutton(master=master, text="Auto", variable=self.radio_var, 
+        rb1 = tk.Radiobutton(master=master, text="Auto", variable=self.radio_var,
                              value="Auto", command=self.__on_radio_button_selected__)
         rb1.grid(row=3, column=1, padx=5, pady=5, sticky='w')
 
@@ -321,7 +321,7 @@ class PNL_Window (tk.Frame):
 
         self.pnl_label = tk.Label(master=master, text='PnL (In Rs): ', font=('Arial', 12, "bold"))
         self.pnl_label.grid(row=4, column=0, padx=5, pady=5, sticky='e')
-    
+
         self.pnl_value_label = tk.Label(master=master, text='', font=('Arial', 10))
         self.pnl_value_label.grid(row=4, column=1, padx=5, pady=5, sticky='w')
 
@@ -338,7 +338,7 @@ class PNL_Window (tk.Frame):
 
     def set_cb_value(self, new_value:Callable):
         self._cb = new_value
-    
+
     cb = property(None, set_cb_value)
 
     def __on_radio_button_selected__(self):
@@ -373,7 +373,7 @@ class PNL_Window (tk.Frame):
     def scan_and_print_values(self):
 
         with self._cb_running_lock:
-            if self._cb_running: 
+            if self._cb_running:
                 logger.debug (f'cb_running: ..callback last timestamp: {self.cb_ts}')
                 return
             self._cb_running = True
@@ -382,22 +382,22 @@ class PNL_Window (tk.Frame):
         try:
             self.cb_ts = datetime.datetime.now()
             if self._cb is not None:
-                if self.radio_var.get() == 'Auto':            
+                if self.radio_var.get() == 'Auto':
                     # print(f"now: {datetime.datetime.now()}: SL: {sl_value}, Target: {target_value}, Mv2Cst: {mvto_cost_value}, Trail_After: {trail_after_value}, Trail_by: {trail_by_value}")
-                    
+
                     ui_reset = False
                     if self.radio_var_local == 'Manual':
                         ui_reset = True
                         self.radio_var_local = 'Auto'
-                    
+
                     sl = self.sl.value.get()
                     target = self.target.value.get()
                     mvto_cost = self.mvto_cost.value.get()
                     trail_after = self.trail_after.value.get()
                     trail_by = self.trail_by.value.get()
 
-                    atd = AutoTrailerData (sl=sl, target=target, mvto_cost=mvto_cost, 
-                                           trail_after=trail_after, trail_by=trail_by, 
+                    atd = AutoTrailerData (sl=sl, target=target, mvto_cost=mvto_cost,
+                                           trail_after=trail_after, trail_by=trail_by,
                                            ui_reset=ui_reset)
 
                     ate:AutoTrailerEvent = self._cb (atd)
@@ -446,7 +446,7 @@ class PNL_Window (tk.Frame):
             logger.debug(traceback.format_exc())
 
         finally:
-            with self._cb_running_lock: 
+            with self._cb_running_lock:
                 self._cb_running = False
 
         # Schedule to run again after 1000 ms (1 second)
@@ -454,5 +454,26 @@ class PNL_Window (tk.Frame):
 
     def grid_in_root(self, row, column):
         self.grid(row=row, column=column)  # Grid the PNL_Window instance within the root window
-       
+
         return
+
+def show_custom_messagebox(title, message, timeout=3000):
+    def on_close():
+        top.destroy()
+
+    def timeout_close():
+        if top.winfo_exists():
+            top.destroy()
+
+    top = tk.Toplevel()
+    top.title(title)
+    top.geometry("300x150")
+    top.grab_set()  # Prevent interaction with other windows
+
+    label = ttk.Label(top, text=message, wraplength=250)
+    label.pack(pady=20)
+
+    button = ttk.Button(top, text="OK", command=on_close)
+    button.pack(pady=10)
+
+    top.after(timeout, timeout_close)

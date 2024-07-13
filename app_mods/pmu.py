@@ -274,8 +274,8 @@ class PriceMonitoringUnit:
                                                         rx_ts: {ohlc.rx_ts} unix_epoch_time: {unix_epoch_time} diff_ft: {diff_ft}""")
                                         logger.info (f'Unexpected delay:  rx_ts: {ohlc.rx_ts} diff_ft :{ohlc.ft} {unix_epoch_time} {diff_ft} secs')
                                         if self.delay_cb is not None and (not self.delay_cb_done):
-                                            self.delay_cb ()
-                                            self.delay_cb_done = True
+                                            if self.delay_cb ():
+                                                self.delay_cb_done = True
                                         drop_tick = True
                                     else :
                                         drop_tick = False

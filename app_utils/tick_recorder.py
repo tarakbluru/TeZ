@@ -58,14 +58,17 @@ class TickRecorder(object):
     filename = property (None, set_filename)
 
     def start_service (self):
-        self.tick_record_process = mp(target=self.__tick_recorder_server__, name="TickRecorder", 
+        self.tick_record_process = mp(target=self.__tick_recorder_server__, name="TickRecorder",
                                 args=(self.mp_q,self._file_name,))
         self.tick_record_process.daemon = True
         self.tick_record_process.start()
 
     def put_data (self, mesg):
         if self._state == TickRecorderState.ON:
-            self.mp_q.put(f'{mesg}')
+            try:
+                self.mp_q.put(f'{mesg}')
+            except ValueError as e:
+                logger.error (f'Queue is alread closed {str(e)}')
 
     def stop_service (self):
         self.mp_q.put (None)
@@ -78,7 +81,7 @@ class TickRecorder(object):
             # get a message
             try:
                 item = q.get(timeout=60)
-            except KeyboardInterrupt:                
+            except KeyboardInterrupt:
                 break
             except queue.Empty:
                 pass

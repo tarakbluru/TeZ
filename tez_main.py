@@ -20,7 +20,7 @@ __email__ = "tarakesh.nc_at_google_mail_dot_com"
 __license__ = "MIT"
 __maintainer__ = "Tarak"
 __status__ = "Development"
-__version__ = "0.8.0_TC2"
+__version__ = "0.8.0_TC3"
 
 import sys
 import traceback
@@ -258,13 +258,15 @@ def qty_price_from_ui ():
     return ui_qty, tp
 
 def disable_price_entry_cb():
-    entry = g_price_entry
-    # Check conditions here
-    # For demonstration, let's assume a condition where entry should be disabled
-        # Show a message box indicating the reason for disabling
-    tk.messagebox.showinfo("Warning", "Receiving Delaying Ticks, disabling Level based orders")
-    # Disable the entry widget
-    entry.config(state=tk.DISABLED)
+    try:
+        entry = g_price_entry
+        # Disable the entry widget
+        entry.config(state=tk.DISABLED)
+        # app_mods.show_custom_messagebox("Warning", "Receiving Delaying Ticks, disabling Level based orders")
+        tk.messagebox.showerror("Warning", "Receiving Delaying Ticks, disabling Level based orders")
+        return True
+    except NameError:
+        return False
 
 def long_market():
     logger.info(f'{datetime.now()}: Buy Click')

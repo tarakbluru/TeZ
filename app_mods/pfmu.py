@@ -262,12 +262,14 @@ class PFMU:
 
         def force_reconnect ():
             nonlocal self
-            logger.debug (f'Forcing the diu to reconnect ..')
-            self.diu.force_reconnect = True
-
             logger.debug (f'Disabling Price entry ..')
             if self.disable_price_entry_cb is not None:
-                self.disable_price_entry_cb ()
+                r = self.disable_price_entry_cb ()
+                if r :
+                    logger.debug (f'Forcing the diu to reconnect ..')
+                    self.diu.force_reconnect = True
+                return r
+            return True
 
         pmu_cc = PMU_CreateConfig(pfmu_cc.port, data_delay_callback_function=force_reconnect)
 
