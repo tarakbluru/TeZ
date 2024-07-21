@@ -276,6 +276,9 @@ class PriceMonitoringUnit:
                                         if self.delay_cb is not None and (not self.delay_cb_done):
                                             if self.delay_cb ():
                                                 self.delay_cb_done = True
+                                                # purging all conditions should not be done here
+                                                # as pfmu will not know about it.                                                
+                                                # Avoid --> self.purge_all_conditions(token='ALL')
                                         drop_tick = True
                                     else :
                                         drop_tick = False

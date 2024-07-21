@@ -266,6 +266,7 @@ class PFMU:
             if self.disable_price_entry_cb is not None:
                 r = self.disable_price_entry_cb ()
                 if r :
+                    self.cancel_all_waiting_orders(exit_flag=False, show_table=True)
                     logger.debug (f'Forcing the diu to reconnect ..')
                     self.diu.force_reconnect = True
                 return r
@@ -518,7 +519,7 @@ class PFMU:
         if show_table:
             self.wo_table_show()
 
-    def take_position(self, action: str, inst_info: InstrumentInfo, trade_price: float):
+    def take_position(self, action: str, inst_info: InstrumentInfo, trade_price: float|None):
 
         r: Ocpu_RetObject = self.ocpu.create_order(action=action, inst_info=inst_info, trade_price=trade_price)
 
