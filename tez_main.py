@@ -20,7 +20,7 @@ __email__ = "tarakesh.nc_at_google_mail_dot_com"
 __license__ = "MIT"
 __maintainer__ = "Tarak"
 __status__ = "Development"
-__version__ = "0.8.0_TC4"
+__version__ = "0.8.0_TC5"
 
 import sys
 import traceback
@@ -263,7 +263,7 @@ def disable_price_entry_cb():
         # Disable the entry widget
         entry.config(state=tk.DISABLED)
         # app_mods.show_custom_messagebox("Warning", "Receiving Delaying Ticks, disabling Level based orders")
-        tk.messagebox.showerror("Warning", "Receiving Delaying Ticks, disabling Level based orders")
+        tk.messagebox.showerror("Warning", "Receiving Delayed Ticks, Cancelling/Disabling Level based orders")
         return True
     except NameError:
         return False

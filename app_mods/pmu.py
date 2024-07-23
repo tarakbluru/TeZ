@@ -263,16 +263,18 @@ class PriceMonitoringUnit:
                                     logger.debug (f'processing : {ohlc.tk}:  {ohlc.ft}')
                                     log_proc = False
                                 token = str(ohlc.tk)
-                                unix_epoch_time = int(time.time())
                                 try:
-                                    diff_ft = abs(int(ohlc.ft) - unix_epoch_time)
+                                    rx_ts = round(float(ohlc.rx_ts))
+                                    diff_ft = abs(rx_ts - int(ohlc.ft))
                                 except ValueError:
                                     logger.info (f'{ohlc}')
+                                except Exception as e:
+                                    logger.info (f'{ohlc} Exception: {str(e)}')
                                 else:
                                     if chk_delay and diff_ft > 4:
                                         logger.debug (f"""Check the feed, it seems to be lagging ft:{ohlc.ft}
-                                                        rx_ts: {ohlc.rx_ts} unix_epoch_time: {unix_epoch_time} diff_ft: {diff_ft}""")
-                                        logger.info (f'Unexpected delay:  rx_ts: {ohlc.rx_ts} diff_ft :{ohlc.ft} {unix_epoch_time} {diff_ft} secs')
+                                                        rx_ts: {rx_ts} diff_ft: {diff_ft}""")
+                                        logger.info (f'Unexpected delay:  rx_ts: {rx_ts} ft :{ohlc.ft} diff_ft: {diff_ft} secs')
                                         if self.delay_cb is not None and (not self.delay_cb_done):
                                             if self.delay_cb ():
                                                 self.delay_cb_done = True

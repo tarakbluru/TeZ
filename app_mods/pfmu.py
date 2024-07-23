@@ -262,12 +262,13 @@ class PFMU:
 
         def force_reconnect ():
             nonlocal self
-            logger.debug (f'Disabling Price entry ..')
+            logger.debug ('Disabling Price entry ..')
             if self.disable_price_entry_cb is not None:
                 r = self.disable_price_entry_cb ()
                 if r :
+                    logger.debug ('Cancelling all waiting Orders ..')
                     self.cancel_all_waiting_orders(exit_flag=False, show_table=True)
-                    logger.debug (f'Forcing the diu to reconnect ..')
+                    logger.debug ('Forcing the diu to reconnect ..')
                     self.diu.force_reconnect = True
                 return r
             return True
