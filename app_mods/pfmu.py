@@ -153,7 +153,13 @@ class Portfolio:
             ul_data = self.stock_data[self.stock_data['ul_index'] == ul_index]
             if not ul_data.empty:
                 return ul_data['available_qty'].sum()
-        return 0
+        else :
+            try:
+                qty = self.stock_data['available_qty'].sum()
+            except Exception as e:
+                return 0
+            else:
+                return qty
 
     def verify_reset(self, ul_index=None):
         df = self.stock_data
@@ -643,6 +649,7 @@ class PFMU:
                     logger.debug(f'Exit Order Attempt success:: order id  : {r["norenordno"]}')
                     order_id = r["norenordno"]
                     r_os_list = self.tiu.single_order_history(order_id)
+
                     # Shoonya gives a list for all status of order, we are interested in first one
                     r_os_dict = r_os_list[0]
                     if r_os_dict["status"].lower() == "complete":
@@ -798,7 +805,7 @@ class PFMU:
                                     diff_qty = 0
                                     break
 
-        def __square_off_position__(df: pd.DataFrame, symbol=None):
+        def __square_off_position(df: pd.DataFrame, symbol=None):
             nonlocal self
             try:
                 df_filtered = df[(df['Qty'] != 0) & (df['Status'] == 'SUCCESS')]
@@ -1002,22 +1009,27 @@ class PFMU:
                             else:
                                 self.portfolio.update_position_closed(tsym_token=tsym_token, qty=closed_qty)
 
-        df = self.bku.fetch_order_id()
+        df = self.bku.fetch_orders_df()
 
         if mode == 'ALL':
             # System Square off - At square off time
-            try:
-                if self.limit_order_cfg:
-                    self.cancel_all_waiting_orders(exit_flag=exit_flag, show_table=False)
-                __square_off_position__(df=df)
-                with self.pf_lock:
-                    self.portfolio.verify_reset()
+            with self.pf_lock:
+                if not self.portfolio.available_qty(ul_index=None): #Any available Qty.
+                    logger.info (f'No quantity to Square Off')
+                    return
 
-                if self._system_sqoff_cb:
-                    self._system_sqoff_cb ()
+                try:
+                    if self.limit_order_cfg:
+                        self.cancel_all_waiting_orders(exit_flag=exit_flag, show_table=False)
+                    __square_off_position(df=df)
+                    with self.pf_lock:
+                        self.portfolio.verify_reset()
 
-            except OrderExecutionException:
-                logger.error('Major Exception Happened: Take Manual control..')
+                    if self._system_sqoff_cb:
+                        self._system_sqoff_cb ()
+
+                except OrderExecutionException:
+                    logger.error('Major Exception Happened: Take Manual control..')
 
         else:
             if partial_exit:
@@ -1025,23 +1037,26 @@ class PFMU:
                 # ul_ltp is required for find the deep in the money strikes
                 reduce_qty_for_ul(ul_index=ul_index, ul_ltp=ul_ltp, reduce_per=per, inst_type=inst_type)
             else:
-                try:
-                    ul_token = self.diu.ul_token
-                    if self.limit_order_cfg:
-                        self.cancel_all_waiting_orders(ul_token=ul_token)
+                with self.pf_lock:
+                    if not self.portfolio.available_qty(ul_index=ul_index):
+                        logger.info (f'No quantity to Square Off')
+                        return
+                    try:
+                        ul_token = self.diu.ul_token
+                        if self.limit_order_cfg:
+                            self.cancel_all_waiting_orders(ul_token=ul_token)
 
-                    __square_off_position__(df=df, symbol=ul_index)
+                        __square_off_position(df=df, symbol=ul_index)
 
-                    with self.pf_lock:
                         self.portfolio.verify_reset(ul_index=ul_index)
-                except OrderExecutionException:
-                    logger.error('Major Exception Happened: Take Manual control..')
+                    except OrderExecutionException:
+                        logger.error('Major Exception Happened: Take Manual control..')
 
         logger.info("Square off Position - Complete.")
 
     def intra_day_pnl (self):
         mtm = 0.0
-        df = self.bku.fetch_order_id()
+        df = self.bku.fetch_orders_df()
         if df is None or df.empty:
             return mtm
         try:

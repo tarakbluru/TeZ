@@ -843,8 +843,8 @@ def main():
 
 
 if __name__ == "__main__":
+    logger.info(f'Python Version:{sys.version}: Exe: {sys.executable}')
     main()
-
     nthreads = threading.active_count()
     logger.info(f"nthreads in the system: {nthreads}")
 

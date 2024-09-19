@@ -120,7 +120,7 @@ class BookKeeperUnit:
 
         console.print(table)
 
-    def fetch_order_id(self):
+    def fetch_orders_df(self):
         if len(self.orders_df):
             # return self.orders_df.to_dict(orient='records')
             return self.orders_df

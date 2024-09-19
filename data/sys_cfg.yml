@@ -2,8 +2,8 @@
 GUI_CONFIG:
   APP_TITLE: 'TeZ'
   APP_GEOMETRY: '350x250'
-  LONG_BUTTON: ' Buy '
-  SHORT_BUTTON: 'Short'
+  LONG_BUTTON: ' Buy'     # ' Buy (CE ↑)'
+  SHORT_BUTTON: 'Short'   # 'Short (PE ↑)'
   EXIT_BUTTON: 'Exit App'
   SQUARE_OFF_BUTTON: 'Square Off'
   PLAY_NOTIFY: 'YES'  # YES NO

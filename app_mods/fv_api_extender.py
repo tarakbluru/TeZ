@@ -33,6 +33,7 @@ try:
     import os
     import time
     import urllib
+    import re
     import zipfile
     from dataclasses import dataclass
     from datetime import datetime
@@ -213,6 +214,8 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
                 os.remove(self.nfo_scripmaster_file)
             download_unzip_symbols_file(url=nfo_url, folder=self.scripmaster_folder, srcfile=nfo_srcfilename, dstfile=nfo_dstfilename)
 
+        self.symbol_dict = {}
+
         ShoonyaApiPy.__count += 1
         logger.info(f'{self.inst_id} Creating Shoonya Object..Done')
 
@@ -253,9 +256,9 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
             df = df[(df['Symbol'] == symbol) & (df['Expiry'] == expdate)]
             df = df.astype(object)
             results = pd.concat([results, df], ignore_index=True)
-            # deleting the dataframe to conserve the memory
-            del df
+            self.symbol_dict[symbol] = df
 
+        logger.debug (f'Saving file: {output_file_path}')
         results.to_csv(output_file_path, index=False)
 
     def get_strike_diff(self):
@@ -352,8 +355,43 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
         found = False
         if exchange == 'NSE':
             scripmaster_file = self._scripmaster_file
-
         elif exchange == 'NFO':
+            def extract_ul(searchtext):
+                match = re.match(r'^[A-Z]+', searchtext)
+                if match:
+                    logger.debug (f'Able to extract UL: {searchtext} {match.group(0)}')
+                    return match.group(0)
+                return None
+
+            ul_key = extract_ul(searchtext)
+            if ul_key:
+                # Check if the symbol is in the dictionary
+                if ul_key in self.symbol_dict:
+                    df = self.symbol_dict[ul_key]
+                    # Check if searchtext is in the DataFrame
+                    matching_rows = df.loc[df['TradingSymbol'] == searchtext]
+                    if not matching_rows.empty:
+                        # Access the first matching row
+                        first_matching_row = matching_rows.iloc[0]
+
+                        resDict = {}
+                        values = []
+                        resDict['stat'] = 'Not_Ok'
+                        resDict["values"] = values
+
+                        # Create the sym_dict
+                        sym_dict = {
+                            'exch': exchange,
+                            'token': first_matching_row['Token'],
+                            'tsym': first_matching_row['TradingSymbol']
+                            }
+                        values.append(sym_dict)
+                        resDict['stat'] = 'Ok'
+                        logger.debug (f'Found in local dataframe: {json.dumps(sym_dict, indent=2)}')
+                        return resDict
+                    else:
+                        logger.debug(f"{searchtext} not found in {ul_key} DataFrame")
+
             scripmaster_file = self.nfo_scripmaster_file
             csv_file_path = os.path.splitext(scripmaster_file)[0] + '.csv'
             logger.info(f'{self.inst_id} Reading from {csv_file_path} ')
