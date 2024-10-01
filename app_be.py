@@ -31,7 +31,7 @@ try:
     import time
     from dataclasses import dataclass
     from datetime import datetime
-    from enum import Enum
+    from enum import Enum, auto
     from threading import Event, Timer
     from typing import NamedTuple, Callable
 
@@ -61,6 +61,10 @@ class SquareOff_InstType(Enum):
     PE = 2
     ALL = 3
 
+class SquareOff_Type(Enum):
+    FULL=auto()
+    PARTIAL=auto()
+
 @dataclass
 class SquareOff_Info:
     mode:SquareOff_Mode
@@ -68,7 +72,7 @@ class SquareOff_Info:
     ul_index: str
     exch:str
     inst_type:SquareOff_InstType=SquareOff_InstType.ALL
-    partial_exit:bool = False
+    type:SquareOff_Type=SquareOff_Type.FULL
 
 class TeZ_App_BE:
     name = "APBE"
@@ -232,7 +236,7 @@ class TeZ_App_BE:
 
         rm_durn = utils.calcRemainingDuration(self._sq_off_time.hour, self._sq_off_time.minute)
         if (rm_durn > 0):
-            self.sqoff_timer = Timer(rm_durn, self.__square_off_position_timer__)
+            self.sqoff_timer = Timer(rm_durn, self.__square_off_position_timer)
         if self.sqoff_timer is not None:
             self.sqoff_timer.name = "SQ_OFF_TIMER"
             self.sqoff_timer.daemon = True
@@ -248,7 +252,7 @@ class TeZ_App_BE:
         logger.info (f"APBE initialization ...done Inst: {TeZ_App_BE.name} {TeZ_App_BE.__count} {TeZ_App_BE.__componentType}")
         return
 
-    def __square_off_position_timer__(self):
+    def __square_off_position_timer(self):
         logger.info(f'{datetime.now().time()} !! Auto Square Off Time !!')
         exch = app_mods.get_system_info("TRADE_DETAILS", "EXCHANGE")
         sqoff_info = SquareOff_Info(mode=SquareOff_Mode.ALL, per=100.0, ul_index=None, exch=exch)
@@ -341,25 +345,41 @@ class TeZ_App_BE:
             return qty_taken
 
     def square_off_position(self, sq_off_info:SquareOff_Info):
+        # Based on discussion here: https://t.me/Shoonya_API/67274
+        # people reported 
+        # Shoonya doesn't update the positions until 300-600ms after an entry. 
+        # So if you try to exit before the positions are updated, 
+        # Shoonya won't see it as a reduce order but rather a fresh sell order, 
+        # essentially causing a mess. Similarly, if you try to put an automatic SL-LMT order 
+        # immediately after getting the orderfill update from the websocket feed, 
+        # it won't recognise that there is already a position and will 
+        # treat it as an order for a fresh position.
+        # Issue1: 
+        # If sq off button is clicked in succession quickly, it might result in fresh sell order
+        # Issue2: 
+        # if a Timer based square off happens, just after the manual square off, it can also 
+        # result in fresh sell order.
+        # 
+
         logger.debug (repr(sq_off_info))
         exch = sq_off_info.exch
+        ul_index = sq_off_info.ul_index
+        sq_off_ul_symbol = None
+        inst_type = sq_off_info.inst_type.name
+
         if sq_off_info.mode == SquareOff_Mode.SELECT:
-            ul_index = sq_off_info.ul_index
             if sq_off_info.inst_type == SquareOff_InstType.ALL:
                 inst_info = TeZ_App_BE.get_instrument_info(exch, ul_index)
                 sq_off_ul_symbol = inst_info['SYMBOL']
                 logger.debug(f'Sq_off_symbol:{sq_off_ul_symbol}')
             else:
-                sq_off_ul_symbol = ul_index
-            inst_type = sq_off_info.inst_type.name
-        else:
-            sq_off_ul_symbol = None
-            inst_type = 'ALL'
+                ...
 
-        partial_exit = sq_off_info.partial_exit
-        logger.info (f'sq_off_ul_symbol: {sq_off_ul_symbol} mode: {sq_off_info.mode.name} inst_type: {inst_type}')
+        partial_exit = True if sq_off_info.type == SquareOff_Type.PARTIAL else False
+        logger.info (f'ul_index:{ul_index} sq_off_ul_symbol: {sq_off_ul_symbol} mode: {sq_off_info.mode.name} inst_type: {inst_type}')
         per = sq_off_info.per
-        self.pfmu.square_off_position (mode=sq_off_info.mode.name, ul_index=sq_off_ul_symbol, per=per, inst_type=inst_type, partial_exit=partial_exit)
+        self.pfmu.square_off_position (mode=sq_off_info.mode.name, ul_index=ul_index, ul_symbol=sq_off_ul_symbol, per=per, 
+                                       inst_type=inst_type, partial_exit=partial_exit)
         if inst_type == 'ALL':
             self.pfmu.show()
 

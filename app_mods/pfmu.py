@@ -33,6 +33,7 @@ try:
     import os
     import re
     from dataclasses import dataclass
+    from time import sleep
     from datetime import datetime, time
     from enum import Enum
     from threading import Lock, Thread
@@ -147,17 +148,23 @@ class Portfolio:
         return 0
 
     def available_qty(self, tsym_token=None, ul_index=None):
-        if tsym_token and tsym_token in self.stock_data.index:
-            return self.stock_data.loc[tsym_token, "available_qty"]
+        if tsym_token:
+            if tsym_token in self.stock_data.index:
+                return self.stock_data.loc[tsym_token, "available_qty"]
+            else:
+                return None
+
         if ul_index is not None:
             ul_data = self.stock_data[self.stock_data['ul_index'] == ul_index]
-            if not ul_data.empty:
+            if ul_data.empty:
+                return None
+            else:
                 return ul_data['available_qty'].sum()
         else :
             try:
                 qty = self.stock_data['available_qty'].sum()
             except Exception as e:
-                return 0
+                return None
             else:
                 return qty
 
@@ -596,7 +603,8 @@ class PFMU:
         else:
             logger.info(f'Not able to fetch the positions. Check manually')
 
-    def square_off_position(self, mode, ul_index: str = None, per: float = 100, inst_type: str = None, partial_exit: bool = False, exit_flag=True):
+    def square_off_position(self, mode, ul_index: str = None, ul_symbol:str=None, 
+                            per: float = 100, inst_type: str = None, partial_exit: bool = False, exit_flag=True):
 
         def place_sq_off_order(tsym: str, b_or_s: str, exit_qty: int, ls: int, frz_qty: int, exchange='NSE'):
             nonlocal self
@@ -805,7 +813,7 @@ class PFMU:
                                     diff_qty = 0
                                     break
 
-        def __square_off_position(df: pd.DataFrame, symbol=None):
+        def __square_off_position(df: pd.DataFrame, symbol=None, wait_flag=False):
             nonlocal self
             try:
                 df_filtered = df[(df['Qty'] != 0) & (df['Status'] == 'SUCCESS')]
@@ -900,6 +908,8 @@ class PFMU:
                 logger.info(f'Not able to sum qty by symbol: {e}')
                 return
 
+            if wait_flag:
+                sleep(0.4)
             r = self.tiu.get_positions()
             if r is not None and isinstance(r, list):
                 posn_df = pd.DataFrame(r)
@@ -1014,14 +1024,16 @@ class PFMU:
         if mode == 'ALL':
             # System Square off - At square off time
             with self.pf_lock:
-                if not self.portfolio.available_qty(ul_index=None): #Any available Qty.
-                    logger.info (f'No quantity to Square Off')
-                    return
-
+                wait_flag = False
+                avl = self.portfolio.available_qty(ul_index=None)
+                if avl is not None and not avl:
+                    logger.info (f'No Recoreded Positions to Square Off')
+                    wait_flag = True
+                    # If there are any open orders, that also need to be cancelled
                 try:
                     if self.limit_order_cfg:
                         self.cancel_all_waiting_orders(exit_flag=exit_flag, show_table=False)
-                    __square_off_position(df=df)
+                    __square_off_position(df=df, wait_flag=wait_flag)
                     with self.pf_lock:
                         self.portfolio.verify_reset()
 
@@ -1038,15 +1050,17 @@ class PFMU:
                 reduce_qty_for_ul(ul_index=ul_index, ul_ltp=ul_ltp, reduce_per=per, inst_type=inst_type)
             else:
                 with self.pf_lock:
-                    if not self.portfolio.available_qty(ul_index=ul_index):
+                    wait_flag = False
+                    avl = self.portfolio.available_qty(ul_index=None)
+                    if avl is not None and not avl:
                         logger.info (f'No quantity to Square Off')
-                        return
+                        wait_flag = True
                     try:
                         ul_token = self.diu.ul_token
                         if self.limit_order_cfg:
                             self.cancel_all_waiting_orders(ul_token=ul_token)
 
-                        __square_off_position(df=df, symbol=ul_index)
+                        __square_off_position(df=df, symbol=ul_symbol, wait_flag=wait_flag)
 
                         self.portfolio.verify_reset(ul_index=ul_index)
                     except OrderExecutionException:

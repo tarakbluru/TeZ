@@ -20,7 +20,7 @@ __email__ = "tarakesh.nc_at_google_mail_dot_com"
 __license__ = "MIT"
 __maintainer__ = "Tarak"
 __status__ = "Development"
-__version__ = "0.8.0_TC5"
+__version__ = "0.8.0_TC7"
 
 import sys
 import traceback
@@ -42,7 +42,7 @@ try:
     import app_mods
     import pandas as pd
     from app_be import (SquareOff_Info, SquareOff_InstType, SquareOff_Mode,
-                        TeZ_App_BE, TeZ_App_BE_CreateConfig)
+                        TeZ_App_BE, TeZ_App_BE_CreateConfig, SquareOff_Type)
 except Exception as e:
     logger.error(traceback.format_exc())
     logger.error(("Import Error " + str(e)))
@@ -80,7 +80,7 @@ def subwindow_exposure_cb (current_value, **kwargs):
     ix = 'NIFTY BANK' if ix == 'BANKNIFTY' else ix
 
     sqoff_info = SquareOff_Info(mode=SquareOff_Mode.SELECT, per=(100-current_value),
-                                ul_index=ix, exch=exch, inst_type=inst_type, partial_exit=True)
+                                ul_index=ix, exch=exch, inst_type=inst_type, type=SquareOff_Type.PARTIAL)
     g_app_be.square_off_position(sqoff_info)
     play_notify()
 
