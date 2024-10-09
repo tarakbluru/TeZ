@@ -981,7 +981,7 @@ class Tiu (BaseIU):
             return resp_exception, resp_ok, result
 
 
-    def get_mtm (self):
+    def get_mtm (self, prd='I'):
         # [
         #   {'stat': 'Ok', 'uid': 'XXXXX', 'actid': 'XXXXX', 'exch': 'NSE', 'tsym': 'GOLDIAM-EQ', 'prd': 'C', 'token': '11971',
         #       'frzqty': '719668', 'pp': '2', 'ls': '1', 'ti': '0.05', 'mult': '1', 'prcftr': '1.000000', 'daybuyqty': '1', 'daysellqty': '0',
@@ -1002,27 +1002,18 @@ class Tiu (BaseIU):
             mtm = None
             if r is not None and isinstance(r, list):
                 raw_df = pd.DataFrame(r)
-                # df = raw_df.loc[(raw_df['prd'] == 'I')]
-                # # logger.debug (df)
-                # # show_df (df)
-                # df['urmtom'] = df.urmtom.map(lambda x: locale.atof(x))
-                # urmtom = df['urmtom'].sum()
-                # df['rpnl'] = df.rpnl.map(lambda x: locale.atof(x))
-                # pnl = df['rpnl'].sum()
-                # mtm = round(urmtom + pnl,2)
+                df = raw_df.loc[raw_df['prd'] == prd]
 
-                # Use .loc to filter rows and update the 'urmtom' column
-                raw_df.loc[raw_df['prd'] == 'I', 'urmtom'] = raw_df.loc[raw_df['prd'] == 'I', 'urmtom'].apply(lambda x: locale.atof(x))
+                if not df.empty:
+                    # Safely convert 'urmtom' and 'rpnl' columns using locale.atof
+                    df['urmtom'] = df['urmtom'].apply(lambda x: locale.atof(x) if isinstance(x, str) else 0)
+                    df['rpnl'] = df['rpnl'].apply(lambda x: locale.atof(x) if isinstance(x, str) else 0)
 
-                # Use .loc to filter rows and update the 'rpnl' column
-                raw_df.loc[raw_df['prd'] == 'I', 'rpnl'] = raw_df.loc[raw_df['prd'] == 'I', 'rpnl'].apply(lambda x: locale.atof(x))
+                    # Calculate the total mtm value by summing 'urmtom' and 'rpnl'
+                    urmtom = df['urmtom'].sum()
+                    rpnl = df['rpnl'].sum()
 
-                # Filter the DataFrame for 'prd' == 'I' again to calculate the sums
-                df = raw_df.loc[raw_df['prd'] == 'I']
-
-                urmtom = df['urmtom'].sum()
-                pnl = df['rpnl'].sum()
-                mtm = round(urmtom + pnl, 2)
+                    mtm = round(urmtom + pnl, 2)
             return mtm
 
     # TODO: By deriving the tiu module from fv, we can avoid the translations.
