@@ -611,6 +611,11 @@ class PFMU:
             failure_cnt = 0
             order = None
             closed_qty = 0
+
+            # find nearest qty to lotsize multiple
+
+            exit_qty = int(exit_qty/ls)*ls
+
             while (exit_qty and failure_cnt <= Tiu.SQ_OFF_FAILURE_COUNT):
                 per_leg_exit_qty = frz_qty if exit_qty > frz_qty else exit_qty
                 per_leg_exit_qty = int(per_leg_exit_qty / ls) * ls
@@ -703,7 +708,34 @@ class PFMU:
                         pattern = r'([CP])(\d+)'
                         # Function to extract option type ('C' or 'P') and strike price
 
-                        def extract_option_info(index):
+                        def extract_option_info(option_symbol):
+                            # Split the string at the underscore
+                            parts = option_symbol.split('_')
+                            
+                            # The first part contains the strike price information
+                            strike_info = parts[0]
+                            
+                            # Initialize an empty string to collect digits
+                            strike_price = ''
+                            
+                            opt_type = None
+                            # Scan from the right side of the string until a non-digit character is found
+                            found = False
+                            for char in reversed(strike_info):
+                                if char.isdigit():
+                                    strike_price = char + strike_price  # Prepend to maintain order
+                                else:
+                                    opt_type = char
+                                    found = True
+                                    break  # Stop when we hit a non-digit character
+                            
+                            if found and (opt_type == 'C' or opt_type == 'P'):
+                                # Convert to integer and return
+                                return opt_type, int(strike_price)
+                            else:
+                                return None, None
+
+                        def extract_option_info_delete(index):
                             tsym = str(index).split('_')[0]  # Convert index to string before splitting
                             match = re.search(pattern, tsym)
                             if match:
@@ -778,8 +810,10 @@ class PFMU:
 
                                 logger.debug(f'Reducing tsym_token: {tsym_token} {tsym} {token} reduce_qty: {act_sq_off_qty} of {diff_qty}')
                                 exch = 'NSE' if '-EQ' in tsym else 'NFO'
+
                                 r = self.tiu.get_security_info(exchange=exch, token=token)
                                 logger.debug(f'{json.dumps(r, indent=2)}')
+
                                 frz_qty = None
                                 if isinstance(r, dict) and 'frzqty' in r:
                                     frz_qty = int(r['frzqty'])
@@ -792,6 +826,8 @@ class PFMU:
 
                                 if not abs(diff_qty) // ls:
                                     break
+
+                                logger.debug(f'Reducing tsym_token: {tsym_token} {tsym} {token} reduce_qty: updated: {act_sq_off_qty} of {diff_qty}')
 
                                 try:
                                     closed_qty = place_sq_off_order(tsym=tsym, b_or_s=b_or_s,
