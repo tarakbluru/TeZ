@@ -1084,6 +1084,14 @@ class PFMU:
                 ul_ltp = self.diu.get_latest_tick(ul_index=ul_index)
                 # ul_ltp is required for find the deep in the money strikes
                 reduce_qty_for_ul(ul_index=ul_index, ul_ltp=ul_ltp, reduce_per=per, inst_type=inst_type)
+
+                # Add check for any remaining positions after partial exit
+                remaining_qty = self.portfolio.available_qty(ul_index=None)
+                if remaining_qty is not None and remaining_qty == 0:
+                    # No positions left, notify auto-trailer system
+                    if self._system_sqoff_cb:
+                        self._system_sqoff_cb()
+
             else:
                 with self.pf_lock:
                     wait_flag = False
@@ -1215,6 +1223,7 @@ class PFMU:
             if sq_off:
                 self.square_off_position (mode='ALL', ul_index=None, per=100, inst_type='ALL', partial_exit=False, exit_flag=False)
                 self.show()
-                ate.sq_off_done = True
+                remaining_qty = self.portfolio.available_qty(ul_index=None)
+                ate.sq_off_done = remaining_qty is None or remaining_qty == 0
                 self.mv_to_cost_pnl = self.intra_day_pnl()
         return ate

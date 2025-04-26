@@ -368,8 +368,7 @@ class PNL_Window (tk.Frame):
             self.mvto_cost.enable_entry()
             self.trail_after.enable_entry()
             self.trail_by.enable_entry()
-            self.mvto_cost.enable_buttons ()
-
+            self.mvto_cost.enable_buttons()
     def scan_and_print_values(self):
 
         with self._cb_running_lock:
@@ -427,9 +426,9 @@ class PNL_Window (tk.Frame):
                             self.mvto_cost.enable_entry()
                             self.trail_after.enable_entry()
                             self.trail_by.enable_entry()
-                            self.mvto_cost.enable_buttons ()
-                            self.trail_after.enable_buttons ()
-                            self.trail_by.enable_buttons ()
+                            self.mvto_cost.enable_buttons()
+                            self.trail_after.enable_buttons()
+                            self.trail_by.enable_buttons()
 
                 elif self.radio_var.get() == 'Manual':
                     self.radio_var_local = 'Manual'

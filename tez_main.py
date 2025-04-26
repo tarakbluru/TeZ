@@ -632,11 +632,13 @@ def gui_tk_layout():
 
     return root
 
-def system_sqoff_cb ():
-    global g_pnl_window
+def system_sqoff_cb():
+    global g_pnl_window, g_app_be
     if g_pnl_window:
-        g_pnl_window.ui_update_sys_sq_off()
-
+        # Only update UI if no positions remain
+        total_qty = g_app_be.pfmu.portfolio.available_qty(ul_index=None)
+        if total_qty is None or total_qty == 0:
+            g_pnl_window.ui_update_sys_sq_off()
 
 def is_exp_date_lapsed(date_string):
     try:
