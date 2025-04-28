@@ -145,65 +145,116 @@ class OCPU(object):
             prod_type = 'I' if inst_info.order_prod_type == 'O' else inst_info.order_prod_type
 
             def find_optimum_qty(initial_qty, ls):
-                # Check if initial_qty results in "Order Success"
+                """
+                Find the optimal quantity that can be placed based on available margin.
+                
+                Args:
+                    initial_qty: The requested quantity from the user (always positive or zero)
+                    ls: Lot size - quantity must be a multiple of this value
+                
+                Returns:
+                    The maximum quantity (multiple of lot size) that can be placed with available margin.
+                    Always returns a non-negative value (0 if no valid quantity can be placed).
+                """
+                # Ensure initial_qty is a multiple of lot size
                 initial_qty = (initial_qty // ls) * ls
                 
+                if initial_qty == 0:
+                    return 0
+                
+                # First check if the initial quantity works
                 try:
                     r = tiu.get_order_margin(buy_or_sell=buy_or_sell, exchange=exch,
-                                                product_type=prod_type, tradingsymbol=tsym, 
-                                                quantity=initial_qty, price_type='MKT', price=0.0)
+                                            product_type=prod_type, tradingsymbol=tsym, 
+                                            quantity=initial_qty, price_type='MKT', price=0.0)
                 except Exception as e:
-                    logger.error (f'Exception occured {repr(e)}')
-                    return None
-                else:
-                    logger.debug (f"qty: {initial_qty} {json.dumps(r, indent=2)}")
-                    if r and r['stat'] == 'Ok' and ((r['remarks'] == "Order Success") or (r['remarks'] == 'Squareoff Order')):
-                        return initial_qty
+                    logger.error(f'Exception occurred: {repr(e)}')
+                    return 0
+                
+                # If initial quantity works, return it directly
+                if r and r['stat'] == 'Ok' and ((r['remarks'] == "Order Success") or (r['remarks'] == 'Squareoff Order')):
+                    return initial_qty
 
+                # If initial quantity doesn't work, try with smaller quantities
+                # Exponential decrease until finding a working quantity
                 qty = initial_qty
-                itrn_cnt = 0
-                while True:
-                    itrn_cnt += 1
+                working_qty = 0  # Keep track of the largest working quantity found
+                
+                while qty > ls:  # Continue until we reach exactly one lot size
+                    qty = (qty // 2 // ls) * ls  # Cut in half and ensure it's still a multiple of lot size
+                    
+                    if qty < ls:
+                        break  # Don't try less than 1 lot
+                        
                     try:
                         r = tiu.get_order_margin(buy_or_sell=buy_or_sell, exchange=exch,
-                                                    product_type=prod_type, tradingsymbol=tsym, 
-                                                    quantity=qty, price_type='MKT', price=0.0)
+                                                product_type=prod_type, tradingsymbol=tsym, 
+                                                quantity=qty, price_type='MKT', price=0.0)
                     except Exception as e:
-                        logger.error (f'Exception occured {repr(e)}')
-                        return None
-                    else:
-                        logger.debug (f"itrn_cnt: {itrn_cnt} qty: {qty} {json.dumps(r, indent=2)}")
-                        if r and r['stat'] == 'Ok' and ((r['remarks'] == "Order Success") or (r['remarks'] == 'Squareoff Order')):
-                            break
-                    qty //= 2
-                    if not qty:
-                        break
+                        logger.error(f'Exception occurred: {repr(e)}')
+                        continue
+                        
+                    logger.debug(f"itrn_cnt: {itrn_cnt} qty: {qty} {json.dumps(r, indent=2)}")
+                    
+                    if r and r['stat'] == 'Ok' and ((r['remarks'] == "Order Success") or (r['remarks'] == 'Squareoff Order')):
+                        working_qty = qty
+                        break  # Found a working quantity, will use it as lower bound for binary search
                 
-                if not qty:
-                    return qty
-
-                low = qty
-                high = ((qty * 2) // ls) * ls
-                logger.debug (f'qty:{qty} low:{low} high:{high}')
+                if working_qty == 0:
+                    return 0  # No valid quantity found
+                
+                # Binary search between working_qty and initial_qty to find the maximum working quantity
+                low = working_qty
+                high = min(initial_qty, (working_qty * 2 // ls) * ls)  # Don't exceed initial_qty
+                
+                # Prevent the case where high < low
+                if high < low:
+                    return low  # Just return the known working quantity
+                
+                best_qty = working_qty  # Start with what we know works
+                
                 itrn_cnt = 0
                 while low <= high:
                     itrn_cnt += 1
-                    mid = ((low + high) // 2 // ls) * ls	
+                    mid = ((low + high) // 2 // ls) * ls  # Ensure mid is a multiple of lot size
+                    
+                    # Safety check to prevent infinite loops
+                    if mid == low or mid == high:
+                        # If mid equals one of the bounds, we're at the edge case
+                        if mid == high:
+                            # Try high one last time
+                            try:
+                                r = tiu.get_order_margin(buy_or_sell=buy_or_sell, exchange=exch,
+                                                        product_type=prod_type, tradingsymbol=tsym, 
+                                                        quantity=high, price_type='MKT', price=0.0)
+                                if r and r['stat'] == 'Ok' and ((r['remarks'] == "Order Success") or (r['remarks'] == 'Squareoff Order')):
+                                    best_qty = high
+                            except Exception:
+                                pass
+                        break
+                    
                     try:
                         r = tiu.get_order_margin(buy_or_sell=buy_or_sell, exchange=exch,
-                                                    product_type=prod_type, tradingsymbol=tsym, 
-                                                    quantity=mid, price_type='MKT', price=0.0)
+                                                product_type=prod_type, tradingsymbol=tsym, 
+                                                quantity=mid, price_type='MKT', price=0.0)
                     except Exception as e:
-                        logger.error (f'Exception occured {repr(e)}')
-                        return None
+                        logger.error(f'Exception occurred: {repr(e)}')
+                        high = mid - ls
+                        continue
+                        
+                    logger.debug(f"itrn_cnt: {itrn_cnt} qty: {mid} {json.dumps(r, indent=2)}")
+                    
+                    if r and r['stat'] == 'Ok':
+                        if ((r['remarks'] == "Order Success") or (r['remarks'] == 'Squareoff Order')):
+                            best_qty = mid  # Update the best quantity we've found
+                            low = mid + ls  # Look for even better (higher) quantities
+                        else:
+                            high = mid - ls  # This quantity didn't work, look lower
                     else:
-                        logger.debug (f"itrn_cnt: {itrn_cnt} qty: {mid} {json.dumps(r, indent=2)}")
-                        if r and r['stat'] == 'Ok' :
-                            if ((r['remarks'] == "Order Success") or (r['remarks'] == 'Squareoff Order')):
-                                low = mid + ls
-                            else:
-                                high = mid - ls
-                return high            
+                        high = mid - ls  # Error or failure, look lower
+                
+                # Final sanity check - ensure we return a valid, non-negative quantity
+                return max(0, best_qty)
 
             qty_within_margin = find_optimum_qty (qty, ls)
             logger.debug (f'qty_within_margin: {qty_within_margin}')
