@@ -34,6 +34,7 @@ try:
     from enum import Enum, auto
     from threading import Event, Timer
     from typing import NamedTuple, Callable
+    from app_mods.shared_classes import AutoTrailerData
 
     import app_mods
     import numpy as np
@@ -224,6 +225,8 @@ class TeZ_App_BE:
         self.diu = create_diu(live_data_output_port=self.diu_op_port, master_file=master_file)
         self.pfmu = create_pfmu(tiu=self.tiu, diu=self.diu, port=self.diu_op_port)
 
+        self.auto_trailer_obj = app_mods.AutoTrailer(self.pfmu)
+        
         self._sqoff_time = None
         self.sqoff_timer = None
 
@@ -266,7 +269,25 @@ class TeZ_App_BE:
     def ul_index(self, ul_index):
         self.diu.ul_symbol = ul_index
 
+    def auto_trailer(self, auto_trailer_data: app_mods.AutoTrailerData|None=None):
+        """
+        Process auto trailer logic or get current state.
+        
+        Args:
+            auto_trailer_data: Parameters for auto trading, or None to get current state
+            
+        Returns:
+            AutoTrailerEvent with current state
+        """
+        if auto_trailer_data is None:
+            # Just return current state without processing
+            return self.auto_trailer_obj.current_state
+        else:
+            # Process with parameters
+            return self.auto_trailer_obj.process(auto_trailer_data)
+
     def exit_app_be(self):
+        self.auto_trailer_obj.stop()
         if self.sqoff_timer is not None:
             if self.sqoff_timer.is_alive():
                 self.sqoff_timer.cancel()
@@ -391,7 +412,4 @@ class TeZ_App_BE:
 
     def get_latest_tick(self):
         return self.diu.get_latest_tick()
-
-    def auto_trailer(self, auto_trailer_data: app_mods.AutoTrailerData|None=None):
-        return (self.pfmu.auto_trailer (auto_trailer_data))
 

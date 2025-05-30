@@ -116,11 +116,8 @@ subwin_config_bn_bees = app_mods.SubWindow_Cc(
     kw_args_exposure_pe=None
 )
 
-def auto_trailer (a:app_mods.AutoTrailerData|None):
-    return (g_app_be.auto_trailer(a))
-
 def create_trade_manager_window():
-    global g_trade_manager_window
+    global g_trade_manager_window, g_pnl_window, g_app_be
     if g_trade_manager_window is None or not g_trade_manager_window.winfo_exists():
         # Create the first subwindow
         if g_SYSTEM_FEATURE_CONFIG ['tm'] == 'CE_PE':
@@ -194,10 +191,13 @@ def create_trade_manager_window():
         # Grid sub_frame1 and sub_frame2 side by side
         sub_frame1.pack(side=tk.LEFT, padx=10, pady=15, anchor='n')
 
-        pnl_window = app_mods.PNL_Window(master=sub_frame2)
+        # PNL Window with direct access to AutoTrailer 
+        pnl_window = app_mods.PNL_Window(
+            master=sub_frame2, 
+            ui_update_frequency=2.0,
+            auto_trailer=g_app_be.auto_trailer_obj  # Always provide the AutoTrailer instance
+        )
         sub_frame2.pack(side=tk.LEFT, padx=20, pady=50, anchor='n')
-
-        pnl_window.cb = auto_trailer
 
         global g_pnl_window
         g_pnl_window = pnl_window
@@ -340,6 +340,12 @@ def tm_action():
 def square_off_action():
     logger.info(f'{datetime.now()}: Square Off Click')
     if g_slider_value.lower() == 'unlocked':
+        # First cancel all waiting orders if the limit order feature is enabled
+        if g_SYSTEM_FEATURE_CONFIG['limit_order_cfg']:
+            logger.info("Cancelling all waiting orders before square off")
+            g_app_be.pfmu.cancel_all_waiting_orders(exit_flag=False, show_table=True)
+            
+        # Then proceed with the square off operation
         exch = app_mods.get_system_info("TRADE_DETAILS", "EXCHANGE")
         sqoff_info = SquareOff_Info(mode=SquareOff_Mode.SELECT, per=100.0, ul_index=g_app_be.ul_index, exch=exch)
         g_app_be.square_off_position(sqoff_info)
@@ -632,12 +638,13 @@ def gui_tk_layout():
 
     return root
 
-def system_sqoff_cb():
+def system_sqoff_cb(force_update=False):
     global g_pnl_window, g_app_be
     if g_pnl_window:
-        # Only update UI if no positions remain
+        # Only update UI if no positions remain OR force_update is True
         total_qty = g_app_be.pfmu.portfolio.available_qty(ul_index=None)
-        if total_qty is None or total_qty == 0:
+        if force_update or total_qty is None or total_qty == 0:
+            logger.info(f"system_sqoff_cb: Forcing UI update: {force_update}")
             g_pnl_window.ui_update_sys_sq_off()
 
 def is_exp_date_lapsed(date_string):

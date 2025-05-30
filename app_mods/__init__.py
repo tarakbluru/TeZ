@@ -4,6 +4,7 @@ from .ws_wrap import WS_WrapU
 from .tiu import (Tiu,Tiu_OrderStatus, Diu, Diu_CreateConfig, Tiu_CreateConfig)
 from .pfmu import (PFMU, PFMU_CreateConfig)
 from .ui_cust_widgets import (CustomCreateConfig,CustomWidget, SubWindow, SubWindow_Cc, PNL_Window, show_custom_messagebox)
+from .auto_trailer import (AutoTrailer)
 from .shared_classes import (TickData, SimpleDataPort, Component_Type, LiveFeedStatus,
                              Ctrl, Market_Timing, BaseInst,
                              FVInstrument, SysInst, BO_B_SL_LMT_Order, BO_B_LMT_Order,

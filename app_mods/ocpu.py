@@ -262,10 +262,16 @@ class OCPU(object):
                 qty = int(qty_within_margin / ls) * ls  # Doubly Ensuring qty is a multiple of lot size
             else :
                 margin = self.tiu.avlble_margin
-                if margin < (ltp * 1.1 * qty):
+                if margin < (ltp * 1.02 * qty):
                     old_qty = qty
-                    qty = math.floor(margin / (1.1 * ltp))  # 10% buffer
+                    qty = math.floor(margin / (1.02 * ltp))  # 10% buffer
                     qty = int(qty / ls) * ls  # Important as above value will not be a multiple of lot
+
+                    logger.debug(f"Found ltp: {ltp} for token: {token}")
+                    logger.debug(f"Original requested qty: {qty}")
+                    logger.debug(f"Available margin: {self.tiu.avlble_margin:.2f}")
+                    logger.debug(f"Required margin calculation: {ltp * 1.02 * qty:.2f} (price * 1.02 buffer * qty)")                    
+
                     logger.info(f'Available Margin: {self.tiu.avlble_margin:.2f} Required Amount: {ltp * old_qty} Updating qty: {old_qty} --> {qty} ')
 
             logger.debug(f'''strike: {strike}, sym: {sym}, tsym: {tsym}, token: {token},

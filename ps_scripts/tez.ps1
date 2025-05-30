@@ -69,20 +69,26 @@ $currentTime = Get-Date
 # Set the desired time threshold (8:30 AM)
 $desiredTime = Get-Date -Year $currentTime.Year -Month $currentTime.Month -Day $currentTime.Day -Hour 8 -Minute 30 -Second 0
 
-# Get the last write time of the file
-$fileLastWriteTime = (Get-Item $token_file).LastWriteTime
+# Check if the token file exists
+if (Test-Path $token_file) {
+    # Get the last write time of the file
+    $fileLastWriteTime = (Get-Item $token_file).LastWriteTime
 
-# Compare the last write time with the desired time
-if ($fileLastWriteTime -lt $desiredTime) {
-    # Open the JSON file and update the susertoken value
-    $jsonContent = Get-Content $token_file | ConvertFrom-Json
-    $jsonContent.susertoken = ""
-    $jsonContent | ConvertTo-Json | Set-Content $token_file
-    
-    Write-Host "susertoken updated successfully."
+    # Compare the last write time with the desired time
+    if ($fileLastWriteTime -lt $desiredTime) {
+        # Open the JSON file and update the susertoken value
+        $jsonContent = Get-Content $token_file | ConvertFrom-Json
+        $jsonContent.susertoken = ""
+        $jsonContent | ConvertTo-Json | Set-Content $token_file
+
+        Write-Host "susertoken updated successfully."
+    } else {
+        Write-Host "File timestamp is not less than 8:30 AM today."
+    }
 } else {
-    Write-Host "File timestamp is not less than 8:30 AM today."
+    Write-Host "Token file not found at path: $token_file"
 }
+
 # Activate virtual environment (Windows)
 Write-Host "Activating Virtual Environment.."
 #C:\PythonEnv\tez_test_3_10_11\venv\Scripts\Activate.ps1
