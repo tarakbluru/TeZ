@@ -273,7 +273,7 @@ class EntryWithButtons(tk.Frame):
         self.entry.config(state='normal')
 
 class PNL_Window(tk.Frame):
-    def __init__(self, master=None, ui_update_frequency=2.0, auto_trailer=None, **kw):
+    def __init__(self, master=None, ui_update_frequency=1.0, auto_trailer=None, **kw):
         """
         Initialize the PNL Window
         

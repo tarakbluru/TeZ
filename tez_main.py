@@ -194,7 +194,7 @@ def create_trade_manager_window():
         # PNL Window with direct access to AutoTrailer 
         pnl_window = app_mods.PNL_Window(
             master=sub_frame2, 
-            ui_update_frequency=2.0,
+            ui_update_frequency=app_mods.get_system_info("SYSTEM", "UI_UPDATE_FREQUENCY"),
             auto_trailer=g_app_be.auto_trailer_obj  # Always provide the AutoTrailer instance
         )
         sub_frame2.pack(side=tk.LEFT, padx=20, pady=50, anchor='n')
@@ -340,16 +340,25 @@ def tm_action():
 def square_off_action():
     logger.info(f'{datetime.now()}: Square Off Click')
     if g_slider_value.lower() == 'unlocked':
-        # First cancel all waiting orders if the limit order feature is enabled
-        if g_SYSTEM_FEATURE_CONFIG['limit_order_cfg']:
-            logger.info("Cancelling all waiting orders before square off")
-            g_app_be.pfmu.cancel_all_waiting_orders(exit_flag=False, show_table=True)
+        try:
+            # Choose backend method based on limit order configuration
+            if g_SYSTEM_FEATURE_CONFIG['limit_order_cfg']:
+                # Use enhanced method with waiting order cancellation
+                result = g_app_be.enhanced_square_off_with_cancellation()
+            else:
+                # Use simple method without waiting order cancellation
+                result = g_app_be.simple_square_off()
             
-        # Then proceed with the square off operation
-        exch = app_mods.get_system_info("TRADE_DETAILS", "EXCHANGE")
-        sqoff_info = SquareOff_Info(mode=SquareOff_Mode.SELECT, per=100.0, ul_index=g_app_be.ul_index, exch=exch)
-        g_app_be.square_off_position(sqoff_info)
-        play_notify()
+            if not result.success:
+                # Show error message to user
+                tk.messagebox.showerror("Square-Off Error", result.error_message)
+            else:
+                # Success - play notification sound
+                play_notify()
+                
+        except Exception as e:
+            logger.error(f"Square-off failed: {str(e)}")
+            tk.messagebox.showerror("Square-Off Error", f"Unexpected error: {str(e)}")
     else:
         logger.info('Unlock to Squareoff position')
 
@@ -556,7 +565,8 @@ def gui_tk_layout():
         ltp = g_app_be.get_latest_tick()
         # Update the label text with the fetched NIFTY index data
         tick_label.config(text=str(ltp), font=font)
-        root.after(500, update_tick_label)
+        ui_update_ms = int(app_mods.get_system_info("SYSTEM", "UI_UPDATE_FREQUENCY") * 1000)
+        root.after(ui_update_ms, update_tick_label)
 
     update_tick_label()
 

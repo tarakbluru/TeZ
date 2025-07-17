@@ -410,6 +410,149 @@ class TeZ_App_BE:
     def data_feed_disconnect(self):
         self.diu.disconnect_data_feed_servers()
 
+    def enhanced_square_off_with_cancellation(self):
+        """
+        Enhanced square-off with comprehensive waiting order cancellation
+        Returns a result object with success status and error details
+        """
+        import time
+        from dataclasses import dataclass
+        
+        @dataclass
+        class SquareOffResult:
+            success: bool
+            error_message: str = ""
+            cancelled_orders: int = 0
+            timing_seconds: float = 0.0
+            
+        logger.info("Starting enhanced square-off with waiting order cancellation...")
+        
+        # Check if limit order feature is enabled
+        if self.cc_cfg.limit_order_cfg:
+            logger.info("Starting waiting order cancellation process...")
+            
+            # Get count before cancellation
+            waiting_count_before = self.pfmu.get_waiting_orders_count()
+            logger.info(f"Found {waiting_count_before} waiting orders to cancel")
+            
+            if waiting_count_before > 0:
+                start_time = time.time()
+                
+                # Cancel orders with detailed logging
+                cancellation_result = self.pfmu.cancel_all_waiting_orders(
+                    exit_flag=False, 
+                    show_table=True,
+                    detailed_logging=True
+                )
+                
+                end_time = time.time()
+                timing_seconds = end_time - start_time
+                logger.info(f"Cancellation process took {timing_seconds:.2f} seconds")
+                
+                # Verify cancellation
+                waiting_count_after = self.pfmu.get_waiting_orders_count()
+                logger.info(f"Verification: {waiting_count_after} waiting orders remain")
+                
+                if not cancellation_result.get('success', False):
+                    failed_count = cancellation_result.get('failed', 0)
+                    failed_orders = cancellation_result.get('failed_orders', [])
+                    
+                    error_msg = f"Failed to cancel {failed_count} waiting orders. Square-off aborted for safety."
+                    logger.error(error_msg)
+                    
+                    # Log details of failed orders
+                    if failed_orders:
+                        logger.error("Failed order details:")
+                        for failed_order in failed_orders:
+                            if isinstance(failed_order, dict):
+                                logger.error(f"  - {failed_order.get('key_name', 'Unknown')}: {failed_order.get('error', 'Unknown error')}")
+                            else:
+                                logger.error(f"  - {failed_order}")
+                    
+                    return SquareOffResult(
+                        success=False, 
+                        error_message=error_msg,
+                        timing_seconds=timing_seconds,
+                        cancelled_orders=cancellation_result.get('cancelled', 0)
+                    )
+                
+                if waiting_count_after > 0:
+                    error_msg = f"CRITICAL: {waiting_count_after} waiting orders still active after cancellation!"
+                    logger.error(error_msg)
+                    return SquareOffResult(
+                        success=False,
+                        error_message=error_msg,
+                        timing_seconds=timing_seconds,
+                        cancelled_orders=cancellation_result.get('cancelled', 0)
+                    )
+                
+                logger.info("Proceeding with square-off operation...")
+                cancelled_orders = cancellation_result.get('cancelled', 0)
+            else:
+                logger.info("No waiting orders to cancel - proceeding directly with square-off")
+                cancelled_orders = 0
+                timing_seconds = 0.0
+        else:
+            logger.info("Limit order feature not enabled - proceeding directly with square-off")
+            cancelled_orders = 0
+            timing_seconds = 0.0
+        
+        # Proceed with the square off operation
+        try:
+            exch = app_mods.get_system_info("TRADE_DETAILS", "EXCHANGE")
+            sqoff_info = SquareOff_Info(mode=SquareOff_Mode.SELECT, per=100.0, ul_index=self.ul_index, exch=exch)
+            self.square_off_position(sqoff_info)
+            
+            logger.info("Enhanced square-off completed successfully")
+            return SquareOffResult(
+                success=True,
+                cancelled_orders=cancelled_orders,
+                timing_seconds=timing_seconds
+            )
+            
+        except Exception as e:
+            error_msg = f"Square-off operation failed: {str(e)}"
+            logger.error(error_msg)
+            return SquareOffResult(
+                success=False,
+                error_message=error_msg,
+                cancelled_orders=cancelled_orders,
+                timing_seconds=timing_seconds
+            )
+
+    def simple_square_off(self):
+        """
+        Simple square-off without waiting order cancellation
+        Returns a result object with success status and error details
+        """
+        from dataclasses import dataclass
+        
+        @dataclass
+        class SquareOffResult:
+            success: bool
+            error_message: str = ""
+            cancelled_orders: int = 0
+            timing_seconds: float = 0.0
+            
+        logger.info("Starting simple square-off (no waiting order cancellation)...")
+        
+        # Proceed directly with the square off operation
+        try:
+            exch = app_mods.get_system_info("TRADE_DETAILS", "EXCHANGE")
+            sqoff_info = SquareOff_Info(mode=SquareOff_Mode.SELECT, per=100.0, ul_index=self.ul_index, exch=exch)
+            self.square_off_position(sqoff_info)
+            
+            logger.info("Simple square-off completed successfully")
+            return SquareOffResult(success=True)
+            
+        except Exception as e:
+            error_msg = f"Square-off operation failed: {str(e)}"
+            logger.error(error_msg)
+            return SquareOffResult(
+                success=False,
+                error_message=error_msg
+            )
+
     def get_latest_tick(self):
         return self.diu.get_latest_tick()
 

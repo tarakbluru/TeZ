@@ -32,9 +32,10 @@ try:
     import locale
     import os
     import re
+    import time
     from dataclasses import dataclass
     from time import sleep
-    from datetime import datetime, time
+    from datetime import datetime, time as datetime_time
     from enum import Enum
     from threading import Lock, Thread
     from typing import Callable
@@ -267,6 +268,7 @@ class PFMU:
         self.auto_trailer_proc_cnt = PFMU.AUTO_TRAILER_PROC_MAX_COUNT
 
         self.pf_lock = Lock()
+        self.cancellation_flag = False  # Flag to prevent race conditions during waiting order cancellation
 
         self.tiu = pfmu_cc.tiu
         self.diu = pfmu_cc.diu
@@ -442,7 +444,17 @@ class PFMU:
     def order_placement(self, key_name: str):
         logger.debug(f"Callback triggered for ID: {key_name}")
         with self.ord_lock:
+            # Check cancellation flag to prevent orders from being triggered during cancellation
+            if self.cancellation_flag:
+                logger.debug(f"Order placement blocked for {key_name} due to cancellation in progress")
+                return
+            
             order_info = self.wo_df.loc[key_name]
+            
+            # Check if order was cancelled while waiting to be processed
+            if order_info.status == 'Cancelled':
+                logger.debug(f"Order {key_name} was cancelled, skipping execution")
+                return
             orders = order_info.order_list
             resp_exception, resp_ok, os_tuple_list = self.tiu.place_and_confirm_tez_order(orders=orders, use_gtt_oco=order_info.use_gtt_oco)
             if resp_exception:
@@ -474,7 +486,14 @@ class PFMU:
 
     def _order_placement_th(self, key_name: str, ft:str):
         logger.debug (f'Creating Thread: key_name:{key_name}')
-        self.wo_df.loc[key_name, "status"] = f"Trig @ {ft}"
+        
+        # Check cancellation flag before creating thread to prevent orders from being triggered during cancellation
+        if self.cancellation_flag:
+            logger.debug(f"Order placement thread creation blocked for {key_name} due to cancellation in progress")
+            return
+            
+        with self.ord_lock:
+            self.wo_df.loc[key_name, "status"] = f"Trig @ {ft}"
         Thread(name=f'PMU Order Placement Thread {key_name}', target=self.order_placement, args=(key_name,), daemon=True).start()
     #
     # def disable_waiting_order(self, id, ul_token=None):
@@ -491,7 +510,7 @@ class PFMU:
                     key_name = f"{ul_token}_{id}"
                     if key_name in self.wo_df.index:
                         status = self.wo_df.loc[key_name, "status"]
-                        if status == 'Waiting':
+                        if status == 'Waiting' or status.startswith('Trig @'):
                             self.pmu.unregister_callback(ul_token, callback_id=key_name)
                             self.wo_df.loc[key_name, "status"] = "Cancelled"
                 else:
@@ -501,7 +520,7 @@ class PFMU:
             else:
                 if id < len(self.wo_df):  # Check if id is within the DataFrame's range
                     status = self.wo_df.iloc[id, self.wo_df.columns.get_loc("status")]
-                    if status == 'Waiting':
+                    if status == 'Waiting' or status.startswith('Trig @'):
                         key_name = self.wo_df.index[id]
                         ul_token = key_name.split('_')[0]
                         logger.info(f'unregistering: {key_name} ul_token: {ul_token}')
@@ -509,7 +528,16 @@ class PFMU:
                         self.pmu.unregister_callback(ul_token, callback_id=key_name)
                         self.wo_df.iloc[id, self.wo_df.columns.get_loc("status")] = "Cancelled"
 
-    def __cancel_all_waiting_orders_com__(self, ul_token):
+    def __cancel_all_waiting_orders_com__(self, ul_token, detailed_logging=False):
+        if detailed_logging:
+            logger.info("=== WAITING ORDER CANCELLATION START ===")
+        
+        cancelled_count = 0
+        failed_count = 0
+        failed_orders = []
+        
+        # Get list of orders to cancel
+        orders_to_cancel = []
         for index, row in self.wo_df.iterrows():
             key_name = index
             ul_token_from_key_name = index.split('_')[0]
@@ -519,19 +547,207 @@ class PFMU:
                     continue
 
             status = row["status"]
-            if status == 'Waiting':
-                self.pmu.unregister_callback(ul_token, callback_id=key_name)
-                self.wo_df.at[key_name, "status"] = "Cancelled"  # Use at[] for setting single values
+            if status == 'Waiting' or status.startswith('Trig @'):
+                orders_to_cancel.append((key_name, ul_token_from_key_name, row))
+        
+        if detailed_logging:
+            logger.info(f"Found {len(orders_to_cancel)} waiting orders to cancel")
+        
+        # Cancel each order with retry logic
+        for idx, (key_name, ul_token_from_key_name, row) in enumerate(orders_to_cancel):
+            if detailed_logging:
+                logger.info(f"Cancelling order {idx+1}/{len(orders_to_cancel)}: {key_name} ({row['tsym_token']} {row['trade']})")
+            
+            # Use lock-free retry logic for cancellation (we already hold ord_lock)
+            cancel_result = self._cancel_waiting_order_with_retry_unlocked(
+                key_name, ul_token_from_key_name, 
+                max_retries=2, 
+                detailed_logging=detailed_logging
+            )
+            
+            if cancel_result["success"]:
+                cancelled_count += 1
+                if detailed_logging and cancel_result["attempts"] > 1:
+                    logger.info(f"Order {key_name} cancelled after {cancel_result['attempts']} attempts")
+            else:
+                failed_count += 1
+                failed_orders.append({
+                    "key_name": key_name,
+                    "error": cancel_result.get("error", "Unknown error"),
+                    "attempts": cancel_result.get("attempts", 1)
+                })
+                if detailed_logging:
+                    logger.error(f"✗ Order {key_name} cancellation failed after {cancel_result['attempts']} attempts: {cancel_result.get('error', 'Unknown error')}")
+        
+        if detailed_logging:
+            logger.info(f"Cancellation summary: {cancelled_count} succeeded, {failed_count} failed")
+            if failed_orders:
+                logger.error(f"Failed orders details:")
+                for failed_order in failed_orders:
+                    logger.error(f"  - {failed_order['key_name']}: {failed_order['error']} (attempts: {failed_order['attempts']})")
+            logger.info("=== WAITING ORDER CANCELLATION END ===")
+        
+        return {
+            "success": failed_count == 0,
+            "cancelled": cancelled_count,
+            "failed": failed_count,
+            "failed_orders": failed_orders
+        }
 
-    def cancel_all_waiting_orders(self, ul_token=None, exit_flag=False, show_table=True):
+    def cancel_all_waiting_orders(self, ul_token=None, exit_flag=False, show_table=True, detailed_logging=False):
+        result = {"success": True, "cancelled": 0, "failed": 0, "failed_orders": []}
+        
         if self.limit_order_cfg:
             with self.ord_lock:
-                self.__cancel_all_waiting_orders_com__(ul_token=ul_token)
+                # Check if cancellation is already in progress
+                if self.cancellation_flag:
+                    if detailed_logging:
+                        logger.warning("Cancellation already in progress, skipping duplicate request")
+                    return {"success": False, "error": "Cancellation already in progress", "cancelled": 0, "failed": 0, "failed_orders": []}
+                
+                # Set cancellation flag to prevent race conditions
+                self.cancellation_flag = True
+                
+                try:
+                    result = self.__cancel_all_waiting_orders_com__(ul_token=ul_token, detailed_logging=detailed_logging)
+                finally:
+                    # Always reset the flag when done
+                    self.cancellation_flag = False
+        elif detailed_logging:
+            logger.info("Limit order feature not enabled - no waiting orders to cancel")
 
         if exit_flag:
             self.pmu.hard_exit()
         if show_table:
             self.wo_table_show()
+            
+        return result
+
+    def cancel_all_waiting_orders_from_pf_context(self, ul_token=None, exit_flag=False, show_table=True, detailed_logging=False):
+        """Cancel all waiting orders when called from within pf_lock context
+        This avoids the pf_lock -> ord_lock deadlock by acquiring ord_lock separately"""
+        result = {"success": True, "cancelled": 0, "failed": 0, "failed_orders": []}
+        
+        if self.limit_order_cfg:
+            # We need to acquire ord_lock, but we're coming from pf_lock context
+            # This is safe because we're going pf_lock -> ord_lock consistently
+            with self.ord_lock:
+                # Check if cancellation is already in progress
+                if self.cancellation_flag:
+                    if detailed_logging:
+                        logger.warning("Cancellation already in progress, skipping duplicate request")
+                    return {"success": False, "error": "Cancellation already in progress", "cancelled": 0, "failed": 0, "failed_orders": []}
+                
+                # Set cancellation flag to prevent race conditions
+                self.cancellation_flag = True
+                
+                try:
+                    result = self.__cancel_all_waiting_orders_com__(ul_token=ul_token, detailed_logging=detailed_logging)
+                finally:
+                    # Always reset the flag when done
+                    self.cancellation_flag = False
+        elif detailed_logging:
+            logger.info("Limit order feature not enabled - no waiting orders to cancel")
+
+        if exit_flag:
+            self.pmu.hard_exit()
+        if show_table:
+            self.wo_table_show()
+            
+        return result
+
+    def _cancel_waiting_order_with_retry_unlocked(self, key_name, ul_token_from_key_name, max_retries=2, detailed_logging=False):
+        """Internal lock-free version - Cancel a waiting order with retry logic
+        MUST be called with ord_lock already held"""
+        
+        for attempt in range(max_retries + 1):
+            try:
+                # Attempt to cancel the order
+                self.pmu.unregister_callback(ul_token_from_key_name, callback_id=key_name)
+                self.wo_df.at[key_name, "status"] = "Cancelled"
+                
+                if detailed_logging:
+                    if attempt > 0:
+                        logger.info(f"✓ Order {key_name} cancelled successfully on retry {attempt}")
+                    else:
+                        logger.info(f"✓ Order {key_name} cancelled successfully")
+                
+                return {"success": True, "attempts": attempt + 1}
+                
+            except Exception as e:
+                if attempt < max_retries:
+                    if detailed_logging:
+                        logger.warning(f"Retry {attempt + 1} failed for order {key_name}: {str(e)}")
+                    time.sleep(0.1)  # Small delay before retry
+                else:
+                    if detailed_logging:
+                        logger.error(f"Final retry failed for order {key_name}: {str(e)}")
+                    return {"success": False, "error": str(e), "attempts": attempt + 1}
+    
+        return {"success": False, "error": "Max retries exceeded", "attempts": max_retries + 1}
+
+    def cancel_waiting_order_with_retry(self, key_name, ul_token_from_key_name, max_retries=2, detailed_logging=False):
+        """Cancel a waiting order with retry logic"""
+        with self.ord_lock:
+            return self._cancel_waiting_order_with_retry_unlocked(key_name, ul_token_from_key_name, max_retries, detailed_logging)
+
+    def _get_waiting_orders_count_unlocked(self, ul_token=None):
+        """Internal lock-free version - Get count of active waiting orders
+        MUST be called with ord_lock already held"""
+        if not self.limit_order_cfg:
+            return 0
+            
+        if ul_token:
+            waiting_orders = self.wo_df[
+                (self.wo_df.index.str.startswith(f"{ul_token}_")) & 
+                (self.wo_df['status'] == 'Waiting')
+            ]
+        else:
+            waiting_orders = self.wo_df[self.wo_df['status'] == 'Waiting']
+        return len(waiting_orders)
+
+    def get_waiting_orders_count(self, ul_token=None):
+        """Get count of active waiting orders"""
+        if not self.limit_order_cfg:
+            return 0
+            
+        with self.ord_lock:
+            return self._get_waiting_orders_count_unlocked(ul_token)
+
+    def _get_waiting_orders_list_unlocked(self, ul_token=None):
+        """Internal lock-free version - Get list of active waiting orders
+        MUST be called with ord_lock already held"""
+        if not self.limit_order_cfg:
+            return []
+            
+        if ul_token:
+            waiting_orders = self.wo_df[
+                (self.wo_df.index.str.startswith(f"{ul_token}_")) & 
+                (self.wo_df['status'] == 'Waiting')
+            ]
+        else:
+            waiting_orders = self.wo_df[self.wo_df['status'] == 'Waiting']
+        
+        order_list = []
+        for index, row in waiting_orders.iterrows():
+            order_list.append({
+                'key_name': index,
+                'ul_token': index.split('_')[0],
+                'tsym_token': row['tsym_token'],
+                'trade': row['trade'],
+                'wait_price_lvl': row['wait_price_lvl'],
+                'click_time': row['click_time'],
+                'status': row['status']
+            })
+        return order_list
+
+    def get_waiting_orders_list(self, ul_token=None):
+        """Get list of active waiting orders with details"""
+        if not self.limit_order_cfg:
+            return []
+            
+        with self.ord_lock:
+            return self._get_waiting_orders_list_unlocked(ul_token)
 
     def take_position(self, action: str, inst_info: InstrumentInfo, trade_price: float|None):
 
@@ -1068,7 +1284,7 @@ class PFMU:
                     # If there are any open orders, that also need to be cancelled
                 try:
                     if self.limit_order_cfg:
-                        self.cancel_all_waiting_orders(exit_flag=exit_flag, show_table=False)
+                        self.cancel_all_waiting_orders_from_pf_context(exit_flag=exit_flag, show_table=False)
                     __square_off_position(df=df, wait_flag=wait_flag)
                     with self.pf_lock:
                         self.portfolio.verify_reset()
@@ -1102,7 +1318,7 @@ class PFMU:
                     try:
                         ul_token = self.diu.ul_token
                         if self.limit_order_cfg:
-                            self.cancel_all_waiting_orders(ul_token=ul_token)
+                            self.cancel_all_waiting_orders_from_pf_context(ul_token=ul_token)
 
                         __square_off_position(df=df, symbol=ul_symbol, wait_flag=wait_flag)
 
