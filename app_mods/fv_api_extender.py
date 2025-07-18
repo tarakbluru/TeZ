@@ -902,11 +902,16 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
                 logger.info (f're_connect_count: {re_connect_count} :: ws_connected:{self.ws_connected} ')
                 if not self.ws_connected:
                     logger.info(f'{self.inst_id} Creating Websocket re_connect_count :: {re_connect_count} :')
-                    self.start_websocket(order_update_callback=order_update_callback,
-                                        subscribe_callback=subscribe_callback,
-                                        socket_open_callback=open_callback,
-                                        socket_close_callback=close_callback,
-                                        socket_error_callback=error_callback)
+                    try:
+                        self.start_websocket(order_update_callback=order_update_callback,
+                                            subscribe_callback=subscribe_callback,
+                                            socket_open_callback=open_callback,
+                                            socket_close_callback=close_callback,
+                                            socket_error_callback=error_callback)
+                    except Exception as e:
+                        logger.error(f"WebSocket connection failed: {str(e)}")
+                        logger.debug(traceback.format_exc())
+                        # Don't re-raise, just continue to retry logic
 
                     time.sleep (1)
                 else :
