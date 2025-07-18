@@ -877,7 +877,10 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
         def error_callback(mesg):
             if isinstance(mesg, Exception):
                 logger.info(f"WS Exception: {str(mesg)}")
-                logger.error(traceback.format_exc())
+                logger.debug(traceback.format_exc())
+                # Don't log full traceback for timeout exceptions to reduce noise
+                if "timeout" not in str(mesg).lower():
+                    logger.error(traceback.format_exc())
             else:
                 try:
                     logger.info (f'Web socket Error Call back: mesg:{json.dumps(mesg,indent=2)}')
