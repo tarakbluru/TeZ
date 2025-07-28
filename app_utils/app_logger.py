@@ -58,15 +58,18 @@ def get_logger(name):
     # %Z for time zone
     formatter = logging.Formatter('[%(asctime)s] {%(filename)s:%(lineno)4d} %(levelname)s - %(message)s', '%m-%d %H:%M:%S')
 
-    file_handler = logging.FileHandler(LOG_FILE)
+    file_handler = logging.FileHandler(LOG_FILE, encoding='utf-8')
     file_handler.setFormatter(formatter)
     file_handler.setLevel(logging.DEBUG)
 
     formatter = logging.Formatter('{%(filename)s:%(lineno)4d} %(message)s')
 
-    stream_handler = logging.StreamHandler()
+    stream_handler = logging.StreamHandler(sys.stdout)
     stream_handler.setFormatter(formatter)
     stream_handler.setLevel(logging.INFO)
+    # Handle encoding for Windows console
+    if hasattr(stream_handler.stream, 'reconfigure'):
+        stream_handler.stream.reconfigure(encoding='utf-8')
 
     logger.addHandler(stream_handler)
     logger.addHandler(file_handler)

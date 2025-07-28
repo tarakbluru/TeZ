@@ -577,7 +577,7 @@ class PFMU:
                     "attempts": cancel_result.get("attempts", 1)
                 })
                 if detailed_logging:
-                    logger.error(f"✗ Order {key_name} cancellation failed after {cancel_result['attempts']} attempts: {cancel_result.get('error', 'Unknown error')}")
+                    logger.error(f"[X] Order {key_name} cancellation failed after {cancel_result['attempts']} attempts: {cancel_result.get('error', 'Unknown error')}")
         
         if detailed_logging:
             logger.info(f"Cancellation summary: {cancelled_count} succeeded, {failed_count} failed")
@@ -668,9 +668,9 @@ class PFMU:
                 
                 if detailed_logging:
                     if attempt > 0:
-                        logger.info(f"✓ Order {key_name} cancelled successfully on retry {attempt}")
+                        logger.info(f"[OK] Order {key_name} cancelled successfully on retry {attempt}")
                     else:
-                        logger.info(f"✓ Order {key_name} cancelled successfully")
+                        logger.info(f"[OK] Order {key_name} cancelled successfully")
                 
                 return {"success": True, "attempts": attempt + 1}
                 
