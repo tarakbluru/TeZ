@@ -179,6 +179,7 @@ class OCPU(object):
                 # Exponential decrease until finding a working quantity
                 qty = initial_qty
                 working_qty = 0  # Keep track of the largest working quantity found
+                qty_itrn_cnt = 0  # Initialize iteration counter for debug logging
                 
                 while qty > ls:  # Continue until we reach exactly one lot size
                     qty = (qty // 2 // ls) * ls  # Cut in half and ensure it's still a multiple of lot size
@@ -194,7 +195,8 @@ class OCPU(object):
                         logger.error(f'Exception occurred: {repr(e)}')
                         continue
                         
-                    logger.debug(f"itrn_cnt: {itrn_cnt} qty: {qty} {json.dumps(r, indent=2)}")
+                    logger.debug(f"qty_itrn_cnt: {qty_itrn_cnt} qty: {qty} {json.dumps(r, indent=2)}")
+                    qty_itrn_cnt += 1
                     
                     if r and r['stat'] == 'Ok' and ((r['remarks'] == "Order Success") or (r['remarks'] == 'Squareoff Order')):
                         working_qty = qty

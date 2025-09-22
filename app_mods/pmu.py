@@ -172,16 +172,39 @@ class PriceMonitoringUnit:
                 logger.debug(f'Token: {token} Un Registered: {callback_id}')
 
     def hard_exit (self):
-        logger.debug (f'Hard Exit Begin..')
+        logger.info("PMU hard exit initiated...")
+        
+        # Step 1: Clear all monitoring conditions
+        logger.debug("Purging all price monitoring conditions...")
         self.purge_all_conditions(token='ALL')
+        
+        # Step 2: Signal all threads to stop
+        logger.debug("Signaling PMU threads to stop...")
         if self.hard_exit_event is not None:
-            self.hard_exit_event.set ()
+            self.hard_exit_event.set()
         if self.inport is not None and self.inport.evt is not None:
             self.inport.evt.set()
+            
+        # Step 3: Brief pause to let threads acknowledge shutdown signal
         time.sleep(0.1)
+        
+        # Step 4: Wait for data monitoring thread with validation
         if self.data_rx_price_monitor_thread is not None:
-            self.data_rx_price_monitor_thread.join(timeout=2)
-        logger.debug (f'Hard Exit Complete..')
+            if self.data_rx_price_monitor_thread.is_alive():
+                logger.debug("Waiting for PMU data monitoring thread...")
+                self.data_rx_price_monitor_thread.join(timeout=3.0)  # Increased timeout
+                
+                if self.data_rx_price_monitor_thread.is_alive():
+                    logger.warning("PMU data monitoring thread failed to stop within timeout")
+                    logger.warning(f"Thread {self.data_rx_price_monitor_thread.name} may become zombie")
+                else:
+                    logger.debug("PMU data monitoring thread stopped cleanly")
+            else:
+                logger.debug("PMU data monitoring thread was already stopped")
+        else:
+            logger.debug("PMU data monitoring thread was not initialized")
+            
+        logger.info("PMU hard exit completed")
 
     def purge_all_conditions(self, token='ALL'):
         with self.lock:

@@ -47,6 +47,7 @@ try:
     import yaml
 
     from . import fv_api_extender, shared_classes, ws_wrap
+    from .infra_error_handler import InfraErrorHandler, ConnectionStatus
 except Exception as e:
     logger.debug(traceback.format_exc())
     logger.error(("Import Error " + str(e)))
@@ -94,13 +95,14 @@ class Diu_CreateConfig(Biu_CreateConfig):
     out_port: shared_classes.SimpleDataPort=None
     tr_folder: str|None=None
     tr_flag:bool|None=None
+    error_handler: InfraErrorHandler = None
 
     def __str__(self):
         return f"{super().__str__()} out_port: {self.out_port}"
 
 @dataclass
 class Tiu_CreateConfig(Biu_CreateConfig):
-    ...
+    error_handler: InfraErrorHandler = None
 
 class BaseIU (object):
     __count = 0
@@ -269,6 +271,12 @@ class Diu (BaseIU):
         logger.info(f'{Diu.__count}: Creating  {self.__class__.__name__} Object..')
 
         self.lock = Lock()
+
+        # Validate required error_handler
+        if dcc.error_handler is None:
+            raise ValueError("error_handler is required in Diu_CreateConfig")
+        self.error_handler = dcc.error_handler
+
         super().__init__(dcc)
 
         token = None
@@ -283,14 +291,23 @@ class Diu (BaseIU):
         self._ul_symbol = {'symbol': 'NIFTY', 'token': token}
         logger.debug(f'{json.dumps(self._ul_symbol, indent=2)}')
         ws_wrap.WS_WrapU.DEBUG = False
+
+        # WebSocket initialization without error callback to prevent exit hangs
+        # Network monitoring is now handled by health monitoring thread
         self.ws_wrap = ws_wrap.WS_WrapU(fv=self.fv, port_cfg=dcc.out_port, tr=dcc.tr_flag, tr_folder=dcc.tr_folder)
         
         Diu.__count += 1
         logger.info(f'Creating  {self.__class__.__name__} Object..Done')
+
+        # Report successful initialization to error handler
+        self.error_handler.report_connection_status(ConnectionStatus.CONNECTED, "DIU")
         return
 
     def connect_to_data_feed_servers(self):
-        return (self.ws_wrap.connect_to_data_feed_servers())
+        return self.error_handler.handle_api_call(
+            api_function=lambda: self.ws_wrap.connect_to_data_feed_servers(),
+            component_id="DIU"
+        )
 
     def set_force_reconnect (self, reconnect_flag:bool):
         self.fv.force_reconnect = reconnect_flag
@@ -337,11 +354,14 @@ class Diu (BaseIU):
                 return self.ws_wrap.get_latest_tick(self._ul_symbol['token']).c
             else:
                 token, _ = self.__search_sym_token_tsym__(symbol=ul_index)
-                logger.info (f'ul_index : {ul_index} token : {token}')
+                logger.debug (f'ul_index : {ul_index} token : {token}')
                 return self.ws_wrap.get_latest_tick(token).c
 
     def disconnect_data_feed_servers(self):
-        self.ws_wrap.disconnect_data_feed_servers()
+        return self.error_handler.handle_api_call(
+            api_function=lambda: self.ws_wrap.disconnect_data_feed_servers(),
+            component_id="DIU"
+        )
 
     def fetch_data(self, symbol_list, output_directory, tf=3, ix=False):
         fv = self.fv
@@ -481,6 +501,12 @@ class Tiu (BaseIU):
         logger.info(f'{Tiu.__count}: Creating  {self.__class__.__name__} Object..')
 
         self.ord_lock = Lock()
+
+        # Validate required error_handler
+        if tcc.error_handler is None:
+            raise ValueError("error_handler is required in Tiu_CreateConfig")
+        self.error_handler = tcc.error_handler
+
         self.login = False
         try:
             super().__init__(tcc)
@@ -507,6 +533,9 @@ class Tiu (BaseIU):
         self.update_holdings()
         self.update_positions()
 
+        # Report successful initialization to error handler
+        self.error_handler.report_connection_status(ConnectionStatus.CONNECTED, "TIU")
+
     @property
     def scripmaster_file(self):
         return self.fv.scripmaster_file
@@ -523,7 +552,10 @@ class Tiu (BaseIU):
                 token, tsym = self.__search_sym_token_tsym__(exchange=exchange, symbol=symbol)
 
         if token:
-            return self.fv.get_security_info(exchange=exchange, token=str(token))
+            return self.error_handler.handle_api_call(
+                api_function=lambda: self.fv.get_security_info(exchange=exchange, token=str(token)),
+                component_id="TIU"
+            )
         else:
             return None
 
@@ -1013,7 +1045,7 @@ class Tiu (BaseIU):
                     urmtom = df['urmtom'].sum()
                     rpnl = df['rpnl'].sum()
 
-                    mtm = round(urmtom + pnl, 2)
+                    mtm = round(urmtom + rpnl, 2)
             return mtm
 
     # TODO: By deriving the tiu module from fv, we can avoid the translations.
@@ -1027,31 +1059,40 @@ class Tiu (BaseIU):
                           price, trigger_price)    
 
     def get_order_book (self):
-        return self.fv.get_order_book()
+        return self.error_handler.handle_api_call(
+            api_function=lambda: self.fv.get_order_book(),
+            component_id="TIU"
+        )
     
     def get_pending_gtt_order (self):
         return self.fv.get_pending_gtt_order()
 
     def get_positions (self):
-        # To reduce the API rate during the placementof orders, getting the position 
+        # To reduce the API rate during the placementof orders, getting the position
         # with lock
         with self.ord_lock:
-            return self.fv.get_positions()
+            return self.error_handler.handle_api_call(
+                api_function=lambda: self.fv.get_positions(),
+                component_id="TIU"
+            )
    
     def place_order(self,order):
         with self.ord_lock:
-            return self.fv.place_order(buy_or_sell=order.buy_or_sell,
-                                    product_type=order.product_type,
-                                    exchange=order.exchange,
-                                    tradingsymbol=order.tradingsymbol,
-                                    quantity=order.quantity, discloseqty=0,
-                                    trigger_price=order.trigger_price,
-                                    price=order.price,
-                                    price_type=order.price_type,
-                                    bookloss_price=order.book_loss_price,
-                                    bookprofit_price=order.book_profit_price,
-                                    trail_price=0.0,  # trail_price should be 0 for finvasia.
-                                    retention=order.retention, remarks=order.remarks)
+            return self.error_handler.handle_api_call(
+                api_function=lambda: self.fv.place_order(buy_or_sell=order.buy_or_sell,
+                                                        product_type=order.product_type,
+                                                        exchange=order.exchange,
+                                                        tradingsymbol=order.tradingsymbol,
+                                                        quantity=order.quantity, discloseqty=0,
+                                                        trigger_price=order.trigger_price,
+                                                        price=order.price,
+                                                        price_type=order.price_type,
+                                                        bookloss_price=order.book_loss_price,
+                                                        bookprofit_price=order.book_profit_price,
+                                                        trail_price=0.0,  # trail_price should be 0 for finvasia.
+                                                        retention=order.retention, remarks=order.remarks),
+                component_id="TIU"
+            )
     
     def cancel_gtt_order(self,  al_id: str):
         return self.fv.cancel_gtt_order(al_id=al_id)
@@ -1060,7 +1101,10 @@ class Tiu (BaseIU):
         return self.fv.single_order_history(orderno=order_id)
     
     def cancel_order (self, order_id):
-        return self.fv.cancel_order(orderno=order_id)
+        return self.error_handler.handle_api_call(
+            api_function=lambda: self.fv.cancel_order(orderno=order_id),
+            component_id="TIU"
+        )
 
     def exit_order (self, order_id, product_type):
         return self.fv.exit_order(orderno=order_id, product_type=product_type)

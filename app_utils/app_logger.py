@@ -62,10 +62,11 @@ def get_logger(name):
     file_handler.setFormatter(formatter)
     file_handler.setLevel(logging.DEBUG)
 
-    formatter = logging.Formatter('{%(filename)s:%(lineno)4d} %(message)s')
+    # Use same formatter as file handler for consistency
+    stream_formatter = logging.Formatter('[%(asctime)s] {%(filename)s:%(lineno)4d} %(levelname)s - %(message)s', '%m-%d %H:%M:%S')
 
     stream_handler = logging.StreamHandler(sys.stdout)
-    stream_handler.setFormatter(formatter)
+    stream_handler.setFormatter(stream_formatter)
     stream_handler.setLevel(logging.INFO)
     # Handle encoding for Windows console
     if hasattr(stream_handler.stream, 'reconfigure'):

@@ -35,6 +35,7 @@ try:
     from datetime import datetime
 
     import pandas as pd
+    import requests
 except Exception as e:
     logger.debug(traceback.format_exc())
     logger.error(("Import Error " + str(e)))
@@ -136,3 +137,136 @@ def custom_sleep(fut_time, num_chunks=16):
             time.sleep(chunk_duration)
 
     logger.debug(f'now : {now} fut_time:{fut_time}')
+
+
+# Market Data and Configuration Utilities
+# Moved from tez_main_v2.py
+
+def is_exp_date_lapsed(date_string):
+    try:
+        # Convert the date string to a datetime object
+        date_object = datetime.strptime(date_string, "%d-%b-%Y")  # Adjust the format according to your date string
+        # Get the current date and time
+        current_date = datetime.now().date()
+        # Compare the date with the current date
+        if date_object.date() < current_date:
+            return True  # Date has already lapsed
+        else:
+            return False  # Date is in the future
+    except ValueError:
+        return False  # Invalid date string format
+
+
+def check_expiry_dates(data):
+
+    for key, value in data.items():
+        if isinstance(value, dict):
+            # If the value is a dictionary, recursively check for expiry dates
+            check_expiry_dates(value)
+        elif key == 'EXPIRY_DATE':
+            # If the key is 'expiry_date', check if the value has lapsed
+            expiry_date = value
+            if expiry_date and is_exp_date_lapsed(expiry_date):
+                logger.info(f"Expiry date: {expiry_date} has already lapsed.")
+                sys.exit (1)
+
+
+def get_nth_nearest_expiry_date(symbol_prefix, n, url='EXPIRY_DATE_CALC_URL1'):
+    import app_mods
+    file_url = app_mods.get_system_info("TRADE_DETAILS", url)
+    symboldf = pd.read_csv(file_url)
+    symboldf = symboldf.rename(columns=str.lower)
+    symboldf = symboldf.rename(columns=lambda x: x.strip())
+    symboldf['expiry'] = pd.to_datetime(symboldf['expiry'], format='%d-%b-%Y')
+    today = pd.Timestamp.now().floor('D').date()
+    symboldf['days_until_expiry'] = (symboldf['expiry'] - pd.Timestamp(today)).dt.days
+
+    if url == 'EXPIRY_DATE_CALC_URL2':
+        nfodf = symboldf[(symboldf.last_price.notnull()) &
+                        symboldf['tradingsymbol'].str.startswith(symbol_prefix) &
+                        (symboldf.exchange == 'NSE_FO') &
+                        (symboldf.tick_size == 0.05) &
+                        (symboldf.instrument_type == 'OPTIDX')]
+    else :
+        nfodf = symboldf[((symboldf['symbol'] == symbol_prefix) & symboldf['tradingsymbol'].str.startswith(symbol_prefix)) &
+                         (symboldf.exchange == 'NFO') &
+                         (symboldf.ticksize == 0.05) &
+                         (symboldf.instrument == 'OPTIDX')]
+
+    # Get unique expiry dates and sort them
+    unique_expiry_dates = sorted(nfodf['expiry'].unique())
+
+    # Check if there are enough unique expiry dates
+    if len(unique_expiry_dates) < n:
+        return None  # Return None if there are not enough unique expiry dates
+
+    # Get the nth unique expiry date
+    nth_expiry_date = unique_expiry_dates[n - 1]
+
+    return pd.Timestamp(nth_expiry_date).strftime('%d-%b-%Y').upper()
+
+
+def update_expiry_date(symbol_prefix):
+    import app_mods
+    exp_date = get_nth_nearest_expiry_date (symbol_prefix, n=1)
+    if exp_date:
+        current_date = datetime.now().date()
+        # Convert expir dates to datetime object
+        exp_date_obj = datetime.strptime(exp_date, '%d-%b-%Y').date()
+        opt_diff = (exp_date_obj - current_date).days
+        if opt_diff <= 0:
+            exp_date = get_nth_nearest_expiry_date (symbol_prefix, n=2)
+        app_mods.replace_system_config ('SYMBOL', symbol_prefix, 'EXCHANGE', 'NFO', 'EXPIRY_DATE', exp_date)
+
+
+def update_strike(symbol_prefix, ce_or_pe):
+    import app_mods
+    if symbol_prefix == 'NIFTY':
+        inst_info = app_mods.get_system_info("INSTRUMENT_INFO", "INST_3")
+    else:
+        inst_info = app_mods.get_system_info("INSTRUMENT_INFO", "INST_4")
+
+    exp_date = inst_info['EXPIRY_DATE']
+    # Convert expiry dates to datetime object
+    exp_date_obj = datetime.strptime(exp_date, '%d-%b-%Y').date()
+    current_date = datetime.now().date()
+    # Calculate the difference between expiry date and current date
+    opt_diff = (exp_date_obj - current_date).days
+
+    if ce_or_pe == 'CE':
+        ce_or_pe_offset = 'CE_STRIKE_OFFSET'
+        strike_key = 'CE_STRIKE'
+        if opt_diff == 1:
+            strike_offset = -1
+        else:
+            strike_offset = 0
+    else:
+        ce_or_pe_offset = 'PE_STRIKE_OFFSET'
+        strike_key = 'PE_STRIKE'
+        if opt_diff == 1:
+            strike_offset = 1
+        else:
+            strike_offset = 0
+
+    app_mods.replace_system_config ('SYMBOL', symbol_prefix, 'EXCHANGE', 'NFO', ce_or_pe_offset, strike_offset)
+    app_mods.replace_system_config ('SYMBOL', symbol_prefix, 'EXCHANGE', 'NFO', strike_key, None)
+
+
+def update_system_config ():
+    import app_mods
+    exch = app_mods.get_system_info("TRADE_DETAILS", "EXCHANGE")
+    if exch == 'NFO':
+        exp_date_cfg = app_mods.get_system_info("TRADE_DETAILS", "EXPIRY_DATE_CFG")
+        if exp_date_cfg == 'AUTO':
+            update_expiry_date('NIFTY')
+            update_expiry_date('BANKNIFTY')
+
+        offset_cfg = app_mods.get_system_info("TRADE_DETAILS", "CE_STRIKE_OFFSET_CFG")
+        if offset_cfg == 'AUTO':
+            update_strike('NIFTY','CE')
+            update_strike('BANKNIFTY','CE')
+
+        offset_cfg = app_mods.get_system_info("TRADE_DETAILS", "PE_STRIKE_OFFSET_CFG")
+        if offset_cfg == 'AUTO':
+            update_strike('NIFTY','PE')
+            update_strike('BANKNIFTY','PE')

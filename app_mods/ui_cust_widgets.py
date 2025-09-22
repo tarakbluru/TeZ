@@ -193,16 +193,40 @@ class EntryWithButtons(tk.Frame):
         def validate_entry(event):
             nonlocal self
             entry_text = self.entry.get()
+            
+            # Handle multiple negative signs
             if entry_text.count('-') > 1:
                 # If more than one negative sign is present, remove the last one entered
                 entry_text = entry_text[:-1]
                 self.entry.delete(0, tk.END)
                 self.entry.insert(0, entry_text)
+                return
+                
+            # Remove positive signs
             if '+' in entry_text:
                 # If a positive sign is found, remove it
                 entry_text = entry_text.replace('+', '')
                 self.entry.delete(0, tk.END)
                 self.entry.insert(0, entry_text)
+                return
+                
+            # Handle multiple decimal points
+            if entry_text.count('.') > 1:
+                # If more than one decimal point is present, remove the last one entered
+                entry_text = entry_text[:-1]
+                self.entry.delete(0, tk.END)
+                self.entry.insert(0, entry_text)
+                return
+                
+            # Limit decimal places to 2
+            if '.' in entry_text:
+                parts = entry_text.split('.')
+                if len(parts) == 2 and len(parts[1]) > 2:
+                    # Truncate to 2 decimal places
+                    entry_text = f"{parts[0]}.{parts[1][:2]}"
+                    self.entry.delete(0, tk.END)
+                    self.entry.insert(0, entry_text)
+                    return
 
         # Create entry box
         self.entry = ttk.Entry(self,width=9)
@@ -216,16 +240,36 @@ class EntryWithButtons(tk.Frame):
         self.plus_button.bind("<ButtonRelease-1>", self.stop_increment)
 
         # Variable to store the value
-        self.value = tk.IntVar()
+        self.value = tk.DoubleVar()
         if init_value:
-            self.value.set(init_value)
+            self.value.set(float(init_value))
         else:
-            self.value.set(0)
+            self.value.set(0.0)
         self.entry.config(textvariable=self.value)
+        
+        # Add trace to format values to 2 decimal places
+        self.value.trace_add('write', self._format_value)
 
         # Variables to store the job IDs for incrementing and decrementing
         self.increment_job = None
         self.decrement_job = None
+
+    def _format_value(self, *args):
+        """Format the value to 2 decimal places when it changes"""
+        try:
+            current_value = self.value.get()
+            # Round to 2 decimal places
+            formatted_value = round(current_value, 2)
+            # Only update if the value actually changed to avoid infinite recursion
+            if abs(current_value - formatted_value) > 1e-10:
+                # Temporarily remove trace to avoid recursion
+                self.value.trace_remove('write', self.value.trace_info()[0][1])
+                self.value.set(formatted_value)
+                # Re-add trace
+                self.value.trace_add('write', self._format_value)
+        except (ValueError, tk.TclError):
+            # Handle cases where the value might be invalid during editing
+            pass
 
     def disable_buttons (self):
         self.plus_button.config(state="disabled")
@@ -273,14 +317,14 @@ class EntryWithButtons(tk.Frame):
         self.entry.config(state='normal')
 
 class PNL_Window(tk.Frame):
-    def __init__(self, master=None, ui_update_frequency=1.0, auto_trailer=None, **kw):
+    def __init__(self, master=None, ui_update_frequency=1.0, ui_port_manager=None, **kw):
         """
-        Initialize the PNL Window
+        Initialize the PNL Window with port-based communication
         
         Args:
             master: The parent widget
             ui_update_frequency: Frequency for UI updates in seconds
-            auto_trailer: The AutoTrailer instance for direct access (required)
+            port_manager: The PortManager instance for 3-port communication (required)
             **kw: Additional keyword arguments for Frame
         """
         super().__init__(master, **kw)
@@ -292,7 +336,13 @@ class PNL_Window(tk.Frame):
 
         # Store references
         self.ui_update_frequency = ui_update_frequency
-        self.auto_trailer = auto_trailer  # Direct reference to the AutoTrailer instance
+        
+        # Initialize port-based UI manager - MANDATORY shared instance
+        if ui_port_manager is None:
+            raise ValueError("ui_port_manager is mandatory - pass the shared SimpleUIPortManager instance to avoid correlation issues")
+        
+        self.ui_port_manager = ui_port_manager
+        logger.info(f"Using shared SimpleUIPortManager instance (ID: {ui_port_manager.instance_id})")
 
         # Regular UI initialization
         title = tk.Label(master=master, text='DayWise PNL Tracker', font=('Arial', 12, "bold"))
@@ -362,8 +412,9 @@ class PNL_Window(tk.Frame):
             
             # Get current PNL for validation
             current_pnl = 0.0
-            if self.auto_trailer:
-                current_pnl = self.auto_trailer.current_state.pnl
+            if self.ui_port_manager:
+                data_updates = self.ui_port_manager.process_data_updates()
+                current_pnl = data_updates.get("pnl", 0.0)
             
             # Validate parameters before activating
             if current_pnl <= sl_value:
@@ -404,22 +455,21 @@ class PNL_Window(tk.Frame):
             # Debug values
             logger.debug(f"TRACE: Auto Trailer Values: SL={atd.sl}, Target={atd.target}, MvtoCost={atd.mvto_cost}, TrailAfter={atd.trail_after}, TrailBy={atd.trail_by}")
             
-            # Enable auto trading immediately
-            if self.auto_trailer:
-                logger.debug("TRACE: Calling auto_trailer.process(atd)")
-                result = self.auto_trailer.process(atd)
-                logger.debug(f"TRACE: Result from auto_trailer.process: {result}")
-                
-                # Check if auto trailer rejected our parameters
-                if result.sq_off_done:
-                    logger.warning("Auto trader rejected parameters")
-                    messagebox.showwarning("Auto Trading", "Parameters rejected by auto trader.")
-                    # Revert to Manual mode
-                    self.radio_var.set('Manual')
-                    self._on_mode_change()  # Call again to update UI for Manual mode
-                    return
+            # Send auto trading activation command through ports
+            if self.ui_port_manager:
+                logger.debug("TRACE: Sending ACTIVATE_AUTO command through ports")
+                auto_params = {
+                    "sl": atd.sl,
+                    "target": atd.target,
+                    "mvto_cost": atd.mvto_cost,
+                    "trail_after": atd.trail_after,
+                    "trail_by": atd.trail_by,
+                    "ui_reset": atd.ui_reset
+                }
+                self.ui_port_manager.send_activate_auto(auto_params)
+                logger.debug("TRACE: ACTIVATE_AUTO command sent")
             else:
-                logger.error("TRACE: self.auto_trailer is None!")
+                logger.error("TRACE: self.ui_port_manager is None!")
                 # Revert to Manual mode
                 self.radio_var.set('Manual')
                 return
@@ -435,12 +485,13 @@ class PNL_Window(tk.Frame):
             self.trail_after.enable_entry()
             self.trail_by.enable_entry()
             
-            # Disable auto trading immediately
-            if self.auto_trailer:
-                logger.debug("TRACE: Calling auto_trailer.process(None)")
-                self.auto_trailer.process(None)
+            # Send auto trading deactivation command through ports
+            if self.ui_port_manager:
+                logger.debug("TRACE: Sending DEACTIVATE_AUTO command through ports")
+                self.ui_port_manager.send_deactivate_auto()
+                logger.debug("TRACE: DEACTIVATE_AUTO command sent")
             else:
-                logger.error("TRACE: self.auto_trailer is None!")
+                logger.error("TRACE: self.ui_port_manager is None!")
 
     def update_ui(self):
         """
@@ -453,33 +504,28 @@ class PNL_Window(tk.Frame):
             self._cb_running = True
         
         try:
-            # Get current state from auto trader without deactivating it!
-            if self.auto_trailer:
-                # IMPORTANT: Don't call process(None) - this causes deactivation!
-                # Just access current_state directly
-                ate = self.auto_trailer.current_state
+            # Get current state from backend through ports
+            if self.ui_port_manager:
+                # Process any incoming data updates
+                data_updates = self.ui_port_manager.process_data_updates()
+                
+                # Process any command responses  
+                response_summary = self.ui_port_manager.process_responses()
                 
                 # Update PNL display
-                self.pnl_value_label.config(text=f"{ate.pnl:.2f}")
+                current_pnl = data_updates.get("pnl", 0.0)
+                self.pnl_value_label.config(text=f"{current_pnl:.2f}")
                 
                 # Handle state updates if in Auto mode
                 if self.radio_var.get() == 'Auto':
-                    # Update button states based on auto trader state
-                    if ate.mvto_cost_ui == UI_State.DISABLE:
-                        self.mvto_cost.disable_buttons()
-                    elif ate.mvto_cost_ui == UI_State.ENABLE:
-                        self.mvto_cost.enable_buttons()
-
-                    if ate.trail_sl_ui == UI_State.DISABLE:
-                        self.trail_after.disable_buttons()
-                    elif ate.trail_sl_ui == UI_State.ENABLE:
-                        self.trail_after.enable_buttons()
-                    
-                    # Handle square off if needed
-                    if ate.sq_off_done:
-                        # Switch back to Manual mode
+                    # Check for square-off completion
+                    if data_updates.get("sq_off_done", False):
+                        logger.info("Square-off completed - switching to Manual mode")
                         self.radio_var.set('Manual')
-                        self._on_mode_change()  # Trigger the mode change handler
+                        self._on_mode_change()  # Update UI for Manual mode
+                        return
+            else:
+                logger.error("UI port manager not available - cannot update UI")
         
         except tk.TclError as e:
             if not self.error_shown:
@@ -498,7 +544,10 @@ class PNL_Window(tk.Frame):
         self.after(int(self.ui_update_frequency * 1000), self.update_ui)
         
     def ui_update_sys_sq_off(self):
-        """Update UI when system square off happens"""
+        """
+        Update UI when system square off happens (both success and error cases)
+        Switches radio button from Auto to Manual and updates UI state
+        """
         self.radio_var.set('Manual')
         self._on_mode_change()  # Trigger mode change handler to update UI
 

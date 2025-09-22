@@ -35,9 +35,8 @@ try:
     import time
     from dataclasses import dataclass
     from time import sleep
-    from datetime import datetime, time as datetime_time
-    from enum import Enum
-    from threading import Lock, Thread
+    from datetime import datetime
+    from threading import Lock, Thread, Event
     from typing import Callable
 
     import numpy as np
@@ -48,10 +47,12 @@ try:
     from .bku import BookKeeperUnit, BookKeeperUnitCreateConfig
     from .ocpu import OCPU, Ocpu_CreateConfig, Ocpu_RetObject
     from .pmu import PMU_CreateConfig, PriceMonitoringUnit, WaitConditionData
-    from .shared_classes import (AutoTrailerData, AutoTrailerEvent,
-                                 Component_Type, ExtSimpleQueue, I_B_MKT_Order,
-                                 I_S_MKT_Order, InstrumentInfo, UI_State)
+    from .shared_classes import (Component_Type, ExtSimpleQueue, I_B_MKT_Order,
+                                 I_S_MKT_Order, InstrumentInfo)
     from .tiu import Diu, OrderExecutionException, Tiu
+    from .notification_factory import NotificationFactory
+    from .notification_system import NotificationLogger
+    from .infra_error_handler import InfraErrorHandler, ConnectionStatus
 
 except Exception as e:
     logger.debug(traceback.format_exc())
@@ -61,21 +62,10 @@ except Exception as e:
 
 locale.setlocale(locale.LC_ALL, '')
 
-class MOVE_TO_COST_STATE(Enum):
-    WAITING_UP_CROSS = 0
-    WAITING_DOWN_CROSS = 1
-
-class TRAIL_SL_STATE(Enum):
-    WAITING_UP_CROSS = 0
-    TRAIL_STARTED = 1
-    TRAIL_SL_HIT = 2
-
 @dataclass
 class Portfolio_CreateConfig:
     store_file: str
     mo: str
-
-from dataclasses import dataclass
 
 #g_count = 0
 
@@ -250,28 +240,31 @@ class PFMU_CreateConfig:
     mo: str
     pf_file: str
     port: ExtSimpleQueue
+    response_port: object = None  # Port for sending notifications to UI
     limit_order_cfg: bool = False
     reset: bool = False
-    system_sqoff_cb:Callable = None
-    disable_price_entry_cb:Callable = None
+    disable_price_entry_cb: Callable = None
+    error_handler: InfraErrorHandler = None
 
 class PFMU:
     __count = 0
     __componentType = Component_Type.ACTIVE
-    AUTO_TRAILER_PROC_MAX_COUNT = 15
 
     def __init__(self, pfmu_cc: PFMU_CreateConfig):
         logger.info(f'{PFMU.__count}: Creating PFMU Object..')
         self.inst_id = f'{self.__class__.__name__}:{PFMU.__count}'
         PFMU.__count += 1
 
-        self.auto_trailer_proc_cnt = PFMU.AUTO_TRAILER_PROC_MAX_COUNT
-
         self.pf_lock = Lock()
         self.cancellation_flag = False  # Flag to prevent race conditions during waiting order cancellation
 
         self.tiu = pfmu_cc.tiu
         self.diu = pfmu_cc.diu
+
+        # Validate required error_handler
+        if pfmu_cc.error_handler is None:
+            raise ValueError("error_handler is required in PFMU_CreateConfig")
+        self.error_handler = pfmu_cc.error_handler
 
         self.disable_price_entry_cb:Callable = pfmu_cc.disable_price_entry_cb
 
@@ -314,18 +307,6 @@ class PFMU:
                     "n_orders",
                     "order_list",
                     "status"],
-                # dtype={
-                #     "click_price": float,
-                #     "tsym_token": str,
-                #     "ul_index": str,
-                #     "use_gtt_oco": bool,
-                #     "cond": int,
-                #     "wait_price_lvl": int,
-                #     "prev_tick_lvl": int,
-                #     "n_orders": int,
-                #     "order_list": object,
-                #     "status": str
-                # }
             )
 
         bku_cc = BookKeeperUnitCreateConfig(pfmu_cc.rec_file, pfmu_cc.reset)
@@ -334,25 +315,145 @@ class PFMU:
         pf_cc = Portfolio_CreateConfig(store_file=pfmu_cc.pf_file, mo=pfmu_cc.mo)
         self.portfolio = Portfolio(pf_cc=pf_cc)
 
-        self.mov_to_cost_state = MOVE_TO_COST_STATE.WAITING_UP_CROSS
-        self.trail_sl_state = TRAIL_SL_STATE.WAITING_UP_CROSS
-
-        self._system_sqoff_cb = pfmu_cc.system_sqoff_cb
-
-        self.max_pnl = None
-        self.mv_to_cost_pnl = self.intra_day_pnl()
-
-        logger.debug (f'mv_to_cost_pnl: {self.mv_to_cost_pnl:.2f}')
+        self._response_port = pfmu_cc.response_port
+        self._notification_logger = NotificationLogger(f"{self.inst_id}.notifications")
         #
         # TODO: In case of a restart of app, portfolio should get updated based on the
         # platform quantity. If there is any difference ( due to manual exit and not manual entry...)
         # it should be taken into the portfolio.
         #
+        
+        # Pure PFMU service - AutoTrailer functionality moved to AutoTrailerManager
+        # No AutoTrailer initialization or thread management in pure service
 
         logger.info(f'Creating PFMU Object.. Done')
 
+        # Report successful initialization to error handler
+        self.error_handler.report_connection_status(ConnectionStatus.CONNECTED, "PFMU")
+
     def start_monitoring(self):
         self.pmu.start_monitoring()
+
+
+
+
+
+
+
+    # Pure PFMU Service - Timer functionality moved to SquareOffTimeManager
+    
+    def _send_system_sqoff_notification(self, trigger_source: str, trigger_reason: str, 
+                                       pnl_at_trigger: float, additional_data: dict = None):
+        """
+        Send system square-off completion notification via response port using structured notifications
+        
+        Args:
+            trigger_source: Source of square-off (USER, TIMER, SL_HIT, TARGET_HIT, TRAILING_SL)
+            trigger_reason: Human-readable reason for square-off
+            pnl_at_trigger: P&L value when square-off was triggered
+            additional_data: Optional additional context data
+        """
+        if self._response_port is None:
+            logger.warning("Response port not available for system square-off notification")
+            return
+            
+        try:
+            # Get current position status
+            total_qty = self.portfolio.available_qty(ul_index=None)
+            all_positions_closed = total_qty is None or total_qty == 0
+            
+            # Get symbol from additional data if available
+            symbol = (additional_data or {}).get('symbol', 'Unknown')
+            
+            # Create structured notification using factory
+            notification = NotificationFactory.square_off_success(
+                mode="ALL",
+                trigger_source=trigger_source,
+                pnl=pnl_at_trigger,
+                symbol=symbol
+            )
+            
+            # Add additional PFMU-specific data
+            notification.data.update({
+                'total_positions': total_qty,
+                'all_positions_closed': all_positions_closed,
+                'trigger_reason': trigger_reason
+            })
+            
+            # Add any additional data provided
+            if additional_data:
+                notification.data.update(additional_data)
+            
+            # Log the notification
+            self._notification_logger.log_notification(notification, "sending")
+            
+            # Send via response port as structured notification
+            self._response_port.send_data(notification.to_dict())
+            
+            logger.info(f"System square-off notification sent: source={trigger_source}, reason='{trigger_reason}', "
+                       f"positions_closed={all_positions_closed}, qty={total_qty}, pnl={pnl_at_trigger:.2f}")
+            
+        except Exception as e:
+            logger.error(f"Error sending system square-off notification: {e}")
+            # Log the error through notification logger
+            self._notification_logger.log_notification_error(e, "send_system_sqoff_notification")
+    
+    def _send_system_sqoff_error_notification(self, trigger_source: str, error_message: str, 
+                                           pnl_at_trigger: float, additional_data: dict = None):
+        """
+        Send system square-off error notification via response port using structured notifications
+        
+        Args:
+            trigger_source: Source of square-off (USER, AUTOTRAILER, TIMER)
+            error_message: Human-readable error message
+            pnl_at_trigger: P&L value when error occurred
+            additional_data: Optional additional context data
+        """
+        if self._response_port is None:
+            logger.warning("Response port not available for system square-off error notification")
+            return
+            
+        try:
+            # Get current position status
+            total_qty = self.portfolio.available_qty(ul_index=None)
+            positions_remain = total_qty is not None and total_qty > 0
+            
+            # Get symbol from additional data if available
+            symbol = (additional_data or {}).get('symbol', 'Unknown')
+            
+            # Create structured error notification using factory
+            notification = NotificationFactory.square_off_error(
+                mode="ALL",
+                error_msg=error_message,
+                trigger_source=trigger_source,
+                symbol=symbol
+            )
+            
+            # Add additional PFMU-specific data
+            notification.data.update({
+                'total_positions': total_qty,
+                'positions_remain': positions_remain,
+                'pnl_at_trigger': pnl_at_trigger,
+                'requires_manual_action': True
+            })
+            
+            # Add any additional data provided
+            if additional_data:
+                notification.data.update(additional_data)
+            
+            # Log the notification
+            self._notification_logger.log_notification(notification, "sending")
+            
+            # Send via response port as structured notification
+            self._response_port.send_data(notification.to_dict())
+            
+            logger.error(f"System square-off error notification sent: source={trigger_source}, error='{error_message}', "
+                       f"positions_remain={positions_remain}, qty={total_qty}, pnl={pnl_at_trigger:.2f}")
+            
+        except Exception as e:
+            logger.error(f"Error sending system square-off error notification: {e}")
+            # Log the error through notification logger
+            self._notification_logger.log_notification_error(e, "send_system_sqoff_error_notification")
 
     def wo_table_show(self):
         if self.limit_order_cfg:
@@ -809,7 +910,10 @@ class PFMU:
             return total_qty
 
     def _update_portfolio_based_platform(self):
-        r = self.tiu.get_positions()
+        r = self.error_handler.handle_api_call(
+            api_function=lambda: self.tiu.get_positions(),
+            component_id="PFMU"
+        )
         if r is not None and isinstance(r, list):
             posn_df = pd.DataFrame(r)
             posn_df.loc[posn_df['prd'] == 'I', 'netqty'] = posn_df.loc[posn_df['prd'] == 'I', 'netqty'].apply(lambda x: int(x))
@@ -820,7 +924,8 @@ class PFMU:
             logger.info(f'Not able to fetch the positions. Check manually')
 
     def square_off_position(self, mode, ul_index: str = None, ul_symbol:str=None, 
-                            per: float = 100, inst_type: str = None, partial_exit: bool = False, exit_flag=True):
+                            per: float = 100, inst_type: str = None, partial_exit: bool = False, exit_flag=True, trigger_source: str = "USER"):
+        logger.debug(f'[SQUARE_OFF_DEBUG] Starting square_off_position: mode={mode}, ul_index={ul_index}, ul_symbol={ul_symbol}, per={per}, inst_type={inst_type}, partial_exit={partial_exit}, exit_flag={exit_flag}')
 
         def place_sq_off_order(tsym: str, b_or_s: str, exit_qty: int, ls: int, frz_qty: int, exchange='NSE'):
             nonlocal self
@@ -1173,6 +1278,7 @@ class PFMU:
                     token = symbol.split('_')[1]
                     tsym = symbol.split('_')[0]
                     rec_qty = row['Qty']
+                    logger.debug(f'[SQUARE_OFF_DEBUG] Processing position: {tsym_token}, recorded_qty: {rec_qty}')
                     if not posn_df.empty:
                         try:
                             posn_qty = posn_df.loc[posn_df['token'] == str(token), 'netqty'].values[0]
@@ -1183,6 +1289,7 @@ class PFMU:
                     else:
                         posn_qty = 0
                     net_qty = abs(posn_qty)
+                    logger.debug(f'[SQUARE_OFF_DEBUG] Position data: tsym={tsym}, token={token}, posn_qty={posn_qty}, net_qty={net_qty}')
 
                     # It is possible that manually, user could do following:
                     # case 1: nothing
@@ -1204,11 +1311,18 @@ class PFMU:
                     #         example3 : rec_qty = 8,   net_qty = -10, exit_qty = 8 sell
                     #         example4 : rec_qty = -8,   net_qty = +10, exit_qty = 8 buy
 
+                    logger.debug(f'[SQUARE_OFF_DEBUG] Exit decision: net_qty={net_qty}, rec_qty={rec_qty}, condition net_qty > 0: {net_qty > 0}')
                     if net_qty > 0:
                         # exit the position
-                        # important, rec_qty and net_qty should be both +ve values.
-                        exit_qty = min(abs(rec_qty), net_qty)
-                        logger.debug(f'exit qty:{exit_qty}')
+                        # CRITICAL FIX (2025-01-19): NIFTYBEES Square-off Issue Resolution
+                        # Problem: Buy → Square-off → Short → Square-off sequence failed on second square-off
+                        # Root Cause: orders.csv sums offsetting orders: +1 (Buy) + (-1) (Short) = 0 (rec_qty)
+                        #             But broker still shows position: -1 (posn_qty), net_qty = 1
+                        # Old Formula: exit_qty = min(abs(rec_qty), net_qty) = min(abs(0), 1) = 0 ❌ FAILED
+                        # New Formula: exit_qty = abs(min(rec_qty, posn_qty)) = abs(min(0, -1)) = 1 ✅ WORKS
+                        # Maintains min(system_responsibility, broker_reality) principle while handling tracking gaps
+                        exit_qty = abs(min(rec_qty, posn_qty))
+                        logger.debug(f'[SQUARE_OFF_DEBUG] Entering exit logic: exit_qty={exit_qty}, abs(rec_qty)={abs(rec_qty)}, net_qty={net_qty}')
                         exch = 'NSE' if '-EQ' in tsym else 'NFO'
                         # Very Important:  Following should use frz_qty for breaking order into slices
                         r = self.tiu.get_security_info(exchange=exch, token=token)
@@ -1232,44 +1346,54 @@ class PFMU:
                             per_leg_exit_qty = frz_qty if exit_qty > frz_qty else exit_qty
                             per_leg_exit_qty = int(per_leg_exit_qty / ls) * ls
 
+                            logger.debug(f'[SQUARE_OFF_DEBUG] Order loop: exit_qty={exit_qty}, per_leg_exit_qty={per_leg_exit_qty}, failure_cnt={failure_cnt}')
                             if order and order.quantity == per_leg_exit_qty:
-                                ...
+                                logger.debug(f'[SQUARE_OFF_DEBUG] Reusing existing order with same quantity')
                             else:
+                                logger.debug(f'[SQUARE_OFF_DEBUG] Creating new order: rec_qty={rec_qty}, rec_qty > 0: {rec_qty > 0}')
                                 if rec_qty > 0:
                                     order = I_S_MKT_Order(tradingsymbol=tsym, quantity=per_leg_exit_qty, exchange=exch)
+                                    logger.debug(f'[SQUARE_OFF_DEBUG] Created SELL order: {tsym}, qty={per_leg_exit_qty}, exch={exch}')
                                 else:
                                     order = I_B_MKT_Order(tradingsymbol=tsym, quantity=per_leg_exit_qty, exchange=exch)
+                                    logger.debug(f'[SQUARE_OFF_DEBUG] Created BUY order: {tsym}, qty={per_leg_exit_qty}, exch={exch}')
 
                             # r = self.fv.place_order(buy_or_sell, product_type='I', exchange=exch, tradingsymbol=tsym,
                             #                         quantity=per_leg_exit_qty, price_type='MKT', discloseqty=0.0)
 
+                            logger.debug(f'[SQUARE_OFF_DEBUG] Placing order: {order.__class__.__name__} for {tsym}')
                             r = self.tiu.place_order(order)
+                            logger.debug(f'[SQUARE_OFF_DEBUG] Order placement result: {r}')
 
                             if r is None or r['stat'] == 'Not_Ok':
-                                logger.info(f'Exit order Failed:  {r["emsg"]}')
+                                logger.info(f'[SQUARE_OFF_DEBUG] Exit order Failed:  {r["emsg"] if r else "None response"}')
                                 failure_cnt += 1
                             else:
-                                logger.info(f'Exit Order Attempt success:: order id  : {r["norenordno"]}')
+                                logger.info(f'[SQUARE_OFF_DEBUG] Exit Order Attempt success:: order id  : {r["norenordno"]}')
                                 order_id = r["norenordno"]
                                 r_os_list = self.tiu.single_order_history(order_id)
                                 # Shoonya gives a list for all status of order, we are interested in first one
                                 r_os_dict = r_os_list[0]
+                                logger.debug(f'[SQUARE_OFF_DEBUG] Order status check: {r_os_dict["status"]}')
                                 if r_os_dict["status"].lower() == "complete":
                                     closed_qty += order.quantity
-                                    logger.info(f'Exit order Complete: order_id: {order_id}')
+                                    logger.info(f'[SQUARE_OFF_DEBUG] Exit order Complete: order_id: {order_id}, closed_qty: {closed_qty}')
                                 else:
-                                    logger.info(f'Exit order InComplete: order_id: {order_id} Check Manually')
+                                    logger.info(f'[SQUARE_OFF_DEBUG] Exit order InComplete: order_id: {order_id} Status: {r_os_dict["status"]} Check Manually')
                                 exit_qty -= per_leg_exit_qty
 
                         if failure_cnt > 2 or exit_qty:
                             logger.info(f'Exit order InComplete: order_id: {order_id} Check Manually')
                             raise OrderExecutionException
                         elif closed_qty:
-                            logger.info(f'tsym_token:{tsym_token} qty: {closed_qty} squared off..')
+                            logger.info(f'[SQUARE_OFF_DEBUG] tsym_token:{tsym_token} qty: {closed_qty} squared off..')
+                            logger.debug(f'[SQUARE_OFF_DEBUG] Position update: rec_qty={rec_qty}, closed_qty={closed_qty}, updating with qty={-closed_qty if rec_qty < 0 else closed_qty}')
                             if rec_qty < 0:
                                 self.portfolio.update_position_closed(tsym_token=tsym_token, qty=-closed_qty)
                             else:
                                 self.portfolio.update_position_closed(tsym_token=tsym_token, qty=closed_qty)
+                    else:
+                        logger.debug(f'[SQUARE_OFF_DEBUG] Skipping position {tsym_token}: net_qty={net_qty} <= 0, no square-off needed')
 
         df = self.bku.fetch_orders_df()
 
@@ -1286,14 +1410,23 @@ class PFMU:
                     if self.limit_order_cfg:
                         self.cancel_all_waiting_orders_from_pf_context(exit_flag=exit_flag, show_table=False)
                     __square_off_position(df=df, wait_flag=wait_flag)
-                    with self.pf_lock:
-                        self.portfolio.verify_reset()
+                    time.sleep(2)  # Allow settlement time for orders to complete
+                    if self._verify_all_positions_closed_on_broker():
+                        with self.pf_lock:
+                            self.portfolio.verify_reset()
+                        logger.info("Positions verified closed on broker - reset completed")
+                    else:
+                        logger.warning("Some positions still open on broker - skipping reset")
 
-                    if self._system_sqoff_cb:
-                        self._system_sqoff_cb ()
+                    # Send system square-off notification via port instead of callback
+                    current_pnl = self.intra_day_pnl()
+                    self._send_system_sqoff_notification(trigger_source, "Square-off position completed", current_pnl)
 
                 except OrderExecutionException:
                     logger.error('Major Exception Happened: Take Manual control..')
+                    # Send error notification instead of complete notification
+                    current_pnl = self.intra_day_pnl()
+                    self._send_system_sqoff_error_notification(trigger_source, "Order execution failed - Take manual control", current_pnl)
 
         else:
             if partial_exit:
@@ -1304,9 +1437,9 @@ class PFMU:
                 # Add check for any remaining positions after partial exit
                 remaining_qty = self.portfolio.available_qty(ul_index=None)
                 if remaining_qty is not None and remaining_qty == 0:
-                    # No positions left, notify auto-trailer system
-                    if self._system_sqoff_cb:
-                        self._system_sqoff_cb()
+                    # No positions left, send system square-off notification
+                    current_pnl = self.intra_day_pnl()
+                    self._send_system_sqoff_notification(trigger_source, "Partial exit completed all positions", current_pnl)
 
             else:
                 with self.pf_lock:
@@ -1321,12 +1454,98 @@ class PFMU:
                             self.cancel_all_waiting_orders_from_pf_context(ul_token=ul_token)
 
                         __square_off_position(df=df, symbol=ul_symbol, wait_flag=wait_flag)
-
-                        self.portfolio.verify_reset(ul_index=ul_index)
+                        time.sleep(2)  # Allow settlement time for orders to complete
+                        if self._verify_positions_closed_for_index(ul_index):
+                            self.portfolio.verify_reset(ul_index=ul_index)
+                            logger.info(f"Positions for {ul_index} verified closed on broker - reset completed")
+                        else:
+                            logger.warning(f"Positions for {ul_index} still open on broker - skipping reset")
                     except OrderExecutionException:
                         logger.error('Major Exception Happened: Take Manual control..')
+                        return False  # Return False for actual failures
 
-        logger.info("Square off Position - Complete.")
+        logger.info("[SQUARE_OFF_DEBUG] Square off Position - Complete.")
+        return True  # Return True for successful completion (even if no positions to square off)
+
+    def _verify_all_positions_closed_on_broker(self):
+        """
+        Verify that all positions are actually closed on the broker platform.
+        Returns True if all positions are closed, False otherwise.
+        """
+        try:
+            positions = self.tiu.get_positions()
+            if positions is None:
+                logger.warning("Unable to fetch positions from broker - assuming not closed")
+                return False
+
+            if isinstance(positions, list):
+                posn_df = pd.DataFrame(positions)
+                # Filter for MIS positions only and convert netqty to int
+                mis_positions = posn_df.loc[posn_df['prd'] == 'I'].copy()
+                if not mis_positions.empty:
+                    mis_positions['netqty'] = mis_positions['netqty'].apply(lambda x: int(x))
+                    open_positions = mis_positions[mis_positions['netqty'] != 0]
+                    if not open_positions.empty:
+                        logger.debug(f"Found {len(open_positions)} open MIS positions on broker")
+                        return False
+
+                logger.debug("All MIS positions confirmed closed on broker")
+                return True
+            else:
+                logger.warning("Unexpected positions format from broker")
+                return False
+
+        except Exception as e:
+            logger.error(f"Error verifying broker positions: {e}")
+            return False
+
+    def _verify_positions_closed_for_index(self, ul_index):
+        """
+        Verify that positions for a specific ul_index are closed on the broker platform.
+        Returns True if positions for this index are closed, False otherwise.
+        """
+        try:
+            positions = self.tiu.get_positions()
+            if positions is None:
+                logger.warning(f"Unable to fetch positions from broker for {ul_index} - assuming not closed")
+                return False
+
+            if isinstance(positions, list):
+                posn_df = pd.DataFrame(positions)
+                # Filter for MIS positions only and convert netqty to int
+                mis_positions = posn_df.loc[posn_df['prd'] == 'I'].copy()
+                if mis_positions.empty:
+                    logger.debug(f"No MIS positions found on broker for {ul_index}")
+                    return True
+
+                mis_positions['netqty'] = mis_positions['netqty'].apply(lambda x: int(x))
+
+                # Get all tsym_tokens for this ul_index from our portfolio
+                df = self.portfolio.stock_data
+                index_tokens = df[df['ul_index'] == ul_index].index.tolist()
+
+                # Check if any broker positions match our tracked positions
+                for index, row in mis_positions.iterrows():
+                    pos_token = row.get('token', '')
+                    pos_tsym = row.get('tsym', '')
+                    pos_netqty = row.get('netqty', 0)
+
+                    # Create tsym_token format to match our tracking
+                    tsym_token = f"{pos_tsym}_{pos_token}"
+
+                    if tsym_token in index_tokens and pos_netqty != 0:
+                        logger.debug(f"Position still open for {ul_index}: {tsym_token} qty={pos_netqty}")
+                        return False
+
+                logger.debug(f"All positions for {ul_index} confirmed closed on broker")
+                return True
+            else:
+                logger.warning("Unexpected positions format from broker")
+                return False
+
+        except Exception as e:
+            logger.error(f"Error verifying broker positions for {ul_index}: {e}")
+            return False
 
     def intra_day_pnl (self):
         mtm = 0.0
@@ -1342,7 +1561,10 @@ class PFMU:
             # logger.info('No position to Square off')
             return
         else:
-            r = self.tiu.get_positions()
+            r = self.error_handler.handle_api_call(
+                api_function=lambda: self.tiu.get_positions(),
+                component_id="PFMU"
+            )
             if r is not None and isinstance(r, list):
                 try:
                     posn_df = pd.DataFrame(r)
@@ -1364,82 +1586,47 @@ class PFMU:
                     logger.debug (f'Exception occured {str(e)}')
                 else :
                     ...
+        
+        # Pure P&L calculation - AutoTrailer event handling moved to AutoTrailerManager
+            
         return mtm
 
-    def auto_trailer(self, atd: AutoTrailerData|None=None):
 
-        self.auto_trailer_proc_cnt -= 1
-        if not self.auto_trailer_proc_cnt:
-            logger.debug (f'Auto Trailer - Live ')
-            self.auto_trailer_proc_cnt = PFMU.AUTO_TRAILER_PROC_MAX_COUNT
-
-        if atd and atd.ui_reset:
-            self.mov_to_cost_state = MOVE_TO_COST_STATE.WAITING_UP_CROSS
-            self.trail_sl_state = TRAIL_SL_STATE.WAITING_UP_CROSS
-            self.max_pnl = None
-            logger.debug (f'Manual -> Auto  : Reset Done')
-
-        pnl = self.intra_day_pnl()
-        ate = AutoTrailerEvent (pnl=pnl)
-
-        if self.mov_to_cost_state == MOVE_TO_COST_STATE.WAITING_DOWN_CROSS:
-            ate.mvto_cost_ui = UI_State.DISABLE
-
-        if self.trail_sl_state == TRAIL_SL_STATE.TRAIL_STARTED:
-            ate.trail_sl_ui = UI_State.DISABLE
-
-        if atd:
-            sq_off = False
-            if pnl >= atd.target:
-                sq_off = True
-                logger.info (f'Target Achieved: Squaring off')
-                ate.target_hit = True
-
-            if not sq_off and pnl <= atd.sl:
-                logger.info (f'SL Hit: Squaring off')
-                sq_off = True
-                ate.sl_hit = True
-
-            if not sq_off:
-                match self.mov_to_cost_state:
-                    case MOVE_TO_COST_STATE.WAITING_UP_CROSS:
-                        if pnl >= atd.mvto_cost:
-                            self.mov_to_cost_state = MOVE_TO_COST_STATE.WAITING_DOWN_CROSS
-                            ate.mvto_cost_ui = UI_State.DISABLE
-                            logger.info (f'mvto_cost - Threshold hit {MOVE_TO_COST_STATE.WAITING_UP_CROSS.name} -> {MOVE_TO_COST_STATE.WAITING_DOWN_CROSS.name}')
-
-                    case MOVE_TO_COST_STATE.WAITING_DOWN_CROSS:
-                        if pnl <= self.mv_to_cost_pnl:
-                            self.mov_to_cost_state = MOVE_TO_COST_STATE.WAITING_UP_CROSS
-                            logger.info (f'mvto_cost - Threshold hit {MOVE_TO_COST_STATE.WAITING_DOWN_CROSS.name} -> {MOVE_TO_COST_STATE.WAITING_UP_CROSS.name}')
-                            sq_off = True
-                    case _:
-                        ...
-
-            if not sq_off:
-                match self.trail_sl_state:
-                    case TRAIL_SL_STATE.WAITING_UP_CROSS:
-                        if pnl >= atd.trail_after:
-                            self.max_pnl = pnl
-                            self.trail_sl_state = TRAIL_SL_STATE.TRAIL_STARTED
-                            ate.trail_sl_ui = UI_State.DISABLE
-                            logger.info (f'trail_sl_state - {atd.trail_after:.2f} hit {TRAIL_SL_STATE.WAITING_UP_CROSS.name} -> {TRAIL_SL_STATE.TRAIL_STARTED.name}')
-
-                    case TRAIL_SL_STATE.TRAIL_STARTED:
-                        if pnl > self.max_pnl:
-                            self.max_pnl = pnl
-                        pnl_th = self.max_pnl - atd.trail_by
-                        if pnl_th > 0 and pnl <= pnl_th:
-                            self.trail_sl_state = TRAIL_SL_STATE.TRAIL_SL_HIT
-                            sq_off = True
-                            logger.info (f'trail_sl_state - max_pnl: {self.max_pnl:.2f} trail_by: {atd.trail_by:.2f} {pnl_th:.2f} hit {TRAIL_SL_STATE.TRAIL_STARTED.name} -> {TRAIL_SL_STATE.TRAIL_SL_HIT.name}')
-                    case _:
-                        ...
-
-            if sq_off:
-                self.square_off_position (mode='ALL', ul_index=None, per=100, inst_type='ALL', partial_exit=False, exit_flag=False)
-                self.show()
-                remaining_qty = self.portfolio.available_qty(ul_index=None)
-                ate.sq_off_done = remaining_qty is None or remaining_qty == 0
-                self.mv_to_cost_pnl = self.intra_day_pnl()
-        return ate
+    def hard_exit(self):
+        """
+        Comprehensive cleanup and shutdown of PFMU components with thread management
+        """
+        logger.info("=== PFMU Hard Exit Started ===")
+        cleanup_start_time = time.time()
+        
+        # Track cleanup operations
+        cleanup_operations = []
+        
+        try:
+            # STEP 1: Shutdown PMU (Price Monitoring Unit with data processing thread)
+            if self.pmu:
+                logger.info("Shutting down PMU component...")
+                cleanup_operations.append("PMU")
+                self.pmu.hard_exit()
+            else:
+                logger.debug("PMU not present or already shutdown")
+            
+            # STEP 2: Clean up any additional spawned threads (order placement threads, etc.)
+            import threading
+            active_threads = threading.enumerate()
+            pfmu_threads = [t for t in active_threads if 'PMU Order Placement Thread' in t.name]
+            
+            if pfmu_threads:
+                logger.info(f"Found {len(pfmu_threads)} PMU order placement threads still active")
+                cleanup_operations.append(f"OrderThreads({len(pfmu_threads)})")
+                # Note: These are daemon threads, they should stop when main threads stop
+            
+            # STEP 3: Final validation
+            cleanup_time = time.time() - cleanup_start_time
+            logger.info(f"PFMU components shutdown: {', '.join(cleanup_operations) if cleanup_operations else 'None'}")
+            logger.info(f"=== PFMU Hard Exit Completed ({cleanup_time:.2f}s) ===")
+            
+        except Exception as e:
+            logger.error(f"Error during PFMU hard_exit: {e}")
+            logger.error(traceback.format_exc())
+            logger.error("PFMU shutdown may be incomplete - check for zombie threads")

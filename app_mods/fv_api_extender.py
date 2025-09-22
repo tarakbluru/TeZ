@@ -881,6 +881,12 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
                 # Don't log full traceback for timeout exceptions to reduce noise
                 if "timeout" not in str(mesg).lower():
                     logger.error(traceback.format_exc())
+                # Call external error handler if provided
+                if on_error is not None:
+                    logger.debug(f"Calling external error handler with: {str(mesg)}")
+                    on_error(mesg)
+                else:
+                    logger.debug("No external error handler provided")
             else:
                 try:
                     logger.info (f'Web socket Error Call back: mesg:{json.dumps(mesg,indent=2)}')
@@ -910,7 +916,7 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
                                             subscribe_callback=subscribe_callback,
                                             socket_open_callback=open_callback,
                                             socket_close_callback=close_callback,
-                                            socket_error_callback=error_callback)
+                                            socket_error_callback=None)
                     except Exception as e:
                         logger.error(f"WebSocket connection failed: {str(e)}")
                         logger.debug(traceback.format_exc())
@@ -1046,10 +1052,18 @@ class ShoonyaApiPy(NorenApi, FeedBaseObj):
             with self.lock:
                 self.ws_connected = False
         if self.ws_v2_th:
+            logger.debug(f"{self.inst_id} Signaling WebSocket thread to exit...")
             self.ws_v2_exit_evt.set()
             self.ws_v2_data_flow_evt.set()
+
+            # Give thread time to exit gracefully
             self.ws_v2_th.join(2.0)
             if self.ws_v2_th.is_alive():
-                logger.error(f"{self.inst_id} {self.ws_v2_th.name} is still alive")
+                logger.warning(f"{self.inst_id} {self.ws_v2_th.name} still alive after 2s - forcing exit")
+                # Thread is stuck - this will prevent clean exit but at least log it clearly
+                import threading
+                logger.error(f"WebSocket thread {self.ws_v2_th.ident} may prevent application exit")
+            else:
+                logger.debug(f"{self.inst_id} WebSocket thread exited cleanly")
 
         return (ret_val)

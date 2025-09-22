@@ -71,7 +71,8 @@ class WS_WrapU(object):
                  mo: str = "09:15", mc: str = "15:30",
                  tr: bool|None = None,
                  tr_folder:str|None = None,
-                 notifier=None):
+                 notifier=None,
+                 error_callback=None):
         logger.debug("WebSocket Wrapper Unit initialization ...")
 
         self.lock = Lock()
@@ -84,6 +85,7 @@ class WS_WrapU(object):
 
         self.port: SimpleDataPort = port_cfg
         self.order_port: SimpleDataPort = order_port_cfg
+        self.error_callback = error_callback
 
         mo_hr = datetime.strptime(mo, "%H:%M").hour
         mo_min = datetime.strptime(mo, "%H:%M").minute
@@ -338,7 +340,8 @@ class WS_WrapU(object):
             retval = self.fv.connect_to_datafeed_server(on_message=app_event_handler_quote_update,
                                                         on_order_update=app_event_handler_order_update,
                                                         on_open=app_open,
-                                                        on_close=app_close)
+                                                        on_close=app_close,
+                                                        on_error=self.error_callback)
         except KeyboardInterrupt:
             logger.info (f'Ctrl+C Interrupt..')
             raise

@@ -16,6 +16,10 @@ GUI_CONFIG:
   RADIOBUTTON_2_VALUE: 'NIFTY BANK' # 'NIFTY BANK'  and not  'BANKNIFTY'  Do not change
   RADIOBUTTON_1_TEXT: 'N'
   RADIOBUTTON_2_TEXT: 'BN'
+  STATUS_LED_X: 15                    # X position from left edge
+  STATUS_LED_Y_OFFSET: 25             # Y offset from bottom edge
+  STATUS_LED_SIZE: 12                 # LED canvas size
+  
 
 TIU:
   USE_GSHEET_TOKEN: 'NO'            #YES NO
@@ -167,6 +171,11 @@ SYSTEM:
     NOTIFY : "OFF"  #Notifier is created but only the notifications are not pushed by this control parameter.
     CFG_FILE: null
   
-  UI_UPDATE_FREQUENCY: 1.0     # UI update interval in seconds
+  UI_UPDATE_FREQUENCY: 0.5     # UI update interval in seconds (500ms for better responsiveness)
   AUTO_TRAILER_UPDATE_FREQUENCY: 1.0  # Auto trailer update interval in seconds  
+  
+  # Network connectivity monitoring
+  NETWORK_CHECK_INTERVAL: 2.0         # Network connectivity check interval in seconds
+  NETWORK_CHECK_ENABLED: 'YES'        # Enable network connectivity monitoring (YES/NO)
+  
 ...
