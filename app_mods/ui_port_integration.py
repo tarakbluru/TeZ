@@ -66,6 +66,9 @@ class SimpleUIPortManager:
         # Track processed response IDs to prevent duplicate processing
         self._processed_responses: Set[int] = set()
         self._processed_responses_lock = threading.Lock()
+
+        # Track warned timeout requests to prevent log spam
+        self._warned_timeouts: Set[int] = set()
         
         # Simple state tracking
         self._auto_mode_active = False
@@ -475,6 +478,10 @@ class SimpleUIPortManager:
                             logger.debug(f"Successfully correlated and removed request ID: {request_id} from pending ({len(self._pending_requests)} total pending)")
                         else:
                             logger.warning(f"Request ID {request_id} was removed from pending requests between checks")
+
+                    # Clean up warned timeouts to prevent memory leak
+                    if request_id in self._warned_timeouts:
+                        self._warned_timeouts.remove(request_id)
                     
                 elif request_id:
                     # Response with ID but no matching request - provide detailed debugging
@@ -558,10 +565,16 @@ class SimpleUIPortManager:
                 if age > 5.0:  # 5 second timeout
                     timed_out_requests.append((req_id, req_info["command"], age))
         
+        # Only log NEW timeouts, not ones we've already warned about
         if timed_out_requests:
-            logger.warning(f"Found {len(timed_out_requests)} timed out requests:")
-            for req_id, command, age in timed_out_requests:
-                logger.warning(f"  - {command} (ID: {req_id}) aged {age:.1f}s")
+            new_timeouts = [(req_id, cmd, age) for req_id, cmd, age in timed_out_requests
+                            if req_id not in self._warned_timeouts]
+
+            if new_timeouts:
+                logger.warning(f"Found {len(new_timeouts)} NEW timed out requests:")
+                for req_id, command, age in new_timeouts:
+                    logger.warning(f"  - {command} (ID: {req_id}) aged {age:.1f}s")
+                    self._warned_timeouts.add(req_id)
         
         # Clean up very old processed response IDs (prevent memory leak)
         self._cleanup_old_processed_responses()
@@ -634,13 +647,15 @@ class SimpleUIPortManager:
         })
         
         if len(all_data) > 0:
-            # Only log when there are meaningful changes (not just packet receipts)
-            if self._pnl_change_count > 0 or self._tick_change_count > 0:
+            # Reduce log frequency - only log every 20th call or when there are many changes
+            self._consume_call_count = getattr(self, '_consume_call_count', 0) + 1
+            if (self._consume_call_count % 20 == 0 or
+                (self._pnl_change_count > 0 and self._pnl_change_count % 10 == 0) or
+                (self._tick_change_count > 0 and self._tick_change_count % 10 == 0)):
                 logger.debug(f"Consumed {len(all_data)} packets: P&L Changes={self._pnl_change_count}, Tick Changes={self._tick_change_count} - Final: PnL={self._last_pnl:.2f}, LTP={self._last_ltp}")
-            else:
-                # Periodic health check every 50 packets to avoid complete silence
-                if len(all_data) >= 50:
-                    logger.debug(f"Processed {len(all_data)} packets (no changes): P&L={self._last_pnl:.2f}, LTP={self._last_ltp}")
+            elif len(all_data) >= 100:
+                # Extended periodic health check to avoid complete silence
+                logger.debug(f"Processed {len(all_data)} packets (minimal logging): P&L={self._last_pnl:.2f}, LTP={self._last_ltp}")
         
         return data_summary
     
@@ -675,7 +690,9 @@ class SimpleUIPortManager:
             if old_pnl != self._last_pnl:
                 self._pnl_change_count += 1  # Count actual changes
                 change = self._last_pnl - old_pnl
-                logger.debug(f"P&L update consumed: {old_pnl:.2f} -> {self._last_pnl:.2f} (Change: {change:+.2f})")
+                # Only log every 10th P&L change or if change is significant (>= 50)
+                if self._pnl_change_count % 10 == 0 or abs(change) >= 50:
+                    logger.debug(f"P&L update consumed: {old_pnl:.2f} -> {self._last_pnl:.2f} (Change: {change:+.2f})")
                 
         except Exception as e:
             logger.error(f"Error handling P&L update packet: {e}")

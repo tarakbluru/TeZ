@@ -246,6 +246,7 @@ class PriceMonitoringUnit:
         tout = PriceMonitoringUnit.DATAFEED_TIMEOUT
         sys_monitor_cnt = PriceMonitoringUnit.SYS_MONITOR_MAX_COUNT
         sys_monitor = self.sys_monitor
+        log_freq_counter = 0  # Counter to reduce processing log frequency
 
         id = self.inst_id
         assert evt is not None, 'Event is None'
@@ -262,7 +263,8 @@ class PriceMonitoringUnit:
                 sys_monitor_cnt -= 1
 
                 if not sys_monitor_cnt:
-                    log_proc = True
+                    log_freq_counter += 1
+                    log_proc = (log_freq_counter % 4 == 0)  # Only log every 4th occurrence
                     if self._send_hb:
                         if sys_monitor is not None:
                             sys_monitor.i_am_live(f'{id}')

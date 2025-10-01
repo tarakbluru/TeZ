@@ -196,6 +196,7 @@ class ManualTradingManager:
     def show_portfolio(self) -> None:
         """Display current portfolio state"""
         try:
+            logger.debug("Manual Trading Manager: Starting portfolio display")
             self.pfmu.show()  # Delegate to PFMU portfolio display
             logger.info("Portfolio display completed via Manual Trading Manager")
         except Exception as e:
@@ -205,6 +206,7 @@ class ManualTradingManager:
     def show_waiting_orders(self) -> None:
         """Display waiting orders table"""
         try:
+            logger.debug("Manual Trading Manager: Starting waiting orders display")
             self.pfmu.wo_table_show()  # Delegate to PFMU waiting orders display
             logger.info("Waiting orders display completed via Manual Trading Manager")
         except Exception as e:

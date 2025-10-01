@@ -213,6 +213,10 @@ class Portfolio:
         return (self.stock_data[self.stock_data["ul_index"] == ul_index].copy())
 
     def show (self):
+        logger.debug(f"[PORTFOLIO_TABLE_DEBUG] Starting portfolio show, stock_data shape: {self.stock_data.shape}")
+        logger.debug(f"[PORTFOLIO_TABLE_DEBUG] stock_data columns: {list(self.stock_data.columns)}")
+        logger.debug(f"[PORTFOLIO_TABLE_DEBUG] stock_data content: {self.stock_data.to_string()}")
+
         df = self.stock_data
         console = Console()
         table = Table(title='Portfolio-Records')
@@ -229,7 +233,9 @@ class Portfolio:
         for i, (index, row) in enumerate(df.iterrows(), start=1):
             table.add_row(str(i), index, *[str(value) for value in row.tolist()])
 
+        logger.debug(f"[PORTFOLIO_TABLE_DEBUG] About to print table with {len(df)} rows")
         console.print(table)
+        logger.debug(f"[PORTFOLIO_TABLE_DEBUG] Table printed successfully")
 
 
 @dataclass
@@ -457,7 +463,13 @@ class PFMU:
 
     def wo_table_show(self):
         if self.limit_order_cfg:
+            logger.debug(f"[WO_TABLE_DEBUG] Starting wo_table_show, wo_df shape: {self.wo_df.shape}")
+            logger.debug(f"[WO_TABLE_DEBUG] wo_df columns: {list(self.wo_df.columns)}")
+            logger.debug(f"[WO_TABLE_DEBUG] wo_df content: {self.wo_df.to_string()}")
+
             df = self.wo_df[["click_time","click_price", "wait_price_lvl", "tsym_token", "trade", "n_orders", "use_gtt_oco", "status"]]
+            logger.debug(f"[WO_TABLE_DEBUG] Filtered df shape: {df.shape}")
+
             console = Console()
             table = Table(title='Waiting-Order-Records')
             table.add_column("#", justify="center")
@@ -470,12 +482,18 @@ class PFMU:
             for i, (_, row) in enumerate(df.iterrows(), start=1):
                 table.add_row(str(i), *[str(value) for value in row.tolist()])
 
+            logger.debug(f"[WO_TABLE_DEBUG] About to print table with {len(df)} rows")
             console.print(table)
+            logger.debug(f"[WO_TABLE_DEBUG] Table printed successfully")
+        else:
+            logger.debug(f"[WO_TABLE_DEBUG] limit_order_cfg is disabled, skipping table display")
 
     def show(self):
+        logger.debug("PFMU: Starting show method - displaying BKU, waiting orders, and portfolio")
         self.bku.show()
         self.wo_table_show()
         self.portfolio.show()
+        logger.debug("PFMU: Completed show method")
 
     def _add_order(
             self,
@@ -611,7 +629,7 @@ class PFMU:
                     key_name = f"{ul_token}_{id}"
                     if key_name in self.wo_df.index:
                         status = self.wo_df.loc[key_name, "status"]
-                        if status == 'Waiting' or status.startswith('Trig @'):
+                        if status == 'Waiting':
                             self.pmu.unregister_callback(ul_token, callback_id=key_name)
                             self.wo_df.loc[key_name, "status"] = "Cancelled"
                 else:
@@ -621,7 +639,7 @@ class PFMU:
             else:
                 if id < len(self.wo_df):  # Check if id is within the DataFrame's range
                     status = self.wo_df.iloc[id, self.wo_df.columns.get_loc("status")]
-                    if status == 'Waiting' or status.startswith('Trig @'):
+                    if status == 'Waiting':
                         key_name = self.wo_df.index[id]
                         ul_token = key_name.split('_')[0]
                         logger.info(f'unregistering: {key_name} ul_token: {ul_token}')
@@ -648,7 +666,7 @@ class PFMU:
                     continue
 
             status = row["status"]
-            if status == 'Waiting' or status.startswith('Trig @'):
+            if status == 'Waiting':
                 orders_to_cancel.append((key_name, ul_token_from_key_name, row))
         
         if detailed_logging:
@@ -1451,7 +1469,7 @@ class PFMU:
                     try:
                         ul_token = self.diu.ul_token
                         if self.limit_order_cfg:
-                            self.cancel_all_waiting_orders_from_pf_context(ul_token=ul_token)
+                            self.cancel_all_waiting_orders_from_pf_context(ul_token=ul_token, show_table=False)
 
                         __square_off_position(df=df, symbol=ul_symbol, wait_flag=wait_flag)
                         time.sleep(2)  # Allow settlement time for orders to complete

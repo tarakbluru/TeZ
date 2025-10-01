@@ -519,7 +519,6 @@ class TeZ_App_BE(ProcessingUnit):
             try:
                 logger.info("Displaying updated records after square-off...")
                 self.manual_trader.show_portfolio()
-                self.manual_trader.show_waiting_orders()
             except Exception as display_error:
                 logger.error(f"Error displaying records after square-off: {display_error}")
                 
@@ -978,10 +977,12 @@ class TeZ_App_BE(ProcessingUnit):
             # Track publishing statistics
             self._data_updates_sent += 1
             
-            # Only log when P&L changes or periodically for health check
+            # Reduce log frequency - only log significant P&L changes or periodically
             if current_pnl != self._last_pnl:
                 change = current_pnl - self._last_pnl
-                logger.debug(f"Published P&L update: {self._last_pnl:.2f} -> {current_pnl:.2f} (Change: {change:+.2f}, total sent: {self._data_updates_sent})")
+                # Only log every 10th P&L change or if change is significant (>= 50)
+                if self._data_updates_sent % 10 == 0 or abs(change) >= 50:
+                    logger.debug(f"Published P&L update: {self._last_pnl:.2f} -> {current_pnl:.2f} (Change: {change:+.2f}, total sent: {self._data_updates_sent})")
             elif self._data_updates_sent % 100 == 0:
                 logger.debug(f"P&L health check: {current_pnl:.2f} (total sent: {self._data_updates_sent})")
             
