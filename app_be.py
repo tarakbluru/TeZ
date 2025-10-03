@@ -333,8 +333,8 @@ class TeZ_App_BE(ProcessingUnit):
         from threading import Timer
         import app_utils as utils
         
-        rm_durn = utils.calcRemainingDuration(self._sq_off_time.hour, self._sq_off_time.minute)
-        if (rm_durn > 0):
+        rm_durn = utils.calcRemainingDuration(self._sq_off_time.hour, self._sq_off_time.minute) + 1.0  # Add 1 sec buffer for timer precision
+        if (rm_durn > 1.0):  # Ensure we have more than just the buffer time
             self.sqoff_timer = Timer(rm_durn, self._square_off_position_timer)
         else:
             self.sqoff_timer = None
@@ -348,13 +348,14 @@ class TeZ_App_BE(ProcessingUnit):
     
     def _square_off_position_timer(self):
         """Timer callback for automatic square-off"""
-        current_time = datetime.now().strftime("%H:%M")  # Timer manager expects HH:MM format
-        logger.info(f'{current_time} !! Auto Square Off Time !!')
-        
+        current_time_display = datetime.now().strftime("%H:%M:%S")  # Show seconds for accurate timing display
+        current_time_timer = datetime.now().strftime("%H:%M")  # Timer manager expects HH:MM format
+        logger.info(f'{current_time_display} !! Auto Square Off Time !!')
+
         # Execute timer square-off via SquareOff Timer Manager - handles execution + push notifications
         try:
             if self.timer_manager:
-                success = self.timer_manager.execute_timer_squareoff(current_time)
+                success = self.timer_manager.execute_timer_squareoff(current_time_timer)
                 if success:
                     logger.info("Timer square-off completed successfully via SquareOff Timer Manager")
                 else:

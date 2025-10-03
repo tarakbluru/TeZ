@@ -374,6 +374,12 @@ class AppFE:
         
         # Price entry with validation
         def on_validate_input(event):
+            # Allow navigation and editing keys
+            navigation_keys = {"Left", "Right", "Home", "End", "Delete", "Tab"}
+            if event.keysym in navigation_keys:
+                return
+
+            # Allow digits and decimal point
             if event.char.isdigit() or event.char == ".":
                 current_text = self.price_entry.get()
                 cursor_index = self.price_entry.index(tk.INSERT)
