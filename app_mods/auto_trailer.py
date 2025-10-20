@@ -95,7 +95,13 @@ class AutoTrailer:
             self.max_pnl = None
             self.mv_to_cost_pnl = current_pnl
             self.trail_sl_level = None
-            
+
+            # Reset event state flags to clear previous session's target/SL hits
+            self._current_state.target_hit = False
+            self._current_state.sl_hit = False
+            self._current_state.sq_off_done = False
+            self._current_state.pnl = current_pnl
+
             logger.info(f"AutoTrailer activated with SL: {params.sl}, Target: {params.target}, Initial P&L: {current_pnl}")
             logger.info("AutoTrailer internal state initialized/reset")
             return True
@@ -108,20 +114,20 @@ class AutoTrailer:
         """
         Deactivate auto-trading
         Called by PFMU.deactivate_auto_trading()
-        
+
         Returns:
-            bool: True if deactivation successful  
+            bool: True if deactivation successful
         """
         try:
             self._active = False
             self._params = None
-            
-            # Update state to reflect deactivation
-            self._current_state.sq_off_done = True
-            
+
+            # Note: Do NOT set sq_off_done here - it should only be set when actual square-off occurs
+            # Setting it here incorrectly blocks manual trading after deactivation
+
             logger.info("AutoTrailer deactivated")
             return True
-            
+
         except Exception as e:
             logger.error(f"Error deactivating AutoTrailer: {e}")
             return False
@@ -165,29 +171,44 @@ class AutoTrailer:
             return AutoTrailerAction()  # No action needed
         
         # Check trailing stop-loss condition first (takes precedence over fixed SL)
-        if (self.trail_sl_state == TRAIL_SL_STATE.TRAIL_STARTED and 
-            self.trail_sl_level is not None and 
+        if (self.trail_sl_state == TRAIL_SL_STATE.TRAIL_STARTED and
+            self.trail_sl_level is not None and
             current_pnl <= self.trail_sl_level):
             logger.info(f"Trailing SL hit: PnL {current_pnl} <= Trailing SL {self.trail_sl_level}")
             self.trail_sl_state = TRAIL_SL_STATE.TRAIL_SL_HIT
+
+            # Update state flags to indicate SL hit and square-off triggered
+            self._current_state.sl_hit = True
+            self._current_state.sq_off_done = True
+
             return AutoTrailerAction(
                 should_square_off=True,
                 reason="TRAIL_SL_HIT",
                 pnl=current_pnl
             )
-        
+
         # Check fixed stop-loss condition
         if current_pnl <= params.sl:
             logger.info(f"SL condition hit: PnL {current_pnl} <= SL {params.sl}")
+
+            # Update state flags to indicate SL hit and square-off triggered
+            self._current_state.sl_hit = True
+            self._current_state.sq_off_done = True
+
             return AutoTrailerAction(
                 should_square_off=True,
-                reason="SL_HIT", 
+                reason="SL_HIT",
                 pnl=current_pnl
             )
-        
-        # Check target condition  
+
+        # Check target condition
         elif current_pnl >= params.target:
             logger.info(f"Target condition hit: PnL {current_pnl} >= Target {params.target}")
+
+            # Update state flags to indicate target hit and square-off triggered
+            self._current_state.target_hit = True
+            self._current_state.sq_off_done = True
+
             return AutoTrailerAction(
                 should_square_off=True,
                 reason="TARGET_HIT",

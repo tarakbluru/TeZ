@@ -481,7 +481,16 @@ class TeZ_App_BE(ProcessingUnit):
                 
             # Convert to InstrumentInfo object
             inst_info = app_mods.shared_classes.InstrumentInfo(**inst_info)
-            
+
+            # Block orders if auto-trader target/SL already hit today
+            # Note: Check state even if auto-trader is currently inactive - state persists after deactivation
+            if self.autotrailer:
+                at_state = self.autotrailer.get_autotrailer_ui_state()
+                if at_state.target_hit or at_state.sl_hit or at_state.sq_off_done:
+                    logger.warning(f"Order blocked: Auto-trader already hit target/SL today (target_hit={at_state.target_hit}, sl_hit={at_state.sl_hit}, sq_off_done={at_state.sq_off_done})")
+                    logger.info(f"Market action {action} blocked: Auto-trader target/SL already hit today")
+                    return 0  # Return 0 qty taken
+
             # Use manual trader for position taking
             qty_taken = self.manual_trader.take_position(action=action, inst_info=inst_info, trade_price=trade_price)
             

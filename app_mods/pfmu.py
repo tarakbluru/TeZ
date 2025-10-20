@@ -941,9 +941,21 @@ class PFMU:
         else:
             logger.info(f'Not able to fetch the positions. Check manually')
 
-    def square_off_position(self, mode, ul_index: str = None, ul_symbol:str=None, 
+    def square_off_position(self, mode, ul_index: str = None, ul_symbol:str=None,
                             per: float = 100, inst_type: str = None, partial_exit: bool = False, exit_flag=True, trigger_source: str = "USER"):
-        logger.debug(f'[SQUARE_OFF_DEBUG] Starting square_off_position: mode={mode}, ul_index={ul_index}, ul_symbol={ul_symbol}, per={per}, inst_type={inst_type}, partial_exit={partial_exit}, exit_flag={exit_flag}')
+        logger.debug(f'[SQUARE_OFF_DEBUG] Starting square_off_position: mode={mode}, ul_index={ul_index}, ul_symbol={ul_symbol}, per={per}, inst_type={inst_type}, partial_exit={partial_exit}, exit_flag={exit_flag}, trigger_source={trigger_source}')
+
+        # Enforce exit_flag rules: Only TIMER can shut down PMU during trading hours
+        original_exit_flag = exit_flag
+        if trigger_source == "TIMER":
+            # End of day - always shut down PMU
+            exit_flag = True
+        else:
+            # During trading hours (AUTOTRAILER, USER, etc.) - keep PMU running
+            exit_flag = False
+
+        if original_exit_flag != exit_flag:
+            logger.info(f'[SQUARE_OFF_DEBUG] exit_flag overridden: {original_exit_flag} -> {exit_flag} (trigger_source={trigger_source})')
 
         def place_sq_off_order(tsym: str, b_or_s: str, exit_qty: int, ls: int, frz_qty: int, exchange='NSE'):
             nonlocal self

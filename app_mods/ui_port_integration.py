@@ -647,15 +647,14 @@ class SimpleUIPortManager:
         })
         
         if len(all_data) > 0:
-            # Reduce log frequency - only log every 20th call or when there are many changes
-            self._consume_call_count = getattr(self, '_consume_call_count', 0) + 1
-            if (self._consume_call_count % 20 == 0 or
-                (self._pnl_change_count > 0 and self._pnl_change_count % 10 == 0) or
-                (self._tick_change_count > 0 and self._tick_change_count % 10 == 0)):
-                logger.debug(f"Consumed {len(all_data)} packets: P&L Changes={self._pnl_change_count}, Tick Changes={self._tick_change_count} - Final: PnL={self._last_pnl:.2f}, LTP={self._last_ltp}")
-            elif len(all_data) >= 100:
-                # Extended periodic health check to avoid complete silence
-                logger.debug(f"Processed {len(all_data)} packets (minimal logging): P&L={self._last_pnl:.2f}, LTP={self._last_ltp}")
+            # Only log when there are actual changes to avoid spam
+            if self._pnl_change_count > 0 or self._tick_change_count > 0:
+                self._consume_call_count = getattr(self, '_consume_call_count', 0) + 1
+                # Log every 20th call or when there are many changes
+                if (self._consume_call_count % 20 == 0 or
+                    (self._pnl_change_count > 0 and self._pnl_change_count % 10 == 0) or
+                    (self._tick_change_count > 0 and self._tick_change_count % 10 == 0)):
+                    logger.debug(f"Consumed {len(all_data)} packets: P&L Changes={self._pnl_change_count}, Tick Changes={self._tick_change_count} - Final: PnL={self._last_pnl:.2f}, LTP={self._last_ltp}")
         
         return data_summary
     

@@ -201,7 +201,8 @@ class AutoTrailerManager:
             additional_data = {"auto_pnl": pnl}
             
             # Call PFMU with valid parameters only
-            success = self.pfmu.square_off_position(mode="ALL", trigger_source="AUTOTRAILER")
+            # Keep PMU running (exit_flag=False) to allow manual trades after auto-square-off
+            success = self.pfmu.square_off_position(mode="ALL", exit_flag=False, trigger_source="AUTOTRAILER")
             
             if success:
                 # PUSH NOTIFICATION - Immediate UI update (0ms latency)
